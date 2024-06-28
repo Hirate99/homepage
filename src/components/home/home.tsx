@@ -150,7 +150,7 @@ function Intro() {
 
 export function Home() {
   return (
-    <main className="h-screen min-h-[500px] min-w-[280px] overflow-y-scroll bg-[--orange-2] font-serif">
+    <main className="h-screen min-h-[500px] min-w-[280px] bg-[--orange-2] font-serif">
       <Intro />
     </main>
   );

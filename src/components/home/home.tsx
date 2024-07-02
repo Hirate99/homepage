@@ -61,7 +61,7 @@ function Intro() {
             backgroundSize: '4px 4px',
           }}
         />
-        <p
+        <div
           className={cn(
             'absolute max-h-full w-full overflow-hidden font-bold text-[--orange-5]',
             notoSerif.className,
@@ -69,8 +69,8 @@ function Intro() {
             'md:max-w-[840px] md:text-7xl',
           )}
         >
-          {Lyrics}you
-        </p>
+          {Lyrics}
+        </div>
         <IntroSection className="relative z-10 pt-[env(safe-area-inset-top)] text-4xl leading-tight">
           <p
             className="text-transparent"
@@ -80,7 +80,7 @@ function Intro() {
           >
             Hi, {`I\'m`}
           </p>
-          <p className="text-5xl font-black text-[--orange-9]">Haonan Su</p>
+          <h1 className="text-5xl font-black text-[--orange-9]">Haonan Su</h1>
           <Image
             className={cn(
               'mt-4 h-32 w-32 rounded-full shadow-xl',

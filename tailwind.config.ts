@@ -67,6 +67,19 @@ const config = {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
+        'ping-slow': {
+          '0%, 39.9%': {
+            opacity: '0',
+          },
+          '40%': {
+            transform: 'scale(1)',
+            opacity: '1',
+          },
+          '60%, 100%': {
+            transform: 'scale(2)',
+            opacity: '0',
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -74,7 +87,7 @@ const config = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [require('tailwindcss-animate'), require('tailwindcss-safe-area')],
 } satisfies Config;
 
 export default config;

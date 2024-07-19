@@ -75,8 +75,19 @@
   * {
     @apply border-border;
   }
+
+  html {
+    height: -webkit-fill-available;
+  }
+
   body {
     @apply bg-background text-foreground;
+    height: -webkit-fill-available !important;
+  }
+
+  /* If using React, set height on the root div as well */
+  #root {
+    height: -webkit-fill-available;
   }
 }
 

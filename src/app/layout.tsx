@@ -10,8 +10,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Haonan Su',
-  description:
-    'Personal website of Haonan Su, a software engineer who is interested in building user-friendly applications.',
+  description: 'Personal website of Haonan Su (苏浩南), a software engineer.',
 };
 
 export default function RootLayout({
@@ -21,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={cn(inter.className, 'bg-[--orange-2]')}>
+      <body className={cn(inter.className, 'flex flex-col bg-[--orange-2]')}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
         </ThemeProvider>

@@ -66,6 +66,9 @@ function Intro() {
             backgroundSize: '4px 4px',
           }}
         />
+        <div className="absolute left-0 top-0 select-none opacity-0">
+          <Markdown value={intro} />
+        </div>
         <div
           className={cn(
             'absolute max-h-full w-full overflow-hidden font-bold text-[--orange-5]',
@@ -186,7 +189,7 @@ function AboutMe() {
   return (
     <article
       className={cn(
-        'mb-auto max-w-[720px] px-4 pb-3 font-serif text-lg font-light text-[--orange-8]',
+        'mb-auto max-w-[720px] select-text px-4 pb-3 font-serif text-lg font-light text-[--orange-8]',
         'sm:pb-2 sm:text-justify',
         'md:max-w-[840px] md:text-xl',
       )}
@@ -201,7 +204,7 @@ function AboutMe() {
           '[&_strong]:font-bold',
         )}
       >
-        <Markdown value={intro} />
+        <Markdown value={intro} openLinksInNewTab />
       </section>
     </article>
   );
@@ -230,7 +233,7 @@ function AboutFooter() {
 
 export function Home() {
   return (
-    <main className="flex h-full min-h-[500px] min-w-[280px] flex-grow flex-col bg-[--orange-2] font-serif">
+    <main className="flex h-full min-h-[500px] min-w-[280px] flex-grow flex-col overflow-x-hidden bg-[--orange-2] font-serif">
       <Intro />
     </main>
   );

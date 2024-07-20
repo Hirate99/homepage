@@ -87,7 +87,11 @@ const config = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate'), require('tailwindcss-safe-area')],
+  plugins: [
+    require('tailwindcss-animate'),
+    require('tailwindcss-safe-area'),
+    require('tailwind-scrollbar'),
+  ],
 } satisfies Config;
 
 export default config;

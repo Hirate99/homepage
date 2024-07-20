@@ -165,12 +165,13 @@ function Intro() {
             <DrawerContent
               className={cn(
                 'fixed bottom-0 z-50 flex w-full flex-col items-center rounded-tl-xl rounded-tr-xl border-none bg-white/90 py-3 !pb-0 backdrop-blur-md',
-                'h-screen-safe sm:h-[calc(100%-60px)]',
+                'h-screen-safe scrollbar-track-transparent sm:h-[calc(100%-60px)]',
               )}
             >
               <div
                 className={cn(
                   'mt-6 flex h-full w-full max-w-[720px] flex-grow flex-col overflow-y-auto',
+                  'sm:scrollbar-none',
                   'md:max-w-[840px]',
                 )}
               >
@@ -233,7 +234,7 @@ function AboutFooter() {
 
 export function Home() {
   return (
-    <main className="flex h-full min-h-[500px] min-w-[280px] flex-grow flex-col overflow-x-hidden bg-[--orange-2] font-serif">
+    <main className="flex h-full min-h-[500px] min-w-[280px] flex-grow flex-col overflow-hidden bg-[--orange-2] font-serif">
       <Intro />
     </main>
   );

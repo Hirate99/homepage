@@ -26,3 +26,9 @@ At Tencent, I participated in the development of Miaojian, a CapCut-like mobile 
 - [**Shuwashuwa**](https://github.com/team-combinatorics/shuwashuwa-wxapp): A WeChat Mini Program for volunteer services by students of the School of EECS at Peking University.
 - **The Nachos Operating System** (PKU Operating Systems Course Lab): Implemented the Nachos Operating System with features like threads, mutexes, semaphores, pipes, virtual memory, and a Linux-like file system using C++.
 - **ICS Course Labs** (PKU ICS / CMU 15-213 Labs): Completed and benchmarked various course labs, including an LRU cache simulator, a pipelined Y86-64 processor, a simple Unix shell, and a memory allocator.
+
+## Personal Interests
+
+- I love traveling and photography. You can check out some of my work on my [Instagram](https://www.instagram.com/kevinsu99/).
+- Reading, currently interested in the history of Northern and Southern dynasties.
+- Amateur in badminton & cycling.

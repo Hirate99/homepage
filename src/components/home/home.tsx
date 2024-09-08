@@ -7,7 +7,10 @@ import Link from 'next/link';
 
 import { SiGithub, SiGmail, SiLinkedin } from '@icons-pack/react-simple-icons';
 import Markdown from 'marked-react';
-import { BsFillArrowDownCircleFill } from 'react-icons/bs';
+import {
+  BsFillArrowDownCircleFill,
+  BsFillPersonVcardFill,
+} from 'react-icons/bs';
 import { RiInstagramFill } from 'react-icons/ri';
 
 import { notoSerif } from '@/fonts';
@@ -126,9 +129,21 @@ function Intro() {
             'flex items-center justify-start gap-x-4 sm:gap-x-6',
           )}
         >
-          <Link href="https://github.com/Hirate99" target="_blank">
-            <SiGithub className="h-8 w-8 text-[--orange-9]" />
-          </Link>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href="https://r2.mskyurina.top/Y3YtMQ==.pdf"
+                  target="_blank"
+                >
+                  <BsFillPersonVcardFill className="h-[34px] w-10 text-[--orange-9]" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent className="bg-[--orange-9] font-sans text-sm shadow-md">
+                My CV / Resume
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {responsive === 'mobile' ? (
             <Popover>
               <PopoverTrigger asChild>
@@ -146,15 +161,12 @@ function Intro() {
                     <SiGmail className="h-8 w-8 text-[--orange-9] hover:cursor-pointer" />
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent className="bg-[--orange-9] font-sans text-sm">
+                <TooltipContent className="bg-[--orange-9] font-sans text-sm shadow-md">
                   haonan.su@outlook.com
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
-          <Link href="https://www.instagram.com/kevinsu99/" target="_blank">
-            <RiInstagramFill className="h-9 w-9 text-[--orange-9]" />
-          </Link>
           <Drawer>
             <DrawerTrigger asChild>
               <button className="relative ml-auto mr-2 flex h-10 w-10 outline-none sm:mr-0">
@@ -227,6 +239,9 @@ function AboutFooter() {
         target="_blank"
       >
         <SiLinkedin className="h-8 w-8 text-[--orange-9]" />
+      </Link>
+      <Link href="https://www.instagram.com/kevinsu99/" target="_blank">
+        <RiInstagramFill className="h-9 w-9 text-[--orange-9]" />
       </Link>
     </footer>
   );

@@ -132,10 +132,7 @@ function Intro() {
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link
-                  href="https://r2.mskyurina.top/Y3YtMQ==.pdf"
-                  target="_blank"
-                >
+                <Link href={cdn('Y3YtMg==.pdf')} target="_blank">
                   <BsFillPersonVcardFill className="h-[34px] w-10 text-[--orange-9]" />
                 </Link>
               </TooltipTrigger>

@@ -13,8 +13,10 @@ export const viewport: Viewport = {
 
 export const runtime = 'edge';
 
+export const revalidate = 60;
+
 export default async function Index() {
-  const collections = await prisma.collection.findMany({
+  const collections = await prisma().collection.findMany({
     select: {
       title: true,
       images: {

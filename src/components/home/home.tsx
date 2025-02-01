@@ -7,10 +7,8 @@ import Link from 'next/link';
 
 import { SiGithub, SiGmail, SiLinkedin } from '@icons-pack/react-simple-icons';
 import Markdown from 'marked-react';
-import {
-  BsFillArrowDownCircleFill,
-  BsFillPersonVcardFill,
-} from 'react-icons/bs';
+import { AiFillInfoCircle } from 'react-icons/ai';
+import { BsFillPersonVcardFill } from 'react-icons/bs';
 import { RiInstagramFill } from 'react-icons/ri';
 
 import { notoSerif } from '@/fonts';
@@ -27,6 +25,8 @@ import {
 import { EmblaCarousel } from './carousel';
 import intro from './intro.md';
 import { Lyrics } from './lyrics.data';
+
+import { type IDisplayImage, Images } from './images';
 
 function IntroSection({
   className,
@@ -167,8 +167,8 @@ function Intro() {
           <Drawer>
             <DrawerTrigger asChild>
               <button className="relative ml-auto mr-2 flex h-10 w-10 outline-none sm:mr-0">
-                <BsFillArrowDownCircleFill className="absolute inline-flex h-full w-full animate-[ping-slow_3s_ease-in-out_infinite] rounded-full text-[--orange-9]" />
-                <BsFillArrowDownCircleFill className="relative h-full w-full text-[--orange-9]" />
+                <AiFillInfoCircle className="absolute inline-flex h-full w-full animate-[ping-slow_3s_ease-in-out_infinite] rounded-full text-[--orange-9]" />
+                <AiFillInfoCircle className="relative h-full w-full text-[--orange-9]" />
               </button>
             </DrawerTrigger>
             <DrawerContent
@@ -244,10 +244,15 @@ function AboutFooter() {
   );
 }
 
-export function Home() {
+export function Home({ images }: { images: IDisplayImage[] }) {
   return (
-    <main className="flex h-full min-h-[500px] min-w-[280px] flex-grow flex-col overflow-hidden bg-[--orange-2] font-serif">
-      <Intro />
-    </main>
+    <>
+      <main className="flex h-screen min-h-[500px] min-w-[280px] flex-grow flex-col overflow-hidden bg-[--orange-2] font-serif">
+        <Intro />
+      </main>
+      <section className="relative left-1/2 max-w-screen-xl -translate-x-1/2">
+        <Images images={images} />
+      </section>
+    </>
   );
 }

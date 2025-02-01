@@ -82,7 +82,6 @@
 
   body {
     @apply bg-background text-foreground;
-    height: -webkit-fill-available !important;
   }
 
   /* If using React, set height on the root div as well */

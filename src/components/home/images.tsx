@@ -28,7 +28,10 @@ function ImageTile({ image }: { image: IDisplayImage }) {
     >
       <a href={image.src} target="_blank">
         <img
-          className="transition-all duration-500 hover:scale-110 hover:cursor-pointer"
+          className={cn(
+            'transition-all duration-500 hover:cursor-pointer',
+            isHover ? 'scale-110' : '',
+          )}
           src={clipCDNImage(image.src, { width: 500 })}
           alt=""
         />
@@ -36,7 +39,7 @@ function ImageTile({ image }: { image: IDisplayImage }) {
       {image.tag && (
         <div
           className={cn(
-            'absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-700/80 to-slate-50/0 px-2 py-1 font-sans text-sm font-light text-white opacity-0 transition-opacity',
+            'absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-700/80 to-slate-50/0 px-2 py-1 font-sans text-sm font-light text-white opacity-0 transition-opacity hover:cursor-pointer',
             isHover ? 'opacity-100' : 'opacity-0',
           )}
         >

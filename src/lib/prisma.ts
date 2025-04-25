@@ -1,4 +1,4 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
+import { neonConfig } from '@neondatabase/serverless';
 import { PrismaNeon } from '@prisma/adapter-neon';
 import { PrismaClient } from '@prisma/client';
 import ws from 'ws';
@@ -10,8 +10,7 @@ if (typeof WebSocket === 'undefined') {
 function prisma() {
   const connectionString = `${process.env.DATABASE_URL}`;
 
-  const pool = new Pool({ connectionString });
-  const adapter = new PrismaNeon(pool);
+  const adapter = new PrismaNeon({ connectionString });
 
   return new PrismaClient({ adapter });
 }

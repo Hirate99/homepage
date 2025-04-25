@@ -1,8 +1,16 @@
 'use client';
 
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
-import { type ThemeProviderProps } from 'next-themes/dist/types';
+import { ThemeProviderProps } from 'next-themes/dist/types';
+
+import { useMounted } from '@/hooks/use-mounted';
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
+  const mounted = useMounted();
+
+  return mounted ? (
+    <NextThemesProvider {...props}>{children}</NextThemesProvider>
+  ) : (
+    <>{children}</>
+  );
 }

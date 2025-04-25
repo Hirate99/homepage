@@ -13,7 +13,7 @@ export const viewport: Viewport = {
 
 export const runtime = 'edge';
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export default async function Index() {
   const collections = await prisma().collection.findMany({
@@ -30,16 +30,14 @@ export default async function Index() {
     },
   });
 
-  const images = _.shuffle(
-    collections
-      .map(({ images, title }) =>
-        images.map(({ src }) => ({
-          tag: title ?? '',
-          src,
-        })),
-      )
-      .flat(),
-  );
+  const images = _.shuffle(collections)
+    .map(({ images, title }) =>
+      images.map(({ src }) => ({
+        tag: title ?? '',
+        src,
+      })),
+    )
+    .flat();
 
   return <Home images={images} />;
 }

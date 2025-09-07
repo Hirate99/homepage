@@ -4,6 +4,7 @@ import _ from 'lodash';
 
 import { Home } from '@/components/home';
 import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -15,20 +16,34 @@ export const runtime = 'edge';
 
 export const revalidate = 3600;
 
-export default async function Index() {
+interface IDBImage {
+  title: string;
+  images: {
+    src: string;
+  }[];
+}
+
+const getCollections = async () => {
+  const cached = await redis.get<IDBImage[]>('collections');
+  if (cached) return cached;
+
+  // Query D1 via Prisma
   const collections = await prisma().collection.findMany({
     select: {
       title: true,
-      images: {
-        select: {
-          src: true,
-        },
-      },
+      images: { select: { src: true } },
     },
-    orderBy: {
-      createdAt: 'asc',
-    },
+    orderBy: { createdAt: 'asc' },
   });
+
+  // Cache result for 1hr
+  await redis.set('collections', JSON.stringify(collections), { ex: 3600 });
+
+  return collections;
+};
+
+export default async function Index() {
+  const collections = await getCollections();
 
   const images = _.shuffle(collections)
     .map(({ images, title }) =>

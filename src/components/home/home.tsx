@@ -13,7 +13,7 @@ import { RiInstagramFill } from 'react-icons/ri';
 
 import { notoSerif } from '@/fonts';
 import { useBreakingPoint } from '@/hooks/use-breaking-point';
-import { cdn, cn } from '@/lib/utils';
+import { cdn, clipCDNImage, cn } from '@/lib/utils';
 import { Drawer, DrawerContent, DrawerTrigger } from '../ui/drawer';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import {
@@ -97,7 +97,9 @@ function Intro() {
               'mt-4 h-32 w-32 rounded-full shadow-xl',
               'md:absolute md:right-0 md:top-0 md:mt-[6px] md:h-40 md:w-40 md:-translate-y-1/4',
             )}
-            src={cdn('fumikiri-mo.webp')}
+            src={clipCDNImage(cdn('fumikiri-mo.webp'), {
+              width: 500,
+            })}
             width={500}
             height={500}
             alt="avatar"
@@ -132,7 +134,7 @@ function Intro() {
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href={cdn('Y3YtMg==.pdf')} target="_blank">
+                <Link href={cdn('bXNreXVyaW5hLWN2.pdf')} target="_blank">
                   <BsFillPersonVcardFill className="h-[34px] w-10 text-[--orange-9]" />
                 </Link>
               </TooltipTrigger>

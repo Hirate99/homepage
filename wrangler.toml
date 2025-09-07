@@ -1,0 +1,9 @@
+# Top-level configuration for Wrangler
+name = "homepage"
+compatibility_date = "2024-05-01"
+
+# D1 database binding
+[[d1_databases]]
+binding = "homepage" # The binding name used in the code
+database_name = "homepage-db" # A descriptive name for the database in Cloudflare
+database_id = "22351b35-c780-4984-a829-bdfc31ca846b"

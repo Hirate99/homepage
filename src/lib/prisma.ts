@@ -1,17 +1,12 @@
-import { neonConfig } from '@neondatabase/serverless';
-import { PrismaNeon } from '@prisma/adapter-neon';
 import { PrismaClient } from '@prisma/client';
-import ws from 'ws';
-
-if (typeof WebSocket === 'undefined') {
-  neonConfig.webSocketConstructor = ws;
-}
+import { PrismaD1 } from '@prisma/adapter-d1';
 
 function prisma() {
-  const connectionString = `${process.env.DATABASE_URL}`;
-
-  const adapter = new PrismaNeon({ connectionString });
-
+  const adapter = new PrismaD1({
+    CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID!,
+    CLOUDFLARE_DATABASE_ID: process.env.CLOUDFLARE_DATABASE_ID!,
+    CLOUDFLARE_D1_TOKEN: process.env.CLOUDFLARE_D1_TOKEN!,
+  });
   return new PrismaClient({ adapter });
 }
 

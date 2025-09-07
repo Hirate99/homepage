@@ -8,6 +8,13 @@ I interned at the Open Source Software Data Analytics Lab at Peking University, 
 
 ## Working Experience
 
+#### Amazon Web Services (AWS) (2025.5 - 2025.8)
+
+Designed and built AWS Wikif.ai, aimed at automating the generation and updating of internal wiki pages
+
+- Built a desktop application with Electron, React, and TypeScript, leveraging LangGraph to orchestrate hybrid LLM workflows and agents, and integrated AWS Bedrock for intelligent document generation
+- Integrated 30+ internal data sources with support for incremental background updates, reducing document creation and maintenance time from hours to minutes, with multiple teams already participating in testing
+
 #### Sohu (2022.7 ~ 2024.7)
 
 At Sohu, I conceived and developed numerous innovative projects at the forefront of technology, including:

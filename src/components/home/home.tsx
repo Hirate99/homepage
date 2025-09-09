@@ -89,7 +89,7 @@ function Intro() {
               WebkitTextStroke: '1px var(--orange-9)',
             }}
           >
-            Hi, {`I\'m`}
+            Hi, {`I'm`}
           </p>
           <h1 className="text-5xl font-black text-[--orange-9]">Haonan Su</h1>
           <Image
@@ -233,10 +233,7 @@ function AboutFooter() {
       <Link href="https://github.com/Hirate99" target="_blank">
         <SiGithub className="h-8 w-8 text-[--orange-9]" />
       </Link>
-      <Link
-        href="https://www.linkedin.com/in/%E6%B5%A9%E5%8D%97-%E8%8B%8F-5829311bb/"
-        target="_blank"
-      >
+      <Link href="https://www.linkedin.com/in/haonansu/" target="_blank">
         <SiLinkedin className="h-8 w-8 text-[--orange-9]" />
       </Link>
       <Link href="https://www.instagram.com/kevinsu99/" target="_blank">

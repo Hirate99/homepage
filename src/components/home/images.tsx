@@ -4,6 +4,7 @@ import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
 
 import { motion } from 'framer-motion';
 
+import { ImageSkeleton } from '@/components/home/image-skeleton';
 import { useHover } from '@/hooks/use-hover';
 import { useResize } from '@/hooks/use-resize';
 
@@ -14,7 +15,7 @@ export interface IDisplayImage {
   src: string;
 }
 
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
 
 interface IImageTileProps {
   image: IDisplayImage;
@@ -39,22 +40,28 @@ const ImageTile = memo(function ImageTile({
     <motion.div
       {...props}
       initial={{ opacity: 0, y: 25 }}
-      animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded ? 0 : 25 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: Math.random() * 0.2 }}
-      className="relative overflow-hidden rounded-lg"
+      className="relative w-full overflow-hidden rounded-lg"
     >
-      <a href={image.src} target="_blank">
+      {!isLoaded && <ImageSkeleton />}
+      <a
+        href={image.src}
+        target="_blank"
+        style={{ display: isLoaded ? 'block' : 'none' }}
+      >
         <img
           className={cn(
             'transition-all duration-500 hover:cursor-pointer',
             isHover ? 'scale-110' : '',
+            isLoaded ? 'opacity-100' : 'opacity-0',
           )}
           src={clipCDNImage(image.src, { width: 500 })}
           alt=""
           onLoad={handleLoad}
         />
       </a>
-      {image.tag && (
+      {image.tag && isLoaded && (
         <div
           className={cn(
             'absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-700/80 to-slate-50/0 px-2 py-1 font-sans text-sm font-light text-white opacity-0 transition-opacity hover:cursor-pointer',
@@ -72,9 +79,7 @@ ImageTile.displayName = 'ImageTile';
 
 export function Images({ images }: { images: IDisplayImage[] }) {
   const [columns, setColumns] = useState(0);
-  // Determines how many images are currently visible. Starts with the first batch.
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
-  // Tracks the loading state of every image in the `images` array.
   const [imageLoaded, setImageLoaded] = useState(
     Array(images.length).fill(false),
   );
@@ -83,15 +88,11 @@ export function Images({ images }: { images: IDisplayImage[] }) {
     setColumns(window.innerWidth < 750 ? 2 : 3);
   }, true);
 
-  // This effect is the core of the batch loading logic.
   useEffect(() => {
-    // Check if all images in the *current* visible batch are loaded.
     const allVisibleImagesLoaded = imageLoaded
       .slice(0, visibleCount)
       .every(Boolean);
 
-    // If all visible images are loaded and there are more images to show,
-    // increase the visible count to reveal the next batch.
     if (allVisibleImagesLoaded && visibleCount < images.length) {
       setVisibleCount((prevCount) =>
         Math.min(prevCount + BATCH_SIZE, images.length),
@@ -116,7 +117,6 @@ export function Images({ images }: { images: IDisplayImage[] }) {
           columnsCountBreakPoints={{ 350: 2, 750: 3 }}
         >
           <Masonry columnsCount={columns}>
-            {/* Only render the images that are currently visible */}
             {images.slice(0, visibleCount).map((image, idx) => (
               <ImageTile
                 key={image.src}

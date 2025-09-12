@@ -4,8 +4,9 @@ import Script from 'next/script';
 
 import { ThemeProvider } from '@/providers/theme-provider';
 
-import './globals.css';
 import { cn } from '@/lib/utils';
+
+import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -51,18 +52,21 @@ export default function RootLayout({
   ];
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <Script
-        id="json-ld-data"
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-        strategy="beforeInteractive"
-      />
-      <body className={cn(inter.className, 'bg-white')}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
+    <>
+      <head>
+        <script
+          id="json-ld-data"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+      </head>
+      <html lang="en" suppressHydrationWarning>
+        <body className={cn(inter.className, 'bg-white')}>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            {children}
+          </ThemeProvider>
+        </body>
+      </html>
+    </>
   );
 }

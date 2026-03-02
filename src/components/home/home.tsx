@@ -11,7 +11,7 @@ import { AiFillInfoCircle } from 'react-icons/ai';
 import { BsFillPersonVcardFill } from 'react-icons/bs';
 import { RiInstagramFill } from 'react-icons/ri';
 
-import { type DisplayImage } from '@/lib/collections';
+import { type CityPost } from '@/lib/collections';
 import { notoSerif } from '@/fonts';
 import { useBreakingPoint } from '@/hooks/use-breaking-point';
 import { cdn, clipCDNImage, cn } from '@/lib/utils';
@@ -32,7 +32,7 @@ import { EmblaCarousel } from './carousel';
 import intro from './intro.md';
 import { Lyrics } from './lyrics.data';
 
-import { Images } from './images';
+import { CityPosts } from './images';
 
 function IntroSection({
   className,
@@ -44,7 +44,7 @@ function IntroSection({
   return (
     <div
       className={cn(
-        'w-full max-w-[600px] self-start px-2 sm:self-center md:mt-20 md:max-w-[720px]',
+        'w-full max-w-[600px] self-center px-4 md:mt-20 md:max-w-[720px]',
         className,
       )}
     >
@@ -59,6 +59,9 @@ const Roles = [
   'Amateur Photographer',
 ];
 
+const actionIconClass =
+  'grid h-10 w-10 place-items-center rounded-lg border border-orange-500/15 bg-white/70 text-[--orange-9] shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white';
+
 function Intro() {
   const [currentRoleIdx, setCurrentRoleIdx] = useState(0);
 
@@ -67,6 +70,11 @@ function Intro() {
   return (
     <>
       <section className="relative flex w-full flex-grow flex-col items-center">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -left-20 top-8 h-72 w-72 animate-[heroFloat_14s_ease-in-out_infinite] rounded-full bg-orange-300/35 blur-3xl" />
+          <div className="absolute -right-20 top-20 h-80 w-80 animate-[heroFloat_18s_ease-in-out_infinite] rounded-full bg-amber-200/35 blur-3xl" />
+          <div className="absolute bottom-4 left-1/2 h-56 w-[80%] -translate-x-1/2 rounded-full bg-orange-100/60 blur-3xl" />
+        </div>
         <div
           className="absolute left-0 top-0 z-10 h-full w-full backdrop-blur-sm"
           style={{
@@ -90,17 +98,23 @@ function Intro() {
         </div>
         <IntroSection className="relative z-10 pt-[env(safe-area-inset-top)] text-4xl leading-tight">
           <p
-            className="text-transparent"
+            className="text-2xl uppercase tracking-[0.12em] text-transparent sm:text-[1.7rem]"
             style={{
               WebkitTextStroke: '1px var(--orange-9)',
             }}
           >
             Hi, {`I'm`}
           </p>
-          <h1 className="text-5xl font-black text-[--orange-9]">Haonan Su</h1>
+          <h1 className="text-5xl font-black leading-[0.92] tracking-tight text-[--orange-9] sm:text-6xl md:text-7xl">
+            Haonan Su
+          </h1>
+          <p className="mt-2 max-w-[440px] text-base leading-relaxed text-[--orange-8] sm:text-lg">
+            Building thoughtful web products with engineering, design, and
+            visual storytelling.
+          </p>
           <Image
             className={cn(
-              'mt-4 h-32 w-32 rounded-full shadow-xl',
+              'mt-4 h-32 w-32 rounded-full border-2 border-orange-300/70 shadow-2xl shadow-orange-700/30',
               'md:absolute md:right-0 md:top-0 md:mt-[6px] md:h-40 md:w-40 md:-translate-y-1/4',
             )}
             src={clipCDNImage(cdn('fumikiri-mo.webp'), {
@@ -115,7 +129,7 @@ function Intro() {
           className={cn('relative z-10 mt-auto flex flex-grow flex-col')}
         >
           <p
-            className={cn('mt-auto text-6xl text-transparent')}
+            className={cn('mt-auto text-5xl text-transparent sm:text-6xl')}
             style={{
               WebkitTextStroke: '1px var(--orange-9)',
             }}
@@ -128,20 +142,25 @@ function Intro() {
           </p>
           <EmblaCarousel slides={Roles} onSlideFocus={setCurrentRoleIdx} />
         </IntroSection>
-        <p className="mb-4 mt-2 flex w-full justify-center text-6xl font-black text-[--orange-8] md:mb-12 md:mt-8 md:text-7xl">
+        <p className="mb-4 mt-2 flex w-full justify-center text-5xl font-bold tracking-tight text-[--orange-8] md:mb-12 md:mt-8 md:text-6xl">
           青い、濃い、橙色の日
         </p>
         <footer
           className={cn(
-            'absolute bottom-0 left-1/2 z-10 mb-8 h-20 w-full max-w-[600px] -translate-x-1/2 self-start overflow-x-visible px-2 sm:mb-4 md:mb-12 md:max-w-[720px]',
-            'flex items-center justify-start gap-x-4 sm:gap-x-6',
+            'absolute bottom-0 left-1/2 z-10 mb-8 w-[calc(100%-2rem)] max-w-[600px] -translate-x-1/2 overflow-x-visible px-4 py-2 sm:mb-4 md:mb-12 md:max-w-[720px]',
+            'flex items-center justify-start gap-x-3 sm:gap-x-4',
+            'rounded-2xl border border-orange-500/20 bg-white/45 shadow-sm backdrop-blur-md',
           )}
         >
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href={cdn('bXNreXVyaW5hLWN2.pdf')} target="_blank">
-                  <BsFillPersonVcardFill className="h-[34px] w-10 text-[--orange-9]" />
+                <Link
+                  className={cn(actionIconClass, 'h-11 w-11')}
+                  href={cdn('bXNreXVyaW5hLWN2.pdf')}
+                  target="_blank"
+                >
+                  <BsFillPersonVcardFill className="h-[30px] w-[30px]" />
                 </Link>
               </TooltipTrigger>
               <TooltipContent className="bg-[--orange-9] font-sans text-sm shadow-md">
@@ -152,7 +171,9 @@ function Intro() {
           {responsive === 'mobile' ? (
             <Popover>
               <PopoverTrigger asChild>
-                <SiGmail className="h-8 w-8 text-[--orange-9] hover:cursor-pointer" />
+                <button className={actionIconClass} aria-label="Email">
+                  <SiGmail className="h-6 w-6" />
+                </button>
               </PopoverTrigger>
               <PopoverContent className="flex w-auto items-center bg-[--orange-9] text-white">
                 haonan.su@outlook.com
@@ -162,8 +183,11 @@ function Intro() {
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Link href="mailto:haonan.su@outlook.com">
-                    <SiGmail className="h-8 w-8 text-[--orange-9] hover:cursor-pointer" />
+                  <Link
+                    className={actionIconClass}
+                    href="mailto:haonan.su@outlook.com"
+                  >
+                    <SiGmail className="h-6 w-6" />
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent className="bg-[--orange-9] font-sans text-sm shadow-md">
@@ -174,7 +198,10 @@ function Intro() {
           )}
           <Drawer>
             <DrawerTrigger asChild>
-              <button className="relative ml-auto mr-2 flex h-10 w-10 outline-none sm:mr-0">
+              <button
+                className="relative ml-auto mr-2 grid h-10 w-10 place-items-center text-[--orange-9] sm:mr-0"
+                aria-label="Open about dialog"
+              >
                 <AiFillInfoCircle className="absolute inline-flex h-full w-full animate-[ping-slow_3s_ease-in-out_infinite] rounded-full text-[--orange-9]" />
                 <AiFillInfoCircle className="relative h-full w-full text-[--orange-9]" />
               </button>
@@ -208,18 +235,19 @@ function AboutMe() {
   return (
     <article
       className={cn(
-        'mb-auto max-w-[720px] select-text px-4 pb-3 font-serif text-lg font-light text-[--orange-8]',
+        'mb-auto max-w-[720px] select-text px-4 pb-3 font-serif text-lg font-light leading-8 text-[--orange-8]',
         'sm:pb-2 sm:text-justify',
         'md:max-w-[840px] md:text-xl',
       )}
     >
       <section
         className={cn(
-          '[&_h2]:py-1 [&_h2]:text-3xl [&_h2]:font-bold [&_h2]:text-[--orange-9] sm:[&_h2]:text-4xl',
-          '[&_h4]:text-xl [&_h4]:font-bold [&_h4]:text-[--orange-9] sm:[&_h4]:text-2xl',
-          '[&_p]:my-3',
+          '[&_h2]:mb-4 [&_h2]:mt-8 [&_h2]:border-l-4 [&_h2]:border-orange-500/70 [&_h2]:py-1 [&_h2]:pl-3 [&_h2]:text-3xl [&_h2]:font-bold [&_h2]:text-[--orange-9] sm:[&_h2]:text-4xl',
+          '[&_h4]:mt-6 [&_h4]:text-xl [&_h4]:font-bold [&_h4]:text-[--orange-9] sm:[&_h4]:text-2xl',
+          '[&_p]:my-4',
           '[&_a]:underline',
           '[&_ul]:my-3 [&_ul]:list-inside [&_ul]:list-disc',
+          '[&_li]:my-1',
           '[&_strong]:font-bold',
         )}
       >
@@ -233,31 +261,44 @@ function AboutFooter() {
   return (
     <footer
       className={cn(
-        'mb-6 mt-3 flex items-center gap-x-4 px-3',
+        'mb-6 mt-3 flex items-center gap-x-4 border-t border-orange-500/20 px-3 pt-4',
         'sm:mb-10 sm:gap-x-5',
       )}
     >
-      <Link href="https://github.com/Hirate99" target="_blank">
-        <SiGithub className="h-8 w-8 text-[--orange-9]" />
+      <Link
+        className={actionIconClass}
+        href="https://github.com/Hirate99"
+        target="_blank"
+      >
+        <SiGithub className="h-6 w-6" />
       </Link>
-      <Link href="https://www.linkedin.com/in/haonansu/" target="_blank">
-        <SiLinkedin className="h-8 w-8 text-[--orange-9]" />
+      <Link
+        className={actionIconClass}
+        href="https://www.linkedin.com/in/haonansu/"
+        target="_blank"
+      >
+        <SiLinkedin className="h-6 w-6" />
       </Link>
-      <Link href="https://www.instagram.com/kevinsu99/" target="_blank">
-        <RiInstagramFill className="h-9 w-9 text-[--orange-9]" />
+      <Link
+        className={actionIconClass}
+        href="https://www.instagram.com/kevinsu99/"
+        target="_blank"
+      >
+        <RiInstagramFill className="h-7 w-7" />
       </Link>
     </footer>
   );
 }
 
-export function Home({ images }: { images: DisplayImage[] }) {
+export function Home({ posts }: { posts: CityPost[] }) {
   return (
     <>
-      <main className="flex h-screen min-h-[500px] min-w-[280px] flex-grow flex-col overflow-hidden bg-[--orange-2] font-serif">
+      <main className="relative flex h-screen min-h-[500px] min-w-[280px] flex-grow flex-col overflow-hidden bg-[--orange-2] font-serif">
         <Intro />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent via-[--orange-2] to-white" />
       </main>
-      <section className="relative left-1/2 max-w-screen-xl -translate-x-1/2">
-        <Images images={images} />
+      <section className="relative mx-auto w-full max-w-screen-xl pb-8 pt-3 sm:pt-8">
+        <CityPosts posts={posts} />
       </section>
     </>
   );

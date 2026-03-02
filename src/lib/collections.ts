@@ -6,6 +6,14 @@ export interface DisplayImage {
   src: string;
 }
 
+export interface CityPost {
+  id: string;
+  city: string;
+  cover: string;
+  images: string[];
+  imageCount: number;
+}
+
 interface DBCollection {
   title: string | null;
   images: {
@@ -13,7 +21,7 @@ interface DBCollection {
   }[];
 }
 
-const CACHE_KEY = 'home:display-images:v1';
+const CITY_POSTS_CACHE_KEY = 'home:city-posts:v1';
 const CACHE_TTL_SECONDS = 3600;
 
 function shuffle<T>(items: T[]) {
@@ -25,28 +33,36 @@ function shuffle<T>(items: T[]) {
   return copied;
 }
 
-function parseCachedImages(cached: DisplayImage[] | string | null) {
+function slugify(input: string) {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function parseCachedArray<T>(cached: T[] | string | null) {
   if (!cached) {
     return null;
   }
   if (Array.isArray(cached)) {
-    return cached;
+    return cached as T[];
   }
 
   try {
     const parsed = JSON.parse(cached);
-    return Array.isArray(parsed) ? (parsed as DisplayImage[]) : null;
+    return Array.isArray(parsed) ? (parsed as T[]) : null;
   } catch {
     return null;
   }
 }
 
-export async function getDisplayImages() {
+export async function getCityPosts() {
   try {
-    const cached = await redis.get<DisplayImage[] | string>(CACHE_KEY);
-    const cachedImages = parseCachedImages(cached);
-    if (cachedImages) {
-      return cachedImages;
+    const cached = await redis.get<CityPost[] | string>(CITY_POSTS_CACHE_KEY);
+    const cachedPosts = parseCachedArray<CityPost>(cached);
+    if (cachedPosts) {
+      return cachedPosts;
     }
   } catch {
     // Ignore cache errors and fall through to DB query.
@@ -65,18 +81,39 @@ export async function getDisplayImages() {
     orderBy: { createdAt: 'asc' },
   })) as DBCollection[];
 
-  const displayImages = shuffle(collections).flatMap(({ images, title }) =>
-    images.map(({ src }) => ({
-      tag: title ?? '',
-      src,
-    })),
-  );
+  const cityPosts = shuffle(collections)
+    .map(({ images, title }, index) => {
+      const validImages = images.map(({ src }) => src).filter(Boolean);
+      if (!title || !validImages.length) {
+        return null;
+      }
+
+      return {
+        id: `${slugify(title) || 'city'}-${index}`,
+        city: title,
+        cover: validImages[0],
+        images: validImages,
+        imageCount: validImages.length,
+      } satisfies CityPost;
+    })
+    .filter((post): post is CityPost => Boolean(post));
 
   try {
-    await redis.set(CACHE_KEY, displayImages, { ex: CACHE_TTL_SECONDS });
+    await redis.set(CITY_POSTS_CACHE_KEY, cityPosts, { ex: CACHE_TTL_SECONDS });
   } catch {
     // Ignore cache write errors to keep request path healthy.
   }
 
-  return displayImages;
+  return cityPosts;
+}
+
+export async function getDisplayImages() {
+  const cityPosts = await getCityPosts();
+
+  return cityPosts.flatMap(({ city, images }) =>
+    images.map((src) => ({
+      tag: city,
+      src,
+    })),
+  );
 }

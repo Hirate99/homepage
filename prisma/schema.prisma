@@ -14,7 +14,8 @@ model Collection {
     title   String?
     content String?
 
-    cover  Int?
+    /// Stores the `Image.id` used as cover for this collection.
+    coverImageId Int? @map("cover")
     images Image[]
 
     createdAt DateTime @default(now())
@@ -24,6 +25,8 @@ model Collection {
 model Image {
     id  Int    @id @default(autoincrement())
     src String
+    width  Int?
+    height Int?
 
     collection   Collection? @relation(fields: [collectionId], references: [id])
     collectionId Int?

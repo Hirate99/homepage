@@ -10,19 +10,22 @@ export interface CityPost {
   id: string;
   city: string;
   cover: string;
+  coverWidth: number | null;
+  coverHeight: number | null;
   images: string[];
   imageCount: number;
 }
 
-interface DBCollection {
-  title: string | null;
-  images: {
-    src: string;
-  }[];
-}
-
-const CITY_POSTS_CACHE_KEY = 'home:city-posts:v1';
+const CITY_POSTS_CACHE_KEY = 'home:city-posts:v5';
 const CACHE_TTL_SECONDS = 3600;
+const MAX_COVER_ASPECT_RATIO = 3 / 2;
+
+interface CoverImage {
+  id: number;
+  src: string;
+  width: number | null;
+  height: number | null;
+}
 
 function shuffle<T>(items: T[]) {
   const copied = [...items];
@@ -57,6 +60,36 @@ function parseCachedArray<T>(cached: T[] | string | null) {
   }
 }
 
+function isPositiveNumber(value: number | null): value is number {
+  return typeof value === 'number' && value > 0;
+}
+
+function isCoverAspectAllowed(image: CoverImage) {
+  if (!isPositiveNumber(image.width) || !isPositiveNumber(image.height)) {
+    return false;
+  }
+
+  return image.width / image.height <= MAX_COVER_ASPECT_RATIO;
+}
+
+function getPreferredCover(images: CoverImage[], coverImageId: number | null) {
+  if (typeof coverImageId !== 'number') {
+    return images[0];
+  }
+
+  return images.find((image) => image.id === coverImageId) ?? images[0];
+}
+
+function pickCoverImage(images: CoverImage[], coverImageId: number | null) {
+  const preferredCover = getPreferredCover(images, coverImageId);
+  if (isCoverAspectAllowed(preferredCover)) {
+    return preferredCover;
+  }
+
+  const firstAllowed = images.find(isCoverAspectAllowed);
+  return firstAllowed ?? preferredCover;
+}
+
 export async function getCityPosts() {
   try {
     const cached = await redis.get<CityPost[] | string>(CITY_POSTS_CACHE_KEY);
@@ -68,10 +101,14 @@ export async function getCityPosts() {
     // Ignore cache errors and fall through to DB query.
   }
 
-  const collections = (await prisma().collection.findMany({
+  const collections = await prisma().collection.findMany({
     select: {
       title: true,
-      images: { select: { src: true } },
+      coverImageId: true,
+      images: {
+        select: { id: true, src: true, width: true, height: true },
+        orderBy: { id: 'asc' },
+      },
     },
     where: {
       title: {
@@ -79,20 +116,24 @@ export async function getCityPosts() {
       },
     },
     orderBy: { createdAt: 'asc' },
-  })) as DBCollection[];
+  });
 
   const cityPosts = shuffle(collections)
-    .map(({ images, title }, index) => {
-      const validImages = images.map(({ src }) => src).filter(Boolean);
+    .map(({ images, coverImageId, title }, index) => {
+      const validImages = images.filter(({ src }) => Boolean(src));
       if (!title || !validImages.length) {
         return null;
       }
 
+      const coverImage = pickCoverImage(validImages, coverImageId);
+
       return {
         id: `${slugify(title) || 'city'}-${index}`,
         city: title,
-        cover: validImages[0],
-        images: validImages,
+        cover: coverImage.src,
+        coverWidth: coverImage.width,
+        coverHeight: coverImage.height,
+        images: validImages.map(({ src }) => src),
         imageCount: validImages.length,
       } satisfies CityPost;
     })

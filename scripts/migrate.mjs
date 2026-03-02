@@ -64,7 +64,7 @@ async function main() {
         data: {
           title: collection.title,
           content: collection.content,
-          cover: collection.cover,
+          coverImageId: collection.cover,
           createdAt: collection.createdAt,
           updatedAt: collection.updatedAt,
         },

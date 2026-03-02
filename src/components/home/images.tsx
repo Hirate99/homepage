@@ -1,5 +1,12 @@
 /* eslint-disable @next/next/no-img-element */
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type MouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import useEmblaCarousel from 'embla-carousel-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -19,6 +26,51 @@ interface CardRect {
   height: number;
 }
 
+const FALLBACK_COVER_ASPECT_RATIO = 4 / 5;
+const MIN_COVER_ASPECT_RATIO = 2 / 3;
+const MAX_COVER_ASPECT_RATIO = 3 / 2;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getCoverAspectRatio(width: number | null, height: number | null) {
+  if (!width || !height || width <= 0 || height <= 0) {
+    return FALLBACK_COVER_ASPECT_RATIO;
+  }
+
+  return clamp(width / height, MIN_COVER_ASPECT_RATIO, MAX_COVER_ASPECT_RATIO);
+}
+
+function getExpandedTargetRect({
+  viewportWidth,
+  viewportHeight,
+  originRect,
+}: {
+  viewportWidth: number;
+  viewportHeight: number;
+  originRect: CardRect;
+}) {
+  if (!viewportWidth || !viewportHeight) {
+    return originRect;
+  }
+
+  const isDesktop = viewportWidth >= 640;
+  const width = isDesktop
+    ? Math.min(viewportWidth * 0.88, 1080)
+    : viewportWidth - 16;
+  const height = isDesktop
+    ? viewportHeight * 0.86
+    : Math.min(viewportHeight * 0.8, Math.max(width * 1.45, 520));
+
+  return {
+    x: (viewportWidth - width) / 2,
+    y: (viewportHeight - height) / 2,
+    width,
+    height,
+  };
+}
+
 function PostCard({
   post,
   onOpen,
@@ -28,6 +80,14 @@ function PostCard({
   onOpen: (id: string, rect: CardRect) => void;
   isActive: boolean;
 }) {
+  const coverAspectRatio = getCoverAspectRatio(
+    post.coverWidth,
+    post.coverHeight,
+  );
+  const coverAspectStyle = {
+    '--cover-aspect-ratio': coverAspectRatio.toString(),
+  } as CSSProperties;
+
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     onOpen(post.id, {
@@ -51,11 +111,13 @@ function PostCard({
       )}
       aria-label={`Open post for ${post.city}`}
     >
-      <div className="relative w-full overflow-hidden">
+      <div
+        className="relative aspect-square w-full overflow-hidden sm:[aspect-ratio:var(--cover-aspect-ratio)]"
+        style={coverAspectStyle}
+      >
         <img
           className={cn(
-            'h-auto w-full object-contain transition duration-500 sm:object-cover sm:group-hover:scale-[1.02]',
-            'aspect-square sm:aspect-auto',
+            'h-full w-full object-contain transition duration-500 sm:object-cover sm:group-hover:scale-[1.02]',
           )}
           src={clipCDNImage(post.cover, { width: 720, quality: 78 })}
           alt={`${post.city} cover`}
@@ -87,12 +149,18 @@ function ExpandedPost({
   onClose: () => void;
   originRect: CardRect;
 }) {
+  const initialSlideIndex = useMemo(() => {
+    const idx = post.images.indexOf(post.cover);
+    return idx >= 0 ? idx : 0;
+  }, [post.cover, post.images]);
+
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'center',
     dragFree: false,
     loop: false,
+    startIndex: initialSlideIndex,
   });
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(initialSlideIndex);
   const [loadedSlideMap, setLoadedSlideMap] = useState<Record<number, boolean>>(
     {},
   );
@@ -103,26 +171,15 @@ function ExpandedPost({
   const [showNavControls, setShowNavControls] = useState(true);
   const hideNavControlsTimeoutRef = useRef<number | null>(null);
 
-  const targetRect = useMemo(() => {
-    const vw = viewport.width;
-    const vh = viewport.height;
-    if (!vw || !vh) {
-      return originRect;
-    }
-
-    const isDesktop = vw >= 640;
-    const width = isDesktop ? Math.min(vw * 0.88, 1080) : vw - 16;
-    const height = isDesktop
-      ? vh * 0.86
-      : Math.min(vh * 0.8, Math.max(width * 1.45, 520));
-
-    return {
-      x: (vw - width) / 2,
-      y: (vh - height) / 2,
-      width,
-      height,
-    };
-  }, [originRect, viewport.height, viewport.width]);
+  const targetRect = useMemo(
+    () =>
+      getExpandedTargetRect({
+        viewportWidth: viewport.width,
+        viewportHeight: viewport.height,
+        originRect,
+      }),
+    [originRect, viewport.height, viewport.width],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -159,6 +216,8 @@ function ExpandedPost({
       return;
     }
 
+    emblaApi.scrollTo(initialSlideIndex, true);
+
     const onSelect = () => {
       setSelectedIndex(emblaApi.selectedScrollSnap());
     };
@@ -171,7 +230,7 @@ function ExpandedPost({
       emblaApi.off('select', onSelect);
       emblaApi.off('reInit', onSelect);
     };
-  }, [emblaApi]);
+  }, [emblaApi, initialSlideIndex]);
 
   useEffect(() => {
     const onResize = () => {

@@ -8,7 +8,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "prepare": "husky"
+    "prepare": "husky",
+    "backfill:image-dimensions": "node scripts/backfill-image-dimensions.mjs"
   },
   "dependencies": {
     "@icons-pack/react-simple-icons": "^13.11.2",
@@ -57,6 +58,7 @@
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "prisma": "^6.15.0",
+    "sharp": "^0.34.5",
     "tailwind-scrollbar": "^3.1.0",
     "tailwindcss": "^3.4.17",
     "tailwindcss-safe-area": "^0.5.1",

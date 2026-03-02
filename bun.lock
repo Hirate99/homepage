@@ -4,7 +4,7 @@
     "": {
       "name": "homepage",
       "dependencies": {
-        "@icons-pack/react-simple-icons": "^9.7.0",
+        "@icons-pack/react-simple-icons": "^13.11.2",
         "@prisma/adapter-d1": "^6.15.0",
         "@prisma/client": "^6.15.0",
         "@radix-ui/colors": "^3.0.0",
@@ -153,7 +153,7 @@
 
     "@humanwhocodes/object-schema": ["@humanwhocodes/object-schema@2.0.3", "", {}, "sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA=="],
 
-    "@icons-pack/react-simple-icons": ["@icons-pack/react-simple-icons@9.7.0", "", { "peerDependencies": { "react": "^16.13 || ^17 || ^18" } }, "sha512-KvMwsHUD3mZSu5fCS7Jw3xH4mDqK94PcT39MoyBwtdbpyl5JEsB8kMZOInKsuzpIEb4XqSfsJ49K30j8s0uHpg=="],
+    "@icons-pack/react-simple-icons": ["@icons-pack/react-simple-icons@13.11.2", "", { "peerDependencies": { "react": "^16.13 || ^17 || ^18 || ^19" } }, "sha512-IiYWH7Dlp4HvTxsL9Mh/1tjKKhLikKzL+578H1ngQkoREhfXaS9yNl1SXkjNGEAYqNH2w5/tBQc0uXLWAkcSFA=="],
 
     "@img/sharp-darwin-arm64": ["@img/sharp-darwin-arm64@0.34.1", "", { "optionalDependencies": { "@img/sharp-libvips-darwin-arm64": "1.1.0" }, "os": "darwin", "cpu": "arm64" }, "sha512-pn44xgBtgpEbZsu+lWf2KNb6OAf70X68k+yk69Ic2Xz11zHR/w24/U49XT7AeRwJ0Px+mhALhU5LPci1Aymk7A=="],
 

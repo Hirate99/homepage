@@ -11,7 +11,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@icons-pack/react-simple-icons": "^9.7.0",
+    "@icons-pack/react-simple-icons": "^13.11.2",
     "@prisma/adapter-d1": "^6.15.0",
     "@prisma/client": "^6.15.0",
     "@radix-ui/colors": "^3.0.0",

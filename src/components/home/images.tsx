@@ -47,7 +47,7 @@ function PostCard({
       onClick={handleOpen}
       className={cn(
         'group relative overflow-hidden rounded-2xl border border-orange-500/15 bg-white text-left shadow-md shadow-orange-900/10 transition',
-        'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-orange-900/20',
+        'sm:hover:-translate-y-0.5 sm:hover:shadow-lg sm:hover:shadow-orange-900/20',
         'cursor-pointer duration-300',
         isActive ? 'pointer-events-none opacity-0' : 'opacity-100',
       )}
@@ -56,7 +56,7 @@ function PostCard({
       <div className="relative w-full overflow-hidden">
         <img
           className={cn(
-            'h-auto w-full object-cover transition duration-500 group-hover:scale-[1.02]',
+            'h-auto w-full object-cover transition duration-500 sm:group-hover:scale-[1.02]',
             needsMobileCrop && 'aspect-[3/2] sm:aspect-auto',
           )}
           src={clipCDNImage(post.cover, { width: 720, quality: 78 })}

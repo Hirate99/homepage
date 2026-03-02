@@ -392,7 +392,7 @@ export function CityPosts({ posts }: CityPostsProps) {
 
   return (
     <>
-      <div className="mx-auto w-full max-w-screen-xl columns-2 gap-1 px-2 pb-8 [column-fill:_balance] sm:gap-5 md:columns-3">
+      <div className="mx-auto w-full max-w-screen-xl px-2 pb-8 sm:columns-2 sm:gap-5 sm:[column-fill:_balance] md:columns-3">
         {posts.map((post) => (
           <div key={post.id} className="mb-3 break-inside-avoid sm:mb-5">
             <PostCard

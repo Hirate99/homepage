@@ -28,9 +28,6 @@ function PostCard({
   onOpen: (id: string, rect: CardRect) => void;
   isActive: boolean;
 }) {
-  const [coverAspect, setCoverAspect] = useState<number | null>(null);
-  const needsMobileCrop = coverAspect !== null && coverAspect > 1.5;
-
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     onOpen(post.id, {
@@ -46,7 +43,8 @@ function PostCard({
       type="button"
       onClick={handleOpen}
       className={cn(
-        'group relative overflow-hidden rounded-2xl border border-orange-500/15 bg-white text-left shadow-md shadow-orange-900/10 transition',
+        'group relative overflow-hidden rounded-xl border border-black/10 bg-white text-left shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition',
+        'sm:rounded-2xl sm:border-orange-500/15 sm:shadow-md sm:shadow-orange-900/10',
         'sm:hover:-translate-y-0.5 sm:hover:shadow-lg sm:hover:shadow-orange-900/20',
         'cursor-pointer duration-300',
         isActive ? 'pointer-events-none opacity-0' : 'opacity-100',
@@ -56,24 +54,22 @@ function PostCard({
       <div className="relative w-full overflow-hidden">
         <img
           className={cn(
-            'h-auto w-full object-cover transition duration-500 sm:group-hover:scale-[1.02]',
-            needsMobileCrop && 'aspect-[3/2] sm:aspect-auto',
+            'h-auto w-full object-contain transition duration-500 sm:object-cover sm:group-hover:scale-[1.02]',
+            'aspect-square sm:aspect-auto',
           )}
           src={clipCDNImage(post.cover, { width: 720, quality: 78 })}
           alt={`${post.city} cover`}
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
-          onLoad={(event) => {
-            const { naturalWidth, naturalHeight } = event.currentTarget;
-            if (!naturalWidth || !naturalHeight) {
-              return;
-            }
-            setCoverAspect(naturalWidth / naturalHeight);
-          }}
         />
       </div>
-      <div className="border-t border-orange-100/80 bg-gradient-to-b from-white to-orange-50/30 px-2.5 pb-2 pt-2 sm:px-4 sm:pb-4 sm:pt-3.5">
+      <div className="border-t border-black/10 bg-white px-3 py-2 shadow-[0_-1px_0_rgba(255,255,255,0.85)_inset,0_-4px_10px_-10px_rgba(0,0,0,0.25)] sm:hidden">
+        <p className="line-clamp-1 text-[14px] font-medium leading-5 tracking-[-0.01em] text-[--orange-8]">
+          {post.city}
+        </p>
+      </div>
+      <div className="hidden border-t border-orange-100/80 bg-gradient-to-b from-white to-orange-50/30 px-2.5 pb-2 pt-2 sm:block sm:px-4 sm:pb-4 sm:pt-3.5">
         <p className="line-clamp-2 text-[14px] font-semibold leading-[1.3] tracking-tight text-neutral-900 sm:text-[17px]">
           {post.city}
         </p>
@@ -97,6 +93,9 @@ function ExpandedPost({
     loop: false,
   });
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [loadedSlideMap, setLoadedSlideMap] = useState<Record<number, boolean>>(
+    {},
+  );
   const [viewport, setViewport] = useState(() => ({
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
@@ -298,14 +297,35 @@ function ExpandedPost({
                     key={`${src}-${index}`}
                     className="flex h-full min-h-0 min-w-0 flex-[0_0_100%] select-none overflow-hidden"
                   >
-                    <div className="h-full min-h-0 w-full overflow-hidden">
+                    <div className="relative h-full min-h-0 w-full overflow-hidden">
+                      <div
+                        className={cn(
+                          'absolute inset-0 bg-gradient-to-br from-orange-100/25 via-orange-200/20 to-orange-50/15 transition-opacity duration-300',
+                          loadedSlideMap[index]
+                            ? 'pointer-events-none opacity-0'
+                            : 'animate-pulse opacity-100',
+                        )}
+                      />
                       <img
                         src={clipCDNImage(src, { width: 1280, quality: 82 })}
                         alt={`${post.city} photo ${index + 1}`}
-                        className="block h-full w-full object-contain"
+                        className={cn(
+                          'block h-full w-full object-contain transition-opacity duration-300',
+                          loadedSlideMap[index] ? 'opacity-100' : 'opacity-0',
+                        )}
                         loading={index <= selectedIndex + 1 ? 'eager' : 'lazy'}
                         decoding="async"
                         referrerPolicy="no-referrer"
+                        onLoad={() => {
+                          setLoadedSlideMap((prev) =>
+                            prev[index] ? prev : { ...prev, [index]: true },
+                          );
+                        }}
+                        onError={() => {
+                          setLoadedSlideMap((prev) =>
+                            prev[index] ? prev : { ...prev, [index]: true },
+                          );
+                        }}
                       />
                     </div>
                   </div>
@@ -392,7 +412,7 @@ export function CityPosts({ posts }: CityPostsProps) {
 
   return (
     <>
-      <div className="mx-auto w-full max-w-screen-xl px-2 pb-8 sm:columns-2 sm:gap-5 sm:[column-fill:_balance] md:columns-3">
+      <div className="mx-auto w-full max-w-screen-xl px-4 pb-8 sm:columns-2 sm:gap-5 sm:[column-fill:_balance] md:columns-3">
         {posts.map((post) => (
           <div key={post.id} className="mb-3 break-inside-avoid sm:mb-5">
             <PostCard

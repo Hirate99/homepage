@@ -5,11 +5,12 @@ import { ReactNode, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
-import { SiGithub, SiGmail, SiLinkedin } from '@icons-pack/react-simple-icons';
+import { SiGithub, SiGmail } from '@icons-pack/react-simple-icons';
 import Markdown from 'marked-react';
 import { AiFillInfoCircle } from 'react-icons/ai';
 import { BsFillPersonVcardFill } from 'react-icons/bs';
 import { RiInstagramFill } from 'react-icons/ri';
+import { SiLinkedin } from 'react-icons/si';
 
 import { type CityPost } from '@/lib/collections';
 import { notoSerif } from '@/fonts';

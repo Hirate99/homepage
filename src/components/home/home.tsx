@@ -11,10 +11,16 @@ import { AiFillInfoCircle } from 'react-icons/ai';
 import { BsFillPersonVcardFill } from 'react-icons/bs';
 import { RiInstagramFill } from 'react-icons/ri';
 
+import { type DisplayImage } from '@/lib/collections';
 import { notoSerif } from '@/fonts';
 import { useBreakingPoint } from '@/hooks/use-breaking-point';
 import { cdn, clipCDNImage, cn } from '@/lib/utils';
-import { Drawer, DrawerContent, DrawerTrigger } from '../ui/drawer';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+  DrawerTrigger,
+} from '../ui/drawer';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import {
   Tooltip,
@@ -26,7 +32,7 @@ import { EmblaCarousel } from './carousel';
 import intro from './intro.md';
 import { Lyrics } from './lyrics.data';
 
-import { type IDisplayImage, Images } from './images';
+import { Images } from './images';
 
 function IntroSection({
   className,
@@ -179,6 +185,7 @@ function Intro() {
                 'h-screen-safe scrollbar-track-transparent sm:h-[calc(100%-60px)]',
               )}
             >
+              <DrawerTitle className="sr-only">About Haonan Su</DrawerTitle>
               <div
                 className={cn(
                   'mt-6 flex h-full w-full max-w-[720px] flex-grow flex-col overflow-y-auto',
@@ -243,7 +250,7 @@ function AboutFooter() {
   );
 }
 
-export function Home({ images }: { images: IDisplayImage[] }) {
+export function Home({ images }: { images: DisplayImage[] }) {
   return (
     <>
       <main className="flex h-screen min-h-[500px] min-w-[280px] flex-grow flex-col overflow-hidden bg-[--orange-2] font-serif">

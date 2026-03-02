@@ -1,6 +1,7 @@
 import { type Viewport } from 'next';
 
-import PageClient from './page-client';
+import { Home } from '@/components/home';
+import { getDisplayImages } from '@/lib/collections';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -8,6 +9,10 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function Page() {
-  return <PageClient />;
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
+export default async function Page() {
+  const images = await getDisplayImages();
+  return <Home images={images} />;
 }

@@ -359,17 +359,17 @@ function ExpandedPost({
                     <div className="relative h-full min-h-0 w-full overflow-hidden">
                       <div
                         className={cn(
-                          'absolute inset-0 bg-gradient-to-br from-orange-100/25 via-orange-200/20 to-orange-50/15 transition-opacity duration-300',
+                          'from-orange-100/16 via-orange-200/12 absolute inset-0 bg-gradient-to-br to-orange-50/10 transition-opacity duration-1000',
                           loadedSlideMap[index]
                             ? 'pointer-events-none opacity-0'
-                            : 'animate-pulse opacity-100',
+                            : 'opacity-70',
                         )}
                       />
                       <img
                         src={clipCDNImage(src, { width: 1280, quality: 82 })}
                         alt={`${post.city} photo ${index + 1}`}
                         className={cn(
-                          'block h-full w-full object-contain transition-opacity duration-300',
+                          'block h-full w-full object-contain transition-opacity duration-1000',
                           loadedSlideMap[index] ? 'opacity-100' : 'opacity-0',
                         )}
                         loading={index <= selectedIndex + 1 ? 'eager' : 'lazy'}

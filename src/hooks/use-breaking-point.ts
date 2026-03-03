@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useResize } from './use-resize';
 
@@ -8,50 +8,47 @@ const BreakingPoints = ['mobile', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'] as const;
 
 export type TBreakingPoints = (typeof BreakingPoints)[number];
 
-const breakingPointIndex = (point: TBreakingPoints) => {
-  return BreakingPoints.findIndex((val) => val === point);
+const BreakingPointIndex = new Map<TBreakingPoints, number>(
+  BreakingPoints.map((point, index) => [point, index]),
+);
+
+const getBreakingPointIndex = (point: TBreakingPoints) => {
+  return BreakingPointIndex.get(point) ?? -1;
 };
 
 export type TBreakingPointSizeConfig<T = number> = Partial<
   Record<TBreakingPoints, T>
 >;
 
-const fillBreakingPointArray = <T>(
-  config: TBreakingPointSizeConfig<T>,
-  key: TBreakingPoints,
-  value: T,
-  fill = false,
-) => {
-  return Object.values(BreakingPoints).reduce<TBreakingPointSizeConfig<T>>(
-    (prev, curr, index) => {
-      const shouldFill = fill || index >= breakingPointIndex(key);
-      return {
-        ...prev,
-        [curr]: shouldFill ? value : config[curr],
-      };
-    },
-    {},
-  );
-};
-
 export function createBreakingPointSizes<T>(
   config: TBreakingPointSizeConfig<T>,
 ) {
-  const configs = Object.entries(config).sort((a, b) => {
+  const sortedConfig = Object.entries(config).sort((a, b) => {
     return (
-      breakingPointIndex(a.at(0) as TBreakingPoints) -
-      breakingPointIndex(b.at(0) as TBreakingPoints)
+      getBreakingPointIndex(a[0] as TBreakingPoints) -
+      getBreakingPointIndex(b[0] as TBreakingPoints)
     );
-  });
+  }) as [TBreakingPoints, T][];
 
-  return configs.reduce(
-    (prev, [key, value], index) =>
-      fillBreakingPointArray(prev, key as TBreakingPoints, value, !index),
-    {},
-  ) as Record<TBreakingPoints, T>;
+  const result = {} as Record<TBreakingPoints, T>;
+  let cursor = 0;
+  let currentValue: T | undefined;
+
+  for (const point of BreakingPoints) {
+    while (cursor < sortedConfig.length && sortedConfig[cursor][0] === point) {
+      currentValue = sortedConfig[cursor][1];
+      cursor += 1;
+    }
+
+    if (currentValue !== undefined) {
+      result[point] = currentValue;
+    }
+  }
+
+  return result;
 }
 
-const calCurentWidth = () => {
+const calculateCurrentWidth = () => {
   if (typeof window !== 'undefined') {
     const windowWidth = window.innerWidth;
     if (windowWidth < 520) {
@@ -77,15 +74,28 @@ export function useBreakingPoint<T>(map: TBreakingPointSizeConfig<T>): {
   responsive: TBreakingPoints;
   sizes: Record<TBreakingPoints, T>;
 };
+export function useBreakingPoint<T>(): {
+  responsive: TBreakingPoints;
+  sizes: undefined;
+};
 export function useBreakingPoint<T>(map?: TBreakingPointSizeConfig<T>) {
-  const [width, setWidth] = useState<TBreakingPoints>();
+  const [width, setWidth] = useState<TBreakingPoints>(() =>
+    calculateCurrentWidth(),
+  );
 
-  useResize(() => {
-    setWidth(calCurentWidth());
-  });
+  const handleResize = useCallback(() => {
+    const next = calculateCurrentWidth();
+    setWidth((prev) => (prev === next ? prev : next));
+  }, []);
+
+  useResize(handleResize);
+
+  const sizes = useMemo(() => {
+    return map ? createBreakingPointSizes(map) : undefined;
+  }, [map]);
 
   return {
     responsive: width,
-    sizes: map ? createBreakingPointSizes(map) : undefined,
+    sizes,
   };
 }

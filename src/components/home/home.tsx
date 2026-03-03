@@ -66,7 +66,7 @@ const actionIconClass =
 function Intro() {
   const [currentRoleIdx, setCurrentRoleIdx] = useState(0);
 
-  const { responsive } = useBreakingPoint({});
+  const { responsive } = useBreakingPoint();
 
   return (
     <>

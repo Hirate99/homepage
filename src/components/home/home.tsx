@@ -282,7 +282,7 @@ function AboutFooter() {
       </Link>
       <Link
         className={actionIconClass}
-        href="https://www.instagram.com/kevinsu99/"
+        href="https://www.instagram.com/mskyurina/"
         target="_blank"
       >
         <RiInstagramFill className="h-7 w-7" />

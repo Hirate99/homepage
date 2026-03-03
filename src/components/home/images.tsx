@@ -162,7 +162,7 @@ function ExpandedPost({
   });
   const [selectedIndex, setSelectedIndex] = useState(initialSlideIndex);
   const [loadedSlideMap, setLoadedSlideMap] = useState<Record<number, boolean>>(
-    {},
+    () => ({ [initialSlideIndex]: true }),
   );
   const [viewport, setViewport] = useState(() => ({
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
@@ -359,7 +359,10 @@ function ExpandedPost({
                     <div className="relative h-full min-h-0 w-full overflow-hidden">
                       <div
                         className={cn(
-                          'from-orange-100/16 via-orange-200/12 absolute inset-0 bg-gradient-to-br to-orange-50/10 transition-opacity duration-1000',
+                          'from-orange-100/16 via-orange-200/12 absolute inset-0 bg-gradient-to-br to-orange-50/10 transition-opacity',
+                          index === initialSlideIndex
+                            ? 'duration-0'
+                            : 'duration-1000',
                           loadedSlideMap[index]
                             ? 'pointer-events-none opacity-0'
                             : 'opacity-70',
@@ -369,7 +372,10 @@ function ExpandedPost({
                         src={clipCDNImage(src, { width: 1280, quality: 82 })}
                         alt={`${post.city} photo ${index + 1}`}
                         className={cn(
-                          'block h-full w-full object-contain transition-opacity duration-1000',
+                          'block h-full w-full object-contain transition-opacity',
+                          index === initialSlideIndex
+                            ? 'duration-0'
+                            : 'duration-1000',
                           loadedSlideMap[index] ? 'opacity-100' : 'opacity-0',
                         )}
                         loading={index <= selectedIndex + 1 ? 'eager' : 'lazy'}

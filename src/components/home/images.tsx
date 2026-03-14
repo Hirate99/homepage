@@ -14,6 +14,10 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 import { type CityPost } from '@/lib/collections';
 import { clipCDNImage, cn } from '@/lib/utils';
+import {
+  useBreakingPoint,
+  type TBreakingPointSizeConfig,
+} from '@/hooks/use-breaking-point';
 
 interface CityPostsProps {
   posts: CityPost[];
@@ -84,9 +88,19 @@ function PostCard({
     post.coverWidth,
     post.coverHeight,
   );
+  const [isCoverLoaded, setIsCoverLoaded] = useState(false);
+  const [skipTransition, setSkipTransition] = useState(false);
+  const coverImgRef = useRef<HTMLImageElement>(null);
   const coverAspectStyle = {
     '--cover-aspect-ratio': coverAspectRatio.toString(),
   } as CSSProperties;
+
+  useEffect(() => {
+    if (coverImgRef.current?.complete && coverImgRef.current.naturalWidth > 0) {
+      setIsCoverLoaded(true);
+      setSkipTransition(true);
+    }
+  }, []);
 
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -112,18 +126,37 @@ function PostCard({
       aria-label={`Open post for ${post.city}`}
     >
       <div
-        className="relative aspect-square w-full overflow-hidden sm:[aspect-ratio:var(--cover-aspect-ratio)]"
+        className="relative w-full overflow-hidden [aspect-ratio:var(--cover-aspect-ratio)]"
         style={coverAspectStyle}
       >
+        {!skipTransition && (
+          <div
+            aria-hidden="true"
+            className={cn(
+              'absolute inset-0 animate-shimmer rounded-none bg-[length:200%_100%] transition-opacity duration-700',
+              'bg-gradient-to-r from-orange-100/60 via-orange-50/90 to-orange-100/60',
+              isCoverLoaded ? 'pointer-events-none opacity-0' : 'opacity-100',
+            )}
+          />
+        )}
         <img
+          ref={coverImgRef}
           className={cn(
-            'h-full w-full object-contain transition duration-500 sm:object-cover sm:group-hover:scale-[1.02]',
+            'h-full w-full object-contain sm:object-cover sm:group-hover:scale-[1.02]',
+            skipTransition
+              ? 'opacity-100'
+              : cn(
+                  'transition-opacity duration-500',
+                  isCoverLoaded ? 'opacity-100' : 'opacity-0',
+                ),
           )}
           src={clipCDNImage(post.cover, { width: 720, quality: 78 })}
           alt={`${post.city} cover`}
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
+          onLoad={() => setIsCoverLoaded(true)}
+          onError={() => setIsCoverLoaded(true)}
         />
       </div>
       <div className="border-t border-black/10 bg-white px-3 py-2 shadow-[0_-1px_0_rgba(255,255,255,0.85)_inset,0_-4px_10px_-10px_rgba(0,0,0,0.25)] sm:hidden">
@@ -464,7 +497,30 @@ function ExpandedPost({
   return createPortal(modal, document.body);
 }
 
+const MASONRY_COLUMNS: TBreakingPointSizeConfig<number> = {
+  mobile: 1,
+  sm: 2,
+  md: 3,
+};
+
+function distributeToColumns(posts: CityPost[], columnCount: number) {
+  const columns: CityPost[][] = Array.from({ length: columnCount }, () => []);
+  const heights = new Array<number>(columnCount).fill(0);
+
+  for (const post of posts) {
+    const shortest = heights.indexOf(Math.min(...heights));
+    columns[shortest].push(post);
+    heights[shortest] +=
+      1 / getCoverAspectRatio(post.coverWidth, post.coverHeight);
+  }
+
+  return columns;
+}
+
 export function CityPosts({ posts }: CityPostsProps) {
+  const { responsive, sizes } = useBreakingPoint(MASONRY_COLUMNS);
+  const columnCount = sizes?.[responsive] ?? 1;
+
   const [activePostState, setActivePostState] = useState<{
     id: string;
     originRect: CardRect;
@@ -475,18 +531,26 @@ export function CityPosts({ posts }: CityPostsProps) {
     [activePostState?.id, posts],
   );
 
+  const columns = useMemo(
+    () => distributeToColumns(posts, columnCount),
+    [posts, columnCount],
+  );
+
   return (
     <>
-      <div className="mx-auto w-full max-w-screen-xl px-4 pb-8 sm:columns-2 sm:gap-5 sm:[column-fill:_balance] md:columns-3">
-        {posts.map((post) => (
-          <div key={post.id} className="mb-3 break-inside-avoid sm:mb-5">
-            <PostCard
-              post={post}
-              onOpen={(id, originRect) =>
-                setActivePostState({ id, originRect })
-              }
-              isActive={activePostState?.id === post.id}
-            />
+      <div className="mx-auto flex w-full max-w-screen-xl gap-3 px-4 pb-8 sm:gap-5">
+        {columns.map((column, colIndex) => (
+          <div key={colIndex} className="flex flex-1 flex-col gap-3 sm:gap-5">
+            {column.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onOpen={(id, originRect) =>
+                  setActivePostState({ id, originRect })
+                }
+                isActive={activePostState?.id === post.id}
+              />
+            ))}
           </div>
         ))}
       </div>

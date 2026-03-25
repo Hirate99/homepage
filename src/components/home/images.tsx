@@ -15,8 +15,8 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { type CityPost } from '@/lib/collections';
 import { clipCDNImage, cn } from '@/lib/utils';
 import {
-  useBreakingPoint,
   type TBreakingPointSizeConfig,
+  useBreakpointValue,
 } from '@/hooks/use-breaking-point';
 
 interface CityPostsProps {
@@ -549,8 +549,7 @@ function distributeToColumns(posts: CityPost[], columnCount: number) {
 }
 
 export function CityPosts({ posts }: CityPostsProps) {
-  const { responsive, sizes } = useBreakingPoint(MASONRY_COLUMNS);
-  const columnCount = sizes?.[responsive] ?? 1;
+  const columnCount = useBreakpointValue(MASONRY_COLUMNS) ?? 1;
 
   const [activePostState, setActivePostState] = useState<{
     id: string;

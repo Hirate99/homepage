@@ -14,7 +14,7 @@ import { SiLinkedin } from 'react-icons/si';
 
 import { type CityPost } from '@/lib/collections';
 import { notoSerif } from '@/fonts';
-import { useBreakingPoint } from '@/hooks/use-breaking-point';
+import { useHoverCapability } from '@/hooks/use-hover-capability';
 import { cdn, clipCDNImage, cn } from '@/lib/utils';
 import {
   Drawer,
@@ -62,10 +62,48 @@ const Roles = [
 const actionIconClass =
   'grid h-10 w-10 place-items-center rounded-lg border border-orange-500/15 bg-white/70 text-[--orange-9] shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white';
 
+function EmailAction() {
+  const supportsHover = useHoverCapability();
+
+  if (supportsHover) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              className={actionIconClass}
+              href="mailto:haonan.su@outlook.com"
+            >
+              <SiGmail className="h-6 w-6" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent className="bg-[--orange-9] font-sans text-sm shadow-md">
+            haonan.su@outlook.com
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={actionIconClass} aria-label="Email">
+          <SiGmail className="h-6 w-6" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        className="flex w-auto items-center rounded-md border-none bg-[--orange-9] px-3 py-1.5 font-sans text-sm text-white shadow-md"
+      >
+        <Link href="mailto:haonan.su@outlook.com">haonan.su@outlook.com</Link>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function Intro() {
   const [currentRoleIdx, setCurrentRoleIdx] = useState(0);
-
-  const { responsive } = useBreakingPoint();
 
   return (
     <>
@@ -168,34 +206,7 @@ function Intro() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          {responsive === 'mobile' ? (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className={actionIconClass} aria-label="Email">
-                  <SiGmail className="h-6 w-6" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="flex w-auto items-center bg-[--orange-9] text-white">
-                haonan.su@outlook.com
-              </PopoverContent>
-            </Popover>
-          ) : (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    className={actionIconClass}
-                    href="mailto:haonan.su@outlook.com"
-                  >
-                    <SiGmail className="h-6 w-6" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent className="bg-[--orange-9] font-sans text-sm shadow-md">
-                  haonan.su@outlook.com
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          <EmailAction />
           <Drawer>
             <DrawerTrigger asChild>
               <button

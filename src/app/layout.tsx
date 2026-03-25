@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import Script from 'next/script';
 
 import { ThemeProvider } from '@/providers/theme-provider';
 
@@ -9,10 +8,37 @@ import { cn } from '@/lib/utils';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
+const siteUrl = 'https://mskyurina.top';
+const ogImage = 'https://r2.mskyurina.top/fumikiri-mo.webp';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: 'Haonan Su',
   description: 'Personal website of Haonan Su (苏浩南), a software engineer.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    url: siteUrl,
+    siteName: 'Haonan Su',
+    title: 'Haonan Su',
+    description: 'Personal website of Haonan Su (苏浩南), a software engineer.',
+    images: [
+      {
+        url: ogImage,
+        width: 500,
+        height: 500,
+        alt: 'Avatar of Haonan Su',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Haonan Su',
+    description: 'Personal website of Haonan Su (苏浩南), a software engineer.',
+    images: [ogImage],
+  },
 };
 
 export default function RootLayout({
@@ -25,13 +51,13 @@ export default function RootLayout({
       '@context': 'https://schema.org',
       '@type': 'WebSite',
       name: 'Haonan Su',
-      url: 'https://mskyurina.top',
+      url: siteUrl,
     },
     {
       '@context': 'https://schema.org',
       '@type': 'Person',
       name: 'Haonan Su',
-      url: 'https://mskyurina.top',
+      url: siteUrl,
       jobTitle: 'Software Engineer',
       alumniOf: [
         {

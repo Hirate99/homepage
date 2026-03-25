@@ -122,7 +122,7 @@ function Intro() {
             })}
             width={500}
             height={500}
-            alt="avatar"
+            alt="Avatar"
           />
         </IntroSection>
         <IntroSection

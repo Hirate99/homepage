@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "prepare": "husky",
-    "backfill:image-dimensions": "node scripts/backfill-image-dimensions.mjs"
+    "backfill:image-dimensions": "node scripts/backfill-image-dimensions.mjs",
+    "backfill:collection-locations": "node scripts/backfill-collection-locations.mjs"
   },
   "dependencies": {
     "@icons-pack/react-simple-icons": "^13.11.2",

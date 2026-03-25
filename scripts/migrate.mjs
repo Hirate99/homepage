@@ -64,6 +64,13 @@ async function main() {
         data: {
           title: collection.title,
           content: collection.content,
+          sortOrder: collection.sortOrder ?? null,
+          locationName: collection.locationName ?? null,
+          country: collection.country ?? null,
+          region: collection.region ?? null,
+          latitude: collection.latitude ?? null,
+          longitude: collection.longitude ?? null,
+          description: collection.description ?? null,
           coverImageId: collection.cover,
           createdAt: collection.createdAt,
           updatedAt: collection.updatedAt,

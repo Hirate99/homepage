@@ -72,11 +72,11 @@ interface PostNode {
 type MarkerNode = CountryNode | LocationNode | PostNode;
 
 const ATLAS_CARD_CLASSNAME =
-  'group min-w-[224px] max-w-[224px] overflow-hidden rounded-[1.5rem] border text-left transition duration-300';
+  'group min-w-[224px] max-w-[224px] appearance-none overflow-hidden rounded-[1.5rem] border text-left outline-none ring-0 transition duration-300 focus:outline-none focus:ring-0';
 const ATLAS_CARD_INACTIVE_CLASSNAME =
-  'border-orange-500/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,250,245,0.94))] hover:-translate-y-0.5 hover:border-orange-500/14';
+  'border-[rgba(249,115,22,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,250,245,0.94))] hover:-translate-y-0.5 hover:border-[rgba(249,115,22,0.14)]';
 const ATLAS_CARD_ACTIVE_CLASSNAME =
-  'border-orange-500/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,246,238,0.98))]';
+  'border-[rgba(249,115,22,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,246,238,0.98))]';
 
 const ZOOM_SCALE: Record<ZoomTier, number> = {
   world: 0.9,
@@ -1397,6 +1397,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           freezeRotation: true,
                         });
                       }}
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                       className={cn(
                         ATLAS_CARD_CLASSNAME,
                         isActive
@@ -1443,6 +1444,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           freezeRotation: true,
                         });
                       }}
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                       className={cn(
                         ATLAS_CARD_CLASSNAME,
                         isActive
@@ -1508,6 +1510,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                         setIsAutoRotateFrozen(true);
                         openViewer(post.id, event.currentTarget);
                       }}
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                       className={cn(
                         ATLAS_CARD_CLASSNAME,
                         isActive

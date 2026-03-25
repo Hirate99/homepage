@@ -30,10 +30,9 @@ import {
   TooltipTrigger,
 } from '../ui/tooltip';
 import { EmblaCarousel } from './carousel';
+import { GlobeAtlas } from './globe-atlas';
 import intro from './intro.md';
 import { Lyrics } from './lyrics.data';
-
-import { CityPosts } from './images';
 
 function IntroSection({
   className,
@@ -298,9 +297,7 @@ export function Home({ posts }: { posts: CityPost[] }) {
         <Intro />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent via-[--orange-2] to-white" />
       </main>
-      <section className="relative mx-auto w-full max-w-screen-xl pb-8 pt-3 sm:pt-8">
-        <CityPosts posts={posts} />
-      </section>
+      <GlobeAtlas posts={posts} />
     </>
   );
 }

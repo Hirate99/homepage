@@ -23,7 +23,7 @@ interface CityPostsProps {
   posts: CityPost[];
 }
 
-interface CardRect {
+export interface CardRect {
   x: number;
   y: number;
   width: number;
@@ -75,6 +75,10 @@ function getExpandedTargetRect({
   };
 }
 
+function formatSlideNumber(value: number) {
+  return value.toString().padStart(2, '0');
+}
+
 function PostCard({
   post,
   onOpen,
@@ -117,8 +121,8 @@ function PostCard({
       type="button"
       onClick={handleOpen}
       className={cn(
-        'group relative overflow-hidden rounded-xl border border-black/10 bg-white text-left shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition',
-        'sm:rounded-2xl sm:border-orange-500/15 sm:shadow-md sm:shadow-orange-900/10',
+        'group relative overflow-hidden rounded-[1.5rem] border border-black/10 bg-white text-left shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition',
+        'sm:border-orange-500/15 sm:shadow-md sm:shadow-orange-900/10',
         'sm:hover:-translate-y-0.5 sm:hover:shadow-lg sm:hover:shadow-orange-900/20',
         'cursor-pointer duration-300',
         isActive ? 'pointer-events-none opacity-0' : 'opacity-100',
@@ -173,7 +177,7 @@ function PostCard({
   );
 }
 
-function ExpandedPost({
+export function ExpandedPost({
   post,
   onClose,
   originRect,
@@ -329,15 +333,15 @@ function ExpandedPost({
       />
       <motion.div
         className={cn(
-          'absolute overflow-hidden rounded-2xl bg-[#0f1013] text-white',
-          'border border-white/20 shadow-[0_20px_80px_rgba(0,0,0,0.65)] sm:rounded-3xl',
+          'absolute overflow-hidden rounded-[2rem] bg-[#0f1013] text-white',
+          'border border-white/20 shadow-[0_20px_80px_rgba(0,0,0,0.65)]',
         )}
         initial={{
           x: originRect.x,
           y: originRect.y,
           width: originRect.width,
           height: originRect.height,
-          borderRadius: 16,
+          borderRadius: 24,
           opacity: 1,
         }}
         animate={{
@@ -345,7 +349,7 @@ function ExpandedPost({
           y: targetRect.y,
           width: targetRect.width,
           height: targetRect.height,
-          borderRadius: viewport.width >= 640 ? 24 : 16,
+          borderRadius: 32,
           opacity: 1,
         }}
         exit={{
@@ -353,7 +357,7 @@ function ExpandedPost({
           y: originRect.y,
           width: originRect.width,
           height: originRect.height,
-          borderRadius: 16,
+          borderRadius: 24,
           opacity: 0,
         }}
         transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
@@ -376,11 +380,21 @@ function ExpandedPost({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 z-20 hidden h-10 w-10 cursor-pointer place-items-center rounded-full border border-white/20 bg-black/40 text-white transition hover:bg-black/65 sm:right-4 sm:top-4 sm:grid"
+              className="absolute right-3 top-3 z-20 grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-white/20 bg-black/45 text-white transition hover:bg-black/65 sm:right-4 sm:top-4"
               aria-label="Close post"
             >
               <X className="h-5 w-5" />
             </button>
+
+            <div className="via-black/12 pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-black/40 to-transparent" />
+            <div className="pointer-events-none absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
+              <div className="border-white/12 inline-flex items-center gap-2 rounded-full border bg-black/30 px-3 py-1.5 backdrop-blur-md">
+                <span className="text-white/72 text-xs">
+                  {formatSlideNumber(selectedIndex + 1)}/
+                  {formatSlideNumber(post.images.length)}
+                </span>
+              </div>
+            </div>
 
             <div className="h-full min-h-0 overflow-hidden" ref={emblaRef}>
               <div className="flex h-full min-h-0">
@@ -477,13 +491,30 @@ function ExpandedPost({
               ))}
             </div>
           </div>
-          <footer className="shrink-0 border-t border-white/10 bg-[#111317] px-4 py-3 sm:px-6 sm:py-4">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-orange-200/80">
-              Photo Journal
-            </p>
-            <h3 className="text-lg font-semibold text-white sm:text-2xl">
-              {post.city}
-            </h3>
+          <footer className="shrink-0 border-t border-white/10 bg-[linear-gradient(180deg,#121418_0%,#181c22_100%)] px-4 py-4 sm:px-6 sm:py-5">
+            <div className="grid gap-4 sm:gap-6">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  {post.location?.region && (
+                    <span className="text-white/62 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px]">
+                      {post.location.region}
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="mt-3 text-xl font-semibold tracking-tight text-white sm:text-[2rem]">
+                  {post.location?.locationName ?? post.city}
+                </h3>
+
+                {post.location?.description && (
+                  <div className="mt-4 rounded-[1.5rem] bg-white/[0.035] px-4 py-3.5">
+                    <p className="text-white/72 text-sm leading-6 sm:text-[15px]">
+                      {post.location.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </footer>
         </motion.article>
       </motion.div>

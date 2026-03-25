@@ -1,5 +1,17 @@
+import type { Prisma } from '@prisma/client';
+
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
+
+export interface PlaceMetadata {
+  order: number;
+  locationName: string;
+  country: string;
+  region: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+}
 
 export interface DisplayImage {
   tag?: string;
@@ -8,15 +20,19 @@ export interface DisplayImage {
 
 export interface CityPost {
   id: string;
+  collectionId: number;
+  slug: string;
   city: string;
   cover: string;
   coverWidth: number | null;
   coverHeight: number | null;
   images: string[];
   imageCount: number;
+  sortOrder: number;
+  location: PlaceMetadata | null;
 }
 
-const CITY_COLLECTIONS_CACHE_KEY = 'home:city-collections:v1';
+const CITY_COLLECTIONS_CACHE_KEY = 'home:city-collections:v3';
 const CACHE_TTL_SECONDS = 3600;
 const MIN_HORIZONTAL_COVER_RATIO = 16 / 9;
 const MIN_VERTICAL_COVER_RATIO = 1 / 2;
@@ -28,11 +44,31 @@ interface CoverImage {
   height: number | null;
 }
 
-interface DBCollection {
-  title: string | null;
-  coverImageId: number | null;
-  images: CoverImage[];
-}
+const collectionSelect = {
+  title: true,
+  id: true,
+  coverImageId: true,
+  sortOrder: true,
+  locationName: true,
+  country: true,
+  region: true,
+  latitude: true,
+  longitude: true,
+  description: true,
+  images: {
+    select: {
+      id: true,
+      src: true,
+      width: true,
+      height: true,
+    },
+    orderBy: { id: 'asc' },
+  },
+} satisfies Prisma.CollectionSelect;
+
+type DBCollection = Prisma.CollectionGetPayload<{
+  select: typeof collectionSelect;
+}>;
 
 function randomInt(max: number) {
   if (max <= 1) {
@@ -120,6 +156,45 @@ function pickCoverImage(images: CoverImage[], coverImageId: number | null) {
   return getPreferredCover(images, coverImageId);
 }
 
+function buildLocationMetadata({
+  sortOrder,
+  locationName,
+  country,
+  region,
+  latitude,
+  longitude,
+  description,
+}: Pick<
+  DBCollection,
+  | 'sortOrder'
+  | 'locationName'
+  | 'country'
+  | 'region'
+  | 'latitude'
+  | 'longitude'
+  | 'description'
+>) {
+  if (
+    !locationName ||
+    !country ||
+    !region ||
+    typeof latitude !== 'number' ||
+    typeof longitude !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    order: sortOrder ?? Number.MAX_SAFE_INTEGER,
+    locationName,
+    country,
+    region,
+    latitude,
+    longitude,
+    description: description ?? '',
+  } satisfies PlaceMetadata;
+}
+
 async function getCollectionsForPosts() {
   try {
     const cached = await redis.get<DBCollection[] | string>(
@@ -134,14 +209,7 @@ async function getCollectionsForPosts() {
   }
 
   const collections = await prisma().collection.findMany({
-    select: {
-      title: true,
-      coverImageId: true,
-      images: {
-        select: { id: true, src: true, width: true, height: true },
-        orderBy: { id: 'asc' },
-      },
-    },
+    select: collectionSelect,
     where: {
       title: {
         not: null,
@@ -165,23 +233,49 @@ export async function getCityPosts() {
   const collections = await getCollectionsForPosts();
 
   const cityPosts = shuffle(collections)
-    .map(({ images, coverImageId, title }, index) => {
+    .map<CityPost | null>((collection) => {
+      const {
+        id,
+        title,
+        images,
+        coverImageId,
+        sortOrder,
+        locationName,
+        country,
+        region,
+        latitude,
+        longitude,
+        description,
+      } = collection;
       const validImages = images.filter(({ src }) => Boolean(src));
       if (!title || !validImages.length) {
         return null;
       }
 
       const coverImage = pickCoverImage(validImages, coverImageId);
+      const location = buildLocationMetadata({
+        sortOrder,
+        locationName,
+        country,
+        region,
+        latitude,
+        longitude,
+        description,
+      });
 
       return {
-        id: `${slugify(title) || 'city'}-${index}`,
+        id: id.toString(),
+        collectionId: id,
+        slug: slugify(title) || `collection-${id}`,
         city: title,
         cover: coverImage.src,
         coverWidth: coverImage.width,
         coverHeight: coverImage.height,
         images: validImages.map(({ src }) => src),
         imageCount: validImages.length,
-      } satisfies CityPost;
+        sortOrder: location?.order ?? Number.MAX_SAFE_INTEGER,
+        location,
+      };
     })
     .filter((post): post is CityPost => Boolean(post));
 

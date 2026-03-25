@@ -13,6 +13,13 @@ model Collection {
     id      Int     @id @default(autoincrement())
     title   String?
     content String?
+    sortOrder Int?
+    locationName String?
+    country String?
+    region String?
+    latitude Float?
+    longitude Float?
+    description String?
 
     /// Stores the `Image.id` used as cover for this collection.
     coverImageId Int? @map("cover")

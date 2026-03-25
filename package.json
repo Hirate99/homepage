@@ -24,6 +24,7 @@
     "@upstash/redis": "^1.35.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cobe": "^2.0.1",
     "dotenv": "^16.5.0",
     "embla-carousel-auto-height": "^8.6.0",
     "embla-carousel-autoplay": "^8.6.0",

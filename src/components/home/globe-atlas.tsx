@@ -145,11 +145,11 @@ function isNodeVisibleFromView(
 }
 
 function getZoomTier(scale: number): ZoomTier {
-  if (scale < 1.18) {
+  if (scale < 1.62) {
     return 'world';
   }
 
-  if (scale < 3.36) {
+  if (scale < 3.86) {
     return 'region';
   }
 
@@ -457,6 +457,9 @@ function GlobeStage({
   const wheelFrameRef = useRef<number | null>(null);
   const lastWheelEventAtRef = useRef(0);
   const isWheelZoomingRef = useRef(false);
+  const focusTransitionUntilRef = useRef(0);
+  const focusTransitionTimerRef = useRef<number | null>(null);
+  const pointerPositionRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -546,6 +549,7 @@ function GlobeStage({
     const hasFocusShift =
       lastFocusKeyRef.current !== cameraFocusKey ||
       lastCameraTargetIdRef.current !== (cameraTarget?.id ?? null);
+    const focusDuration = hasFocusShift ? (cameraTarget ? 1150 : 680) : 0;
     const nextView = hasFocusShift
       ? cameraTarget
         ? getGlobeView(cameraTarget.lat, cameraTarget.lng, zoomScale)
@@ -558,18 +562,39 @@ function GlobeStage({
 
     globeRef.current.pointOfView(
       nextView,
-      hasFocusShift
-        ? cameraTarget
-          ? 1150
-          : 680
-        : isWheelZoomingRef.current
-          ? 0
-          : 150,
+      hasFocusShift ? focusDuration : isWheelZoomingRef.current ? 0 : 150,
     );
+
+    if (hasFocusShift) {
+      focusTransitionUntilRef.current = performance.now() + focusDuration + 80;
+
+      const controls = globeRef.current.controls();
+      controls.autoRotate = false;
+
+      if (focusTransitionTimerRef.current !== null) {
+        window.clearTimeout(focusTransitionTimerRef.current);
+      }
+
+      focusTransitionTimerRef.current = window.setTimeout(() => {
+        const nextControls = globeRef.current?.controls();
+        if (!nextControls) {
+          return;
+        }
+
+        nextControls.autoRotate =
+          autoRotateEnabled && !isPointerOverGlobeRef.current;
+      }, focusDuration + 40);
+    }
 
     lastFocusKeyRef.current = cameraFocusKey;
     lastCameraTargetIdRef.current = cameraTarget?.id ?? null;
-  }, [cameraFocusKey, cameraTarget, isGlobeReady, zoomScale]);
+  }, [
+    autoRotateEnabled,
+    cameraFocusKey,
+    cameraTarget,
+    isGlobeReady,
+    zoomScale,
+  ]);
 
   useEffect(() => {
     if (!isGlobeReady || !globeRef.current) {
@@ -585,6 +610,23 @@ function GlobeStage({
     controls.autoRotate = autoRotateEnabled && !isPointerOverGlobeRef.current;
     controls.autoRotateSpeed = zoomTier === 'world' ? 0.55 : 0.32;
   }, [autoRotateEnabled, isGlobeReady, zoomTier]);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      pointerPositionRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, {
+      passive: true,
+    });
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -604,6 +646,24 @@ function GlobeStage({
       if (!globe || width === 0 || height === 0) {
         frameId = window.requestAnimationFrame(animate);
         return;
+      }
+
+      const pointer = pointerPositionRef.current;
+      const containerRect =
+        containerRef.current?.getBoundingClientRect() ?? null;
+      const isPointerWithinContainer = Boolean(
+        pointer &&
+          containerRect &&
+          pointer.x >= containerRect.left &&
+          pointer.x <= containerRect.right &&
+          pointer.y >= containerRect.top &&
+          pointer.y <= containerRect.bottom,
+      );
+
+      if (isPointerOverGlobeRef.current !== isPointerWithinContainer) {
+        isPointerOverGlobeRef.current = isPointerWithinContainer;
+        globe.controls().autoRotate =
+          autoRotateEnabled && !isPointerWithinContainer;
       }
 
       const currentNodes = nodesRef.current;
@@ -667,6 +727,7 @@ function GlobeStage({
       } else if (
         nextCenteredId !== centeredMarkerIdRef.current &&
         now - centeredCandidateRef.current.since > 140 &&
+        now >= focusTransitionUntilRef.current &&
         !hoveredMarkerIdRef.current
       ) {
         centeredMarkerIdRef.current = nextCenteredId;
@@ -681,6 +742,10 @@ function GlobeStage({
     return () => {
       if (frameId) {
         window.cancelAnimationFrame(frameId);
+      }
+      if (focusTransitionTimerRef.current !== null) {
+        window.clearTimeout(focusTransitionTimerRef.current);
+        focusTransitionTimerRef.current = null;
       }
     };
   }, [isGlobeReady, viewport]);

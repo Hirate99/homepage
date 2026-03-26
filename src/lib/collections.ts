@@ -153,9 +153,9 @@ function pickCoverImage(images: CoverImage[], coverImageId: number | null) {
     return preferredCover;
   }
 
-  const eligibleCovers = images.filter(isCoverAspectAllowed);
-  if (eligibleCovers.length > 0) {
-    return eligibleCovers[randomInt(eligibleCovers.length)];
+  const firstEligibleCover = images.find(isCoverAspectAllowed);
+  if (firstEligibleCover) {
+    return firstEligibleCover;
   }
 
   return preferredCover;

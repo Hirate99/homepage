@@ -3,15 +3,16 @@
 import Image from 'next/image';
 import {
   type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
+  type ComponentType,
+  type MutableRefObject,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 
-import createGlobe from 'cobe';
 import { AnimatePresence, motion } from 'framer-motion';
+import type { GlobeMethods, GlobeProps } from 'react-globe.gl';
 
 import { type CityPost } from '@/lib/collections';
 import { clipCDNImage, cn } from '@/lib/utils';
@@ -22,13 +23,6 @@ type ZoomTier = 'world' | 'region' | 'place';
 
 interface GlobeAtlasProps {
   posts: CityPost[];
-}
-
-interface GlobeMarker {
-  id: string;
-  location: [number, number];
-  size: number;
-  color: [number, number, number];
 }
 
 interface LocationNode {
@@ -77,14 +71,22 @@ const ATLAS_CARD_INACTIVE_CLASSNAME =
   'border-[rgba(249,115,22,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,250,245,0.94))] hover:-translate-y-0.5 hover:border-[rgba(249,115,22,0.14)]';
 const ATLAS_CARD_ACTIVE_CLASSNAME =
   'border-[rgba(249,115,22,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,246,238,0.98))]';
+type GlobeComponentType = ComponentType<
+  GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
+>;
 
 const ZOOM_SCALE: Record<ZoomTier, number> = {
   world: 0.9,
-  region: 1.06,
-  place: 1.22,
+  region: 2.72,
+  place: 3.78,
 };
 const MIN_GLOBE_SCALE = 0.84;
-const MAX_GLOBE_SCALE = 1.28;
+const MAX_GLOBE_SCALE = 4.42;
+const GLOBE_IMAGE_URL = 'https://r2.mskyurina.top/globe/b3c9a3afc8968a6e.webp';
+const GLOBE_BUMP_IMAGE_URL =
+  'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png';
+const DEFAULT_GLOBE_LAT = 16;
+const DEFAULT_GLOBE_LNG = -53;
 
 function sortPosts(posts: CityPost[]) {
   return [...posts].sort((left, right) => {
@@ -116,31 +118,38 @@ function getDefaultOriginRect(): CardRect {
   };
 }
 
-function normalizeAngle(angle: number) {
-  while (angle > Math.PI) {
-    angle -= Math.PI * 2;
-  }
+function globeScaleToAltitude(scale: number) {
+  const progress =
+    (clamp(scale, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE) - MIN_GLOBE_SCALE) /
+    (MAX_GLOBE_SCALE - MIN_GLOBE_SCALE);
 
-  while (angle < -Math.PI) {
-    angle += Math.PI * 2;
-  }
-
-  return angle;
+  return clamp(2.2 - progress * 1.6, 0.6, 2.2);
 }
 
-function getTargetOrientation(latitude: number, longitude: number) {
+function getGlobeView(lat: number, lng: number, scale: number) {
   return {
-    phi: -(longitude * Math.PI) / 180 - Math.PI / 2,
-    theta: (latitude * Math.PI) / 180,
+    lat,
+    lng,
+    altitude: globeScaleToAltitude(scale),
   };
 }
 
+function isNodeVisibleFromView(
+  node: { lat: number; lng: number },
+  view: { lat: number; lng: number },
+) {
+  const [nodeX, nodeY, nodeZ] = latLngToXYZ(node.lat, node.lng);
+  const [viewX, viewY, viewZ] = latLngToXYZ(view.lat, view.lng);
+
+  return nodeX * viewX + nodeY * viewY + nodeZ * viewZ > 0;
+}
+
 function getZoomTier(scale: number): ZoomTier {
-  if (scale < 0.98) {
+  if (scale < 1.18) {
     return 'world';
   }
 
-  if (scale < 1.16) {
+  if (scale < 3.36) {
     return 'region';
   }
 
@@ -249,7 +258,7 @@ function offsetCoordinates(
   }
 
   const angle = (Math.PI * 2 * index) / total - Math.PI / 2;
-  const radius = 0.7 + Math.floor(index / 6) * 0.28;
+  const radius = 1.35 + Math.floor(index / 6) * 0.55;
   const latOffset = Math.sin(angle) * radius;
   const lngOffset =
     (Math.cos(angle) * radius) /
@@ -303,41 +312,6 @@ function latLngToXYZ(lat: number, lng: number) {
     Math.sin(latRadians),
     cosLat * Math.sin(lngRadians),
   ] as const;
-}
-
-function projectMarkerPosition({
-  lat,
-  lng,
-  phi,
-  theta,
-  scale,
-}: {
-  lat: number;
-  lng: number;
-  phi: number;
-  theta: number;
-  scale: number;
-}) {
-  const globeRadius = 0.82;
-  const [baseX, baseY, baseZ] = latLngToXYZ(lat, lng);
-  const x = baseX * globeRadius;
-  const y = baseY * globeRadius;
-  const z = baseZ * globeRadius;
-  const cosTheta = Math.cos(theta);
-  const cosPhi = Math.cos(phi);
-  const sinTheta = Math.sin(theta);
-  const sinPhi = Math.sin(phi);
-  const projectedX = cosPhi * x + sinPhi * z;
-  const projectedY =
-    sinPhi * sinTheta * x + cosTheta * y - cosPhi * sinTheta * z;
-  const facing =
-    -sinPhi * cosTheta * x + sinTheta * y + cosPhi * cosTheta * z >= 0;
-
-  return {
-    x: (projectedX * scale + 1) / 2,
-    y: (-projectedY * scale + 1) / 2,
-    visible: facing,
-  };
 }
 
 function getMarkerButtonStyle(position: {
@@ -455,42 +429,16 @@ function GlobeStage({
   onGlobeLeave: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const globeRef = useRef<GlobeMethods>();
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const labelRefs = useRef<Record<string, HTMLSpanElement | null>>({});
-  const globeRef = useRef<{
-    destroy: () => void;
-    update: (
-      state: Partial<{
-        width: number;
-        height: number;
-        phi: number;
-        theta: number;
-        scale: number;
-        markers: GlobeMarker[];
-      }>,
-    ) => void;
-  } | null>(null);
-  const [size, setSize] = useState(0);
-  const [hasRenderError, setHasRenderError] = useState(false);
+  const [GlobeComponent, setGlobeComponent] =
+    useState<GlobeComponentType | null>(null);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [isGlobeReady, setIsGlobeReady] = useState(false);
   const nodesRef = useRef<MarkerNode[]>(nodes);
-  const phiRef = useRef(-0.65);
-  const thetaRef = useRef(0.28);
-  const scaleRef = useRef(ZOOM_SCALE.world);
-  const sizeRef = useRef(0);
-  const markersRef = useRef<GlobeMarker[]>([]);
-  const zoomTierRef = useRef<ZoomTier>(zoomTier);
-  const targetOrientationRef = useRef({ phi: -0.65, theta: 0.28 });
-  const targetScaleRef = useRef(ZOOM_SCALE.world);
-  const dragStateRef = useRef<{
-    pointerId: number;
-    x: number;
-    y: number;
-  } | null>(null);
-  const isDraggingRef = useRef(false);
+  const viewportRef = useRef(viewport);
   const isPointerOverGlobeRef = useRef(false);
-  const autoRotatePauseUntilRef = useRef(0);
   const centeredMarkerIdRef = useRef<string | null>(null);
   const centeredCandidateRef = useRef<{
     id: string | null;
@@ -502,25 +450,27 @@ function GlobeStage({
   const hoveredMarkerIdRef = useRef<string | null>(hoveredMarkerId);
   const activeMarkerIdRef = useRef<string | null>(activeMarkerId);
   const centeredMarkerChangeRef = useRef(onCenteredMarkerChange);
+  const lastCameraTargetIdRef = useRef<string | null>(cameraTarget?.id ?? null);
+  const lastFocusKeyRef = useRef(cameraFocusKey);
+  const zoomScaleChangeRef = useRef(onZoomScaleChange);
+  const wheelMomentumRef = useRef(0);
+  const wheelFrameRef = useRef<number | null>(null);
+  const lastWheelEventAtRef = useRef(0);
+  const isWheelZoomingRef = useRef(false);
 
-  const markers = useMemo<GlobeMarker[]>(
-    () =>
-      nodes.map((node) => {
-        const isActive = node.id === activeMarkerId;
-        const baseSize =
-          zoomTier === 'world'
-            ? 0.075 + Math.min(node.count * 0.012, 0.03)
-            : 0.04 + Math.min(node.count * 0.006, 0.02);
+  useEffect(() => {
+    let isCancelled = false;
 
-        return {
-          id: node.id,
-          location: [node.lat, node.lng],
-          size: isActive ? baseSize + 0.02 : baseSize,
-          color: isActive ? [0.82, 0.38, 0.14] : [0.93, 0.64, 0.34],
-        };
-      }),
-    [activeMarkerId, nodes, zoomTier],
-  );
+    void import('react-globe.gl').then((module) => {
+      if (!isCancelled) {
+        setGlobeComponent(() => module.default as GlobeComponentType);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -528,8 +478,14 @@ function GlobeStage({
     }
 
     const observer = new ResizeObserver(([entry]) => {
-      const next = Math.round(entry.contentRect.width);
-      setSize((prev) => (prev === next ? prev : next));
+      const nextWidth = Math.round(entry.contentRect.width);
+      const nextHeight = Math.round(entry.contentRect.height);
+
+      setViewport((prev) =>
+        prev.width === nextWidth && prev.height === nextHeight
+          ? prev
+          : { width: nextWidth, height: nextHeight },
+      );
     });
 
     observer.observe(containerRef.current);
@@ -539,20 +495,31 @@ function GlobeStage({
   }, []);
 
   useEffect(() => {
-    sizeRef.current = size;
-  }, [size]);
+    viewportRef.current = viewport;
+  }, [viewport]);
+
+  useEffect(() => {
+    if (
+      isGlobeReady ||
+      !GlobeComponent ||
+      viewport.width === 0 ||
+      viewport.height === 0
+    ) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      setIsGlobeReady(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [GlobeComponent, isGlobeReady, viewport.height, viewport.width]);
 
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
-
-  useEffect(() => {
-    markersRef.current = markers;
-  }, [markers]);
-
-  useEffect(() => {
-    zoomTierRef.current = zoomTier;
-  }, [zoomTier]);
 
   useEffect(() => {
     hoveredMarkerIdRef.current = hoveredMarkerId;
@@ -567,236 +534,171 @@ function GlobeStage({
   }, [onCenteredMarkerChange]);
 
   useEffect(() => {
-    if (!cameraTarget) {
-      targetOrientationRef.current = { phi: -0.65, theta: 0.28 };
+    zoomScaleChangeRef.current = onZoomScaleChange;
+  }, [onZoomScaleChange]);
+
+  useEffect(() => {
+    if (!isGlobeReady || !globeRef.current) {
       return;
     }
 
-    targetOrientationRef.current = getTargetOrientation(
-      cameraTarget.lat,
-      cameraTarget.lng,
+    const currentView = globeRef.current.pointOfView();
+    const hasFocusShift =
+      lastFocusKeyRef.current !== cameraFocusKey ||
+      lastCameraTargetIdRef.current !== (cameraTarget?.id ?? null);
+    const nextView = hasFocusShift
+      ? cameraTarget
+        ? getGlobeView(cameraTarget.lat, cameraTarget.lng, zoomScale)
+        : getGlobeView(DEFAULT_GLOBE_LAT, DEFAULT_GLOBE_LNG, zoomScale)
+      : {
+          lat: currentView.lat,
+          lng: currentView.lng,
+          altitude: globeScaleToAltitude(zoomScale),
+        };
+
+    globeRef.current.pointOfView(
+      nextView,
+      hasFocusShift
+        ? cameraTarget
+          ? 1150
+          : 680
+        : isWheelZoomingRef.current
+          ? 0
+          : 150,
     );
-    autoRotatePauseUntilRef.current = performance.now() + 2400;
-  }, [cameraFocusKey, cameraTarget]);
+
+    lastFocusKeyRef.current = cameraFocusKey;
+    lastCameraTargetIdRef.current = cameraTarget?.id ?? null;
+  }, [cameraFocusKey, cameraTarget, isGlobeReady, zoomScale]);
 
   useEffect(() => {
-    targetScaleRef.current = clamp(zoomScale, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE);
-  }, [zoomScale]);
-
-  useEffect(() => {
-    if (!canvasRef.current || !size) {
+    if (!isGlobeReady || !globeRef.current) {
       return;
     }
 
-    globeRef.current?.destroy();
-    globeRef.current = null;
-    setHasRenderError(false);
-    setIsGlobeReady(false);
+    const controls = globeRef.current.controls();
+    controls.enablePan = false;
+    controls.enableZoom = false;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.rotateSpeed = zoomTier === 'world' ? 0.85 : 0.65;
+    controls.autoRotate = autoRotateEnabled && !isPointerOverGlobeRef.current;
+    controls.autoRotateSpeed = zoomTier === 'world' ? 0.55 : 0.32;
+  }, [autoRotateEnabled, isGlobeReady, zoomTier]);
+
+  useEffect(() => {
+    if (
+      !isGlobeReady ||
+      !globeRef.current ||
+      viewport.width === 0 ||
+      viewport.height === 0
+    ) {
+      return;
+    }
 
     let frameId = 0;
 
-    try {
-      const globe = createGlobe(canvasRef.current, {
-        width: sizeRef.current * 2,
-        height: sizeRef.current * 2,
-        phi: phiRef.current,
-        theta: thetaRef.current,
-        scale: scaleRef.current,
-        devicePixelRatio: Math.min(window.devicePixelRatio, 2),
-        dark: 0,
-        diffuse: 1.2,
-        mapSamples: 22000,
-        mapBrightness: 6.2,
-        mapBaseBrightness: 0.05,
-        baseColor: [1, 0.97, 0.93],
-        markerColor: [0.93, 0.64, 0.34],
-        glowColor: [1, 0.97, 0.92],
-        markerElevation: 0.02,
-        opacity: 1,
-        markers: markersRef.current,
+    const animate = () => {
+      const globe = globeRef.current;
+      const { width, height } = viewportRef.current;
+      if (!globe || width === 0 || height === 0) {
+        frameId = window.requestAnimationFrame(animate);
+        return;
+      }
+
+      const currentNodes = nodesRef.current;
+      const view = globe.pointOfView();
+      const projectedNodes = currentNodes.map((node) => {
+        const screen = globe.getScreenCoords(node.lat, node.lng, 0.015);
+        const x = screen.x / width;
+        const y = screen.y / height;
+        const visible =
+          isNodeVisibleFromView(node, view) &&
+          x >= -0.08 &&
+          x <= 1.08 &&
+          y >= -0.08 &&
+          y <= 1.08;
+
+        return {
+          node,
+          position: { x, y, visible },
+        };
       });
 
-      globeRef.current = globe;
-      setIsGlobeReady(true);
-
-      const animate = () => {
-        const currentNodes = nodesRef.current;
-        const currentZoomTier = zoomTierRef.current;
-        const deltaPhi = normalizeAngle(
-          targetOrientationRef.current.phi - phiRef.current,
-        );
-        const deltaTheta =
-          targetOrientationRef.current.theta - thetaRef.current;
-
-        const isRefocusing =
-          Math.abs(deltaPhi) > 0.025 || Math.abs(deltaTheta) > 0.018;
-
-        if (isDraggingRef.current) {
-          autoRotatePauseUntilRef.current = performance.now() + 1800;
-        } else if (isRefocusing) {
-          phiRef.current += deltaPhi * 0.085;
-        } else if (
-          autoRotateEnabled &&
-          !isPointerOverGlobeRef.current &&
-          performance.now() >= autoRotatePauseUntilRef.current
-        ) {
-          phiRef.current += currentZoomTier === 'world' ? 0.0025 : 0.0012;
-          targetOrientationRef.current = {
-            ...targetOrientationRef.current,
-            phi:
-              targetOrientationRef.current.phi +
-              (currentZoomTier === 'world' ? 0.0025 : 0.0012),
-          };
+      for (const { node, position } of projectedNodes) {
+        const button = buttonRefs.current[node.id];
+        if (!button) {
+          continue;
         }
 
-        thetaRef.current += deltaTheta * 0.08;
-        scaleRef.current += (targetScaleRef.current - scaleRef.current) * 0.12;
-        thetaRef.current = clamp(thetaRef.current, -0.85, 0.85);
+        const isActive = activeMarkerIdRef.current === node.id;
+        const isHovered = hoveredMarkerIdRef.current === node.id;
+        const shouldShowLabel = isActive || isHovered;
+        const zIndex = isHovered
+          ? 1200
+          : shouldShowLabel
+            ? 1100
+            : Math.round(position.y * 100);
 
-        globe.update({
-          width: sizeRef.current * 2,
-          height: sizeRef.current * 2,
-          phi: phiRef.current,
-          theta: thetaRef.current,
-          scale: scaleRef.current,
-          markers: markersRef.current,
-        });
+        button.style.left = `${position.x * 100}%`;
+        button.style.top = `${position.y * 100}%`;
+        button.style.opacity = position.visible ? '1' : '0';
+        button.style.transform = `translate(-50%, -50%) scale(${position.visible ? 1 : 0.85})`;
+        button.style.pointerEvents = position.visible ? 'auto' : 'none';
+        button.style.zIndex = `${zIndex}`;
 
-        const projectedNodes = currentNodes.map((node) => ({
-          node,
-          position: projectMarkerPosition({
-            lat: node.lat,
-            lng: node.lng,
-            phi: phiRef.current,
-            theta: thetaRef.current,
-            scale: scaleRef.current,
-          }),
-        }));
-
-        for (const { node, position } of projectedNodes) {
-          const button = buttonRefs.current[node.id];
-          if (!button) {
-            continue;
-          }
-
-          const isActive = activeMarkerIdRef.current === node.id;
-          const isHovered = hoveredMarkerIdRef.current === node.id;
-          const shouldShowLabel = isActive || isHovered;
-          const zIndex = isHovered
-            ? 1200
-            : shouldShowLabel
-              ? 1100
-              : Math.round(position.y * 100);
-
-          button.style.left = `${position.x * 100}%`;
-          button.style.top = `${position.y * 100}%`;
-          button.style.opacity = position.visible ? '1' : '0';
-          button.style.transform = `translate(-50%, -50%) scale(${position.visible ? 1 : 0.85})`;
-          button.style.pointerEvents = position.visible ? 'auto' : 'none';
-          button.style.zIndex = `${zIndex}`;
-
-          const label = labelRefs.current[node.id];
-          if (label) {
-            label.style.transform = getMarkerLabelTransform(position);
-          }
+        const label = labelRefs.current[node.id];
+        if (label) {
+          label.style.transform = getMarkerLabelTransform(position);
         }
+      }
 
-        const now = performance.now();
-        const nextCenteredId = getCenteredNodeId(
-          projectedNodes,
-          centeredMarkerIdRef.current,
-        );
+      const now = performance.now();
+      const nextCenteredId = getCenteredNodeId(
+        projectedNodes,
+        centeredMarkerIdRef.current,
+      );
 
-        if (nextCenteredId !== centeredCandidateRef.current.id) {
-          centeredCandidateRef.current = {
-            id: nextCenteredId,
-            since: now,
-          };
-        } else if (
-          nextCenteredId !== centeredMarkerIdRef.current &&
-          now - centeredCandidateRef.current.since > 140 &&
-          !isRefocusing &&
-          !isDraggingRef.current &&
-          !hoveredMarkerIdRef.current
-        ) {
-          centeredMarkerIdRef.current = nextCenteredId;
-          centeredMarkerChangeRef.current(nextCenteredId);
-        }
-
-        frameId = window.requestAnimationFrame(animate);
-      };
+      if (nextCenteredId !== centeredCandidateRef.current.id) {
+        centeredCandidateRef.current = {
+          id: nextCenteredId,
+          since: now,
+        };
+      } else if (
+        nextCenteredId !== centeredMarkerIdRef.current &&
+        now - centeredCandidateRef.current.since > 140 &&
+        !hoveredMarkerIdRef.current
+      ) {
+        centeredMarkerIdRef.current = nextCenteredId;
+        centeredMarkerChangeRef.current(nextCenteredId);
+      }
 
       frameId = window.requestAnimationFrame(animate);
-    } catch {
-      setHasRenderError(true);
-    }
+    };
+
+    frameId = window.requestAnimationFrame(animate);
 
     return () => {
       if (frameId) {
         window.cancelAnimationFrame(frameId);
       }
-      globeRef.current?.destroy();
-      globeRef.current = null;
     };
-  }, [autoRotateEnabled, size]);
-
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('[data-marker-button="true"]')) {
-      return;
-    }
-
-    event.preventDefault();
-    dragStateRef.current = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-    };
-    isDraggingRef.current = true;
-    autoRotatePauseUntilRef.current = performance.now() + 2200;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const dragState = dragStateRef.current;
-    if (!dragState || dragState.pointerId !== event.pointerId) {
-      return;
-    }
-
-    event.preventDefault();
-    const deltaX = event.clientX - dragState.x;
-    const deltaY = event.clientY - dragState.y;
-
-    dragStateRef.current = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-    };
-
-    phiRef.current += deltaX * 0.008;
-    thetaRef.current = clamp(thetaRef.current + deltaY * 0.006, -0.85, 0.85);
-    targetOrientationRef.current = {
-      phi: phiRef.current,
-      theta: thetaRef.current,
-    };
-  };
-
-  const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragStateRef.current?.pointerId !== event.pointerId) {
-      return;
-    }
-
-    dragStateRef.current = null;
-    isDraggingRef.current = false;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-  };
+  }, [isGlobeReady, viewport]);
 
   const handlePointerEnter = () => {
     isPointerOverGlobeRef.current = true;
+    const controls = globeRef.current?.controls();
+    if (controls) {
+      controls.autoRotate = false;
+    }
   };
 
   const handlePointerLeave = () => {
     isPointerOverGlobeRef.current = false;
-    autoRotatePauseUntilRef.current = performance.now() + 1400;
+    const controls = globeRef.current?.controls();
+    if (controls) {
+      controls.autoRotate = autoRotateEnabled;
+    }
     onHoverMarker(null);
     onGlobeLeave();
   };
@@ -807,68 +709,82 @@ function GlobeStage({
       return;
     }
 
+    const runWheelInertia = () => {
+      const momentum = wheelMomentumRef.current;
+      if (Math.abs(momentum) < 0.0025) {
+        wheelMomentumRef.current = 0;
+        wheelFrameRef.current = null;
+        isWheelZoomingRef.current = false;
+        return;
+      }
+
+      zoomScaleChangeRef.current((current) =>
+        clamp(current + momentum, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE),
+      );
+
+      const now = performance.now();
+      const isStillScrolling = now - lastWheelEventAtRef.current < 110;
+
+      wheelMomentumRef.current *= isStillScrolling ? 0.91 : 0.88;
+      wheelFrameRef.current = window.requestAnimationFrame(runWheelInertia);
+    };
+
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
       event.stopPropagation();
 
-      onZoomScaleChange((current) =>
-        clamp(
-          current + (event.deltaY > 0 ? -0.045 : 0.045),
-          MIN_GLOBE_SCALE,
-          MAX_GLOBE_SCALE,
-        ),
+      const delta =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? event.deltaY * 12
+          : event.deltaY;
+      const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
+      const direction = delta > 0 ? -1 : 1;
+      const immediateStep = nextStep * direction;
+
+      isWheelZoomingRef.current = true;
+      lastWheelEventAtRef.current = performance.now();
+
+      zoomScaleChangeRef.current((current) =>
+        clamp(current + immediateStep, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE),
       );
-      autoRotatePauseUntilRef.current = performance.now() + 1800;
+
+      wheelMomentumRef.current = immediateStep * 0.28;
+
+      if (wheelFrameRef.current) {
+        return;
+      }
+
+      wheelFrameRef.current = window.requestAnimationFrame(runWheelInertia);
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       container.removeEventListener('wheel', handleWheel);
+      if (wheelFrameRef.current) {
+        window.cancelAnimationFrame(wheelFrameRef.current);
+        wheelFrameRef.current = null;
+      }
+      isWheelZoomingRef.current = false;
+      wheelMomentumRef.current = 0;
     };
-  }, [onZoomScaleChange]);
-
-  const handleMarkerPointerDownCapture = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
-    const markerButton = (
-      event.target as HTMLElement
-    ).closest<HTMLButtonElement>('[data-marker-button="true"]');
-
-    if (!markerButton) {
-      return;
-    }
-
-    const markerId = markerButton.dataset.nodeId;
-    if (!markerId) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    autoRotatePauseUntilRef.current = performance.now() + 2200;
-    onSelectMarker(markerId);
-  };
+  }, []);
 
   return (
     <div className="relative lg:mx-auto lg:w-full lg:max-w-[980px]">
       <div
         className={cn(
-          'relative overflow-hidden rounded-[2rem] border border-orange-500/15 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.98),_rgba(255,247,237,0.92)_48%,_rgba(255,237,213,0.76)_100%)] px-4 pb-4 pt-3 shadow-[0_24px_70px_-40px_rgba(154,52,18,0.45)] sm:px-6 sm:pb-6 sm:pt-4',
+          'relative overflow-hidden rounded-[2rem] border border-orange-500/15 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.98),_rgba(255,247,237,0.92)_48%,_rgba(255,237,213,0.76)_100%)] p-4 shadow-[0_24px_70px_-40px_rgba(154,52,18,0.45)] sm:p-6',
           'before:pointer-events-none before:absolute before:inset-x-10 before:top-3 before:h-24 before:rounded-full before:bg-white/70 before:blur-3xl',
         )}
       >
         <div
           ref={containerRef}
-          className="relative z-10 mx-auto aspect-square w-full max-w-[560px] cursor-grab touch-none active:cursor-grabbing lg:h-[min(68vh,720px)] lg:w-[min(68vh,720px)] lg:max-w-none"
-          onPointerDown={handlePointerDown}
+          className="relative z-10 mx-auto aspect-[16/10] w-full max-w-[920px] cursor-grab touch-none overflow-hidden rounded-[1.75rem] border border-white/55 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(255,247,237,0.48)_42%,_rgba(255,237,213,0.18)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] active:cursor-grabbing sm:aspect-[8/5] lg:h-[min(66vh,680px)] lg:w-full lg:max-w-none"
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerEnd}
-          onPointerCancel={handlePointerEnd}
         >
-          <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.95)_0%,_rgba(255,247,237,0.35)_55%,_rgba(251,191,36,0)_76%)] blur-2xl" />
-          {!isGlobeReady && !hasRenderError && (
+          <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.82)_0%,_rgba(255,247,237,0.28)_48%,_rgba(251,191,36,0)_78%)] blur-2xl" />
+          {!isGlobeReady && (
             <div className="absolute inset-0 z-10 grid place-items-center">
               <div className="relative h-24 w-24">
                 <div className="absolute inset-0 rounded-full border border-orange-200/70 bg-white/35 backdrop-blur-sm" />
@@ -877,25 +793,33 @@ function GlobeStage({
               </div>
             </div>
           )}
-          {hasRenderError && (
-            <div className="absolute inset-0 grid place-items-center rounded-full border border-orange-500/10 bg-white/45 text-center text-sm text-[--orange-8] backdrop-blur-sm">
-              <p className="max-w-[14rem] leading-6">
-                Globe rendering is unavailable in this browser right now.
-              </p>
+          {viewport.width > 0 && viewport.height > 0 && GlobeComponent ? (
+            <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
+              <GlobeComponent
+                ref={globeRef}
+                width={viewport.width}
+                height={viewport.height}
+                backgroundColor="rgba(0,0,0,0)"
+                globeImageUrl={GLOBE_IMAGE_URL}
+                bumpImageUrl={GLOBE_BUMP_IMAGE_URL}
+                waitForGlobeReady={false}
+                showAtmosphere
+                atmosphereColor="#f1c58d"
+                atmosphereAltitude={0.12}
+                enablePointerInteraction
+                showPointerCursor={false}
+                onGlobeReady={() => {
+                  setIsGlobeReady(true);
+                }}
+              />
             </div>
-          )}
-
-          <canvas
-            ref={canvasRef}
-            className="relative z-10 h-full w-full [contain:layout_paint_size]"
-          />
+          ) : null}
 
           <div
             className={cn(
-              'absolute inset-0 z-20 transition-opacity duration-300',
-              isGlobeReady ? 'opacity-100' : 'pointer-events-none opacity-0',
+              'pointer-events-none absolute inset-0 z-20 transition-opacity duration-300',
+              isGlobeReady ? 'opacity-100' : 'opacity-0',
             )}
-            onPointerDownCapture={handleMarkerPointerDownCapture}
           >
             {nodes.map((node) => {
               const isActive = node.id === activeMarkerId;
@@ -909,14 +833,22 @@ function GlobeStage({
                   ref={(element) => {
                     buttonRefs.current[node.id] = element;
                   }}
-                  style={getMarkerButtonStyle({
-                    x: 0.5,
-                    y: 0.5,
-                    visible: false,
-                  })}
                   className="group overflow-visible"
                   data-marker-button="true"
                   data-node-id={node.id}
+                  style={{
+                    ...getMarkerButtonStyle({
+                      x: 0.5,
+                      y: 0.5,
+                      visible: false,
+                    }),
+                    pointerEvents: 'none',
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSelectMarker(node.id);
+                  }}
                   onMouseEnter={() => onHoverMarker(node.id)}
                   onMouseLeave={() => onHoverMarker(null)}
                   onFocus={() => onHoverMarker(node.id)}
@@ -965,22 +897,6 @@ function GlobeStage({
             })}
           </div>
         </div>
-
-        <div className="pointer-events-none absolute bottom-6 left-6 z-30 hidden lg:block">
-          <div className="bg-white/68 max-w-[380px] rounded-full border border-orange-500/10 px-4 py-2.5 shadow-[0_16px_32px_-26px_rgba(154,52,18,0.28)] backdrop-blur-xl">
-            <p className="text-[10px] uppercase tracking-[0.22em] text-[--orange-7]">
-              {focusOverlay.eyebrow}
-            </p>
-            <div className="mt-1 flex items-baseline gap-3">
-              <p className="truncate text-[17px] font-semibold tracking-tight text-neutral-900">
-                {focusOverlay.title}
-              </p>
-              <p className="truncate text-[12px] text-[--orange-8]">
-                {focusOverlay.meta}
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1018,7 +934,24 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     id: string;
     originRect: CardRect;
   } | null>(null);
+  const [displayZoomTier, setDisplayZoomTier] = useState<ZoomTier>(() =>
+    getZoomTier(ZOOM_SCALE.world),
+  );
   const zoomTier = getZoomTier(zoomScale);
+
+  useEffect(() => {
+    if (zoomTier === displayZoomTier) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setDisplayZoomTier(zoomTier);
+    }, 150);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [displayZoomTier, zoomTier]);
   useEffect(() => {
     if (!countryNodes.length || !locationNodes.length || !atlasPosts.length) {
       return;
@@ -1074,31 +1007,31 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   }, [locationNodes, selectedCountry]);
 
   const activeMarkerId = useMemo(() => {
-    if (zoomTier === 'world') {
+    if (displayZoomTier === 'world') {
       return selectedCountry?.id ?? null;
     }
 
-    if (zoomTier === 'place') {
+    if (displayZoomTier === 'place') {
       return `post-${activePost?.id ?? ''}`;
     }
 
     return selectedLocation?.id ?? null;
-  }, [activePost?.id, selectedCountry, selectedLocation, zoomTier]);
+  }, [activePost?.id, displayZoomTier, selectedCountry, selectedLocation]);
 
   const dockItems = useMemo(() => {
-    if (zoomTier === 'world') {
+    if (displayZoomTier === 'world') {
       return countryNodes;
     }
 
-    if (zoomTier === 'region') {
+    if (displayZoomTier === 'region') {
       return regionNodes;
     }
 
     return selectedLocation?.posts ?? [];
-  }, [countryNodes, regionNodes, selectedLocation?.posts, zoomTier]);
+  }, [countryNodes, displayZoomTier, regionNodes, selectedLocation?.posts]);
 
   const focusOverlay = useMemo(() => {
-    if (zoomTier === 'world') {
+    if (displayZoomTier === 'world') {
       return {
         eyebrow: 'Country',
         title: selectedCountry?.label ?? '',
@@ -1108,7 +1041,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       };
     }
 
-    if (zoomTier === 'region') {
+    if (displayZoomTier === 'region') {
       return {
         eyebrow: 'Place',
         title: selectedLocation?.label ?? '',
@@ -1118,10 +1051,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
 
     return {
       eyebrow: 'Post',
-      title: activePost?.location?.locationName ?? activePost?.city ?? '',
+      title: activePost?.city ?? '',
       meta: activePost?.location?.country ?? selectedCountry?.label ?? '',
     };
-  }, [activePost, selectedCountry, selectedLocation, zoomTier]);
+  }, [activePost, displayZoomTier, selectedCountry, selectedLocation]);
 
   const postNodes = useMemo(
     () => buildAllPostNodes(locationNodes),
@@ -1134,16 +1067,16 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   );
 
   const globeNodes = useMemo(() => {
-    if (zoomTier === 'world') {
+    if (displayZoomTier === 'world') {
       return countryNodes;
     }
 
-    if (zoomTier === 'region') {
+    if (displayZoomTier === 'region') {
       return locationNodes;
     }
 
     return postNodes;
-  }, [countryNodes, locationNodes, postNodes, zoomTier]);
+  }, [countryNodes, displayZoomTier, locationNodes, postNodes]);
 
   const cameraTarget = useMemo<MarkerNode | null>(() => {
     if (!cameraTargetId) {
@@ -1224,6 +1157,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       );
       setActivePostId(countryNode.locations[0]?.posts[0]?.id ?? activePost.id);
       focusCamera(countryNode.id, options);
+      setDisplayZoomTier('region');
       setZoomScale((current) => Math.max(current, ZOOM_SCALE.region));
       return;
     }
@@ -1264,6 +1198,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setSelectedLocationId(locationNode.id);
     setActivePostId(locationNode.posts[0]?.id ?? activePost.id);
     focusCamera(locationNode.id, options);
+    setDisplayZoomTier('place');
     setZoomScale((current) => Math.max(current, ZOOM_SCALE.place));
   };
 
@@ -1366,7 +1301,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
               focusOverlay={focusOverlay}
               autoRotateEnabled={!isAutoRotateFrozen}
               zoomScale={zoomScale}
-              zoomTier={zoomTier}
+              zoomTier={displayZoomTier}
               activeMarkerId={activeMarkerId}
               hoveredMarkerId={hoveredMarkerId}
               onHoverMarker={setHoveredMarkerId}
@@ -1384,7 +1319,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             className="overflow-visible rounded-[2rem] border border-orange-500/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,248,242,0.92))] p-3 shadow-[0_24px_60px_-42px_rgba(154,52,18,0.36)] backdrop-blur-xl sm:p-4 lg:mx-auto lg:w-full lg:max-w-[980px]"
           >
             <div className="-mx-1 flex gap-3 overflow-x-auto overflow-y-visible px-1 py-2">
-              {zoomTier === 'world' &&
+              {displayZoomTier === 'world' &&
                 (dockItems as CountryNode[]).map((country) => {
                   const isActive = country.id === selectedCountry.id;
 
@@ -1405,7 +1340,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           : ATLAS_CARD_INACTIVE_CLASSNAME,
                       )}
                     >
-                      <div className="relative aspect-[4/3] overflow-hidden">
+                      <div className="relative aspect-[4/4.6] overflow-hidden">
                         <Image
                           src={clipCDNImage(country.cover, {
                             width: 420,
@@ -1431,7 +1366,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                   );
                 })}
 
-              {zoomTier === 'region' &&
+              {displayZoomTier === 'region' &&
                 (dockItems as LocationNode[]).map((location) => {
                   const isActive = location.id === selectedLocation.id;
 
@@ -1452,7 +1387,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           : ATLAS_CARD_INACTIVE_CLASSNAME,
                       )}
                     >
-                      <div className="relative aspect-[4/3] overflow-hidden">
+                      <div className="relative aspect-[4/4.6] overflow-hidden">
                         <Image
                           src={clipCDNImage(location.cover, {
                             width: 420,
@@ -1478,7 +1413,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                   );
                 })}
 
-              {zoomTier === 'place' &&
+              {displayZoomTier === 'place' &&
                 (dockItems as CityPost[]).map((post) => {
                   const isActive = post.id === activePost.id;
 
@@ -1518,7 +1453,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           : ATLAS_CARD_INACTIVE_CLASSNAME,
                       )}
                     >
-                      <div className="relative aspect-[4/5] overflow-hidden">
+                      <div className="relative aspect-[4/4.6] overflow-hidden">
                         <Image
                           src={clipCDNImage(post.cover, {
                             width: 420,
@@ -1534,7 +1469,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       </div>
                       <div className="px-4 py-3.5">
                         <p className="text-[18px] font-semibold tracking-tight text-neutral-900">
-                          {post.location?.locationName ?? post.city}
+                          {post.city}
                         </p>
                         <p className="mt-1 text-[14px] leading-6 text-[--orange-8]">
                           {post.location?.region}

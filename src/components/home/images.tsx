@@ -503,7 +503,7 @@ export function ExpandedPost({
                 </div>
 
                 <h3 className="mt-3 text-xl font-semibold tracking-tight text-white sm:text-[2rem]">
-                  {post.location?.locationName ?? post.city}
+                  {post.city}
                 </h3>
 
                 {post.location?.description && (

@@ -83,10 +83,8 @@ const ZOOM_SCALE: Record<ZoomTier, number> = {
 const MIN_GLOBE_SCALE = 0.84;
 const MAX_GLOBE_SCALE = 4.42;
 const GLOBE_IMAGE_URL = 'https://r2.mskyurina.top/globe/b3c9a3afc8968a6e.webp';
-const GLOBE_BUMP_IMAGE_URL =
-  'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png';
-const DEFAULT_GLOBE_LAT = 16;
-const DEFAULT_GLOBE_LNG = -53;
+const DEFAULT_GLOBE_LAT = 28;
+const DEFAULT_GLOBE_LNG = 18;
 
 function sortPosts(posts: CityPost[]) {
   return [...posts].sort((left, right) => {
@@ -450,7 +448,7 @@ function GlobeStage({
   const hoveredMarkerIdRef = useRef<string | null>(hoveredMarkerId);
   const activeMarkerIdRef = useRef<string | null>(activeMarkerId);
   const centeredMarkerChangeRef = useRef(onCenteredMarkerChange);
-  const lastCameraTargetIdRef = useRef<string | null>(cameraTarget?.id ?? null);
+  const lastCameraTargetIdRef = useRef<string | null>(null);
   const lastFocusKeyRef = useRef(cameraFocusKey);
   const zoomScaleChangeRef = useRef(onZoomScaleChange);
   const wheelMomentumRef = useRef(0);
@@ -460,6 +458,24 @@ function GlobeStage({
   const focusTransitionUntilRef = useRef(0);
   const focusTransitionTimerRef = useRef<number | null>(null);
   const pointerPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const initialViewAppliedRef = useRef(false);
+
+  const applyInitialView = () => {
+    if (initialViewAppliedRef.current || !globeRef.current) {
+      return false;
+    }
+
+    const initialView = cameraTarget
+      ? getGlobeView(cameraTarget.lat, cameraTarget.lng, zoomScale)
+      : getGlobeView(DEFAULT_GLOBE_LAT, DEFAULT_GLOBE_LNG, zoomScale);
+
+    globeRef.current.pointOfView(initialView, 0);
+    lastCameraTargetIdRef.current = cameraTarget?.id ?? null;
+    lastFocusKeyRef.current = cameraFocusKey;
+    initialViewAppliedRef.current = true;
+
+    return true;
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -512,13 +528,23 @@ function GlobeStage({
     }
 
     const frameId = window.requestAnimationFrame(() => {
+      applyInitialView();
+
       setIsGlobeReady(true);
     });
 
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [GlobeComponent, isGlobeReady, viewport.height, viewport.width]);
+  }, [
+    GlobeComponent,
+    cameraFocusKey,
+    cameraTarget,
+    isGlobeReady,
+    viewport.height,
+    viewport.width,
+    zoomScale,
+  ]);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -748,7 +774,7 @@ function GlobeStage({
         focusTransitionTimerRef.current = null;
       }
     };
-  }, [isGlobeReady, viewport]);
+  }, [autoRotateEnabled, isGlobeReady, viewport]);
 
   const handlePointerEnter = () => {
     isPointerOverGlobeRef.current = true;
@@ -866,7 +892,6 @@ function GlobeStage({
                 height={viewport.height}
                 backgroundColor="rgba(0,0,0,0)"
                 globeImageUrl={GLOBE_IMAGE_URL}
-                bumpImageUrl={GLOBE_BUMP_IMAGE_URL}
                 waitForGlobeReady={false}
                 showAtmosphere
                 atmosphereColor="#f1c58d"
@@ -874,6 +899,8 @@ function GlobeStage({
                 enablePointerInteraction
                 showPointerCursor={false}
                 onGlobeReady={() => {
+                  applyInitialView();
+
                   setIsGlobeReady(true);
                 }}
               />
@@ -969,6 +996,10 @@ function GlobeStage({
 
 export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const sectionRef = useRef<HTMLElement>(null);
+  const focusSeedPost = useMemo(
+    () => posts.find((post) => post.location) ?? null,
+    [posts],
+  );
   const atlasPosts = useMemo(
     () => sortPosts(posts.filter((post) => post.location)),
     [posts],
@@ -981,16 +1012,38 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     () => buildCountryNodes(locationNodes),
     [locationNodes],
   );
+  const initialPost = focusSeedPost ?? atlasPosts[0] ?? null;
+  const initialCountryId = useMemo(
+    () =>
+      initialPost?.location
+        ? (countryNodes.find(
+            (node) => node.label === initialPost.location?.country,
+          )?.id ??
+          countryNodes[0]?.id ??
+          '')
+        : (countryNodes[0]?.id ?? ''),
+    [countryNodes, initialPost],
+  );
+  const initialLocationId = useMemo(
+    () =>
+      initialPost?.location
+        ? (locationNodes.find(
+            (node) =>
+              node.label === initialPost.location?.locationName &&
+              node.country === initialPost.location?.country,
+          )?.id ??
+          locationNodes[0]?.id ??
+          '')
+        : (locationNodes[0]?.id ?? ''),
+    [initialPost, locationNodes],
+  );
   const [zoomScale, setZoomScale] = useState(ZOOM_SCALE.world);
-  const [selectedCountryId, setSelectedCountryId] = useState(
-    countryNodes[0]?.id ?? '',
-  );
-  const [selectedLocationId, setSelectedLocationId] = useState(
-    locationNodes[0]?.id ?? '',
-  );
-  const [activePostId, setActivePostId] = useState(atlasPosts[0]?.id ?? '');
+  const [selectedCountryId, setSelectedCountryId] = useState(initialCountryId);
+  const [selectedLocationId, setSelectedLocationId] =
+    useState(initialLocationId);
+  const [activePostId, setActivePostId] = useState(initialPost?.id ?? '');
   const [cameraTargetId, setCameraTargetId] = useState<string | null>(
-    countryNodes[0]?.id ?? null,
+    initialCountryId || null,
   );
   const [cameraFocusKey, setCameraFocusKey] = useState(0);
   const [isAutoRotateFrozen, setIsAutoRotateFrozen] = useState(false);
@@ -1023,12 +1076,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     }
 
     setSelectedCountryId((prev) =>
-      countryNodes.some((node) => node.id === prev) ? prev : countryNodes[0].id,
+      countryNodes.some((node) => node.id === prev) ? prev : initialCountryId,
     );
     setSelectedLocationId((prev) =>
-      locationNodes.some((node) => node.id === prev)
-        ? prev
-        : locationNodes[0].id,
+      locationNodes.some((node) => node.id === prev) ? prev : initialLocationId,
     );
     setActivePostId((prev) =>
       atlasPosts.some((post) => post.id === prev) ? prev : atlasPosts[0].id,
@@ -1036,9 +1087,15 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setCameraTargetId((prev) =>
       prev && countryNodes.some((node) => node.id === prev)
         ? prev
-        : countryNodes[0].id,
+        : initialCountryId,
     );
-  }, [atlasPosts, countryNodes, locationNodes]);
+  }, [
+    atlasPosts,
+    countryNodes,
+    initialCountryId,
+    initialLocationId,
+    locationNodes,
+  ]);
 
   const selectedCountry = useMemo(
     () =>

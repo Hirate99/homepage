@@ -148,12 +148,17 @@ function getPreferredCover(images: CoverImage[], coverImageId: number | null) {
 }
 
 function pickCoverImage(images: CoverImage[], coverImageId: number | null) {
+  const preferredCover = getPreferredCover(images, coverImageId);
+  if (preferredCover && isCoverAspectAllowed(preferredCover)) {
+    return preferredCover;
+  }
+
   const eligibleCovers = images.filter(isCoverAspectAllowed);
   if (eligibleCovers.length > 0) {
     return eligibleCovers[randomInt(eligibleCovers.length)];
   }
 
-  return getPreferredCover(images, coverImageId);
+  return preferredCover;
 }
 
 function buildLocationMetadata({

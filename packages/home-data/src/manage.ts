@@ -1,5 +1,6 @@
 import { convertImageToWebp } from './media';
 import { getR2Env } from './env';
+import { createCollectionImageObjectKey } from './object-key';
 import { deleteObjectFromR2 } from './r2';
 import { uploadWebpToR2 } from './r2';
 import type {
@@ -110,14 +111,6 @@ const adminCollectionSelect = {
   },
 };
 
-function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
-
 async function getAdminCollectionById(collectionId: number) {
   const client = prisma();
 
@@ -206,6 +199,7 @@ export async function appendImagesToCollection(
       select: {
         id: true,
         title: true,
+        locationName: true,
         coverImageId: true,
       },
     });
@@ -214,12 +208,12 @@ export async function appendImagesToCollection(
       throw new Error('Collection not found.');
     }
 
-    const slug = slugify(collection.title ?? `collection-${collection.id}`);
     const uploaded = [];
+    const folderInput = collection.locationName ?? collection.title;
 
-    for (const [index, image] of images.entries()) {
+    for (const image of images) {
       const converted = await convertImageToWebp(image);
-      const key = `collections/${slug}/${Date.now()}-append-${index}-${crypto.randomUUID()}-${converted.keyBase}.webp`;
+      const key = createCollectionImageObjectKey(folderInput);
       const url = await uploadWebpToR2(key, converted.output);
       uploaded.push({
         src: url,

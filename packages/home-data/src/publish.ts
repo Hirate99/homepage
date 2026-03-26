@@ -7,19 +7,12 @@ import type {
 import { extractGpsFromImage } from './exif';
 import { reverseGeocodeLocation } from './geocode';
 import { convertImageToWebp } from './media';
+import { createCollectionImageObjectKey } from './object-key';
 import { prisma } from './prisma';
 import { redis } from './redis';
 import { uploadWebpToR2 } from './r2';
 
 const HOME_COLLECTIONS_CACHE_KEY = 'home:city-collections:v3';
-
-function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
 
 function normalizeText(value: string | undefined) {
   const trimmed = value?.trim();
@@ -126,11 +119,11 @@ export async function publishCollection(
 
   const detectedLocation = await detectLocation(input.images);
   const effectiveLocation = mergeLocation(input.location, detectedLocation);
-  const slug = slugify(title) || `collection-${Date.now()}`;
+  const folderInput = effectiveLocation?.locationName ?? title;
   const processedImages = await Promise.all(
-    input.images.map(async (image, index) => {
+    input.images.map(async (image) => {
       const converted = await convertImageToWebp(image);
-      const key = `collections/${slug}/${Date.now()}-${index}-${crypto.randomUUID()}-${converted.keyBase}.webp`;
+      const key = createCollectionImageObjectKey(folderInput);
       const url = await uploadWebpToR2(key, converted.output);
 
       return {

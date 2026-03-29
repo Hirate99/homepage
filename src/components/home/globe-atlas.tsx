@@ -66,11 +66,18 @@ interface PostNode {
 type MarkerNode = CountryNode | LocationNode | PostNode;
 
 const ATLAS_CARD_CLASSNAME =
-  'group min-w-[224px] max-w-[224px] appearance-none overflow-hidden rounded-[1.5rem] border text-left outline-none ring-0 transition duration-300 focus:outline-none focus:ring-0';
+  'group min-w-[160px] max-w-[160px] appearance-none overflow-hidden rounded-[1.5rem] border text-left outline-none ring-0 transition duration-300 focus:outline-none focus:ring-0 sm:min-w-[224px] sm:max-w-[224px]';
 const ATLAS_CARD_INACTIVE_CLASSNAME =
   'border-[rgba(249,115,22,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,250,245,0.94))] hover:-translate-y-0.5 hover:border-[rgba(249,115,22,0.14)]';
 const ATLAS_CARD_ACTIVE_CLASSNAME =
   'border-[rgba(249,115,22,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,246,238,0.98))]';
+const ATLAS_CARD_MEDIA_CLASSNAME =
+  'relative aspect-square overflow-hidden sm:aspect-[4/4.6]';
+const ATLAS_CARD_BODY_CLASSNAME = 'px-3 py-3 sm:px-4 sm:py-3.5';
+const ATLAS_CARD_TITLE_CLASSNAME =
+  'text-base font-semibold tracking-tight text-neutral-900 sm:text-[18px]';
+const ATLAS_CARD_META_CLASSNAME =
+  'mt-0.5 text-[13px] leading-5 text-[--orange-8] sm:mt-1 sm:text-[14px] sm:leading-6';
 type GlobeComponentType = ComponentType<
   GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
 >;
@@ -98,6 +105,18 @@ function sortPosts(posts: CityPost[]) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getTouchDistance(touches: TouchList) {
+  if (touches.length < 2) {
+    return 0;
+  }
+
+  const [first, second] = [touches[0], touches[1]];
+  return Math.hypot(
+    second.clientX - first.clientX,
+    second.clientY - first.clientY,
+  );
 }
 
 function getDefaultOriginRect(): CardRect {
@@ -130,6 +149,39 @@ function getGlobeView(lat: number, lng: number, scale: number) {
     lng,
     altitude: globeScaleToAltitude(scale),
   };
+}
+
+function applyInitialGlobeView({
+  globeRef,
+  initialViewAppliedRef,
+  lastCameraTargetIdRef,
+  lastFocusKeyRef,
+  cameraTarget,
+  cameraFocusKey,
+  zoomScale,
+}: {
+  globeRef: MutableRefObject<GlobeMethods | undefined>;
+  initialViewAppliedRef: MutableRefObject<boolean>;
+  lastCameraTargetIdRef: MutableRefObject<string | null>;
+  lastFocusKeyRef: MutableRefObject<number>;
+  cameraTarget: MarkerNode | null;
+  cameraFocusKey: number;
+  zoomScale: number;
+}) {
+  if (initialViewAppliedRef.current || !globeRef.current) {
+    return false;
+  }
+
+  const initialView = cameraTarget
+    ? getGlobeView(cameraTarget.lat, cameraTarget.lng, zoomScale)
+    : getGlobeView(DEFAULT_GLOBE_LAT, DEFAULT_GLOBE_LNG, zoomScale);
+
+  globeRef.current.pointOfView(initialView, 0);
+  lastCameraTargetIdRef.current = cameraTarget?.id ?? null;
+  lastFocusKeyRef.current = cameraFocusKey;
+  initialViewAppliedRef.current = true;
+
+  return true;
 }
 
 function isNodeVisibleFromView(
@@ -459,23 +511,10 @@ function GlobeStage({
   const focusTransitionTimerRef = useRef<number | null>(null);
   const pointerPositionRef = useRef<{ x: number; y: number } | null>(null);
   const initialViewAppliedRef = useRef(false);
-
-  const applyInitialView = () => {
-    if (initialViewAppliedRef.current || !globeRef.current) {
-      return false;
-    }
-
-    const initialView = cameraTarget
-      ? getGlobeView(cameraTarget.lat, cameraTarget.lng, zoomScale)
-      : getGlobeView(DEFAULT_GLOBE_LAT, DEFAULT_GLOBE_LNG, zoomScale);
-
-    globeRef.current.pointOfView(initialView, 0);
-    lastCameraTargetIdRef.current = cameraTarget?.id ?? null;
-    lastFocusKeyRef.current = cameraFocusKey;
-    initialViewAppliedRef.current = true;
-
-    return true;
-  };
+  const pinchGestureRef = useRef<{
+    distance: number;
+    scale: number;
+  } | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -528,7 +567,15 @@ function GlobeStage({
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      applyInitialView();
+      applyInitialGlobeView({
+        globeRef,
+        initialViewAppliedRef,
+        lastCameraTargetIdRef,
+        lastFocusKeyRef,
+        cameraTarget,
+        cameraFocusKey,
+        zoomScale,
+      });
 
       setIsGlobeReady(true);
     });
@@ -800,6 +847,26 @@ function GlobeStage({
       return;
     }
 
+    const resetPinch = () => {
+      pinchGestureRef.current = null;
+      isWheelZoomingRef.current = false;
+    };
+
+    const syncPinch = (touches: TouchList) => {
+      const distance = getTouchDistance(touches);
+      if (distance <= 0) {
+        return;
+      }
+
+      zoomScaleChangeRef.current((current) => {
+        pinchGestureRef.current = {
+          distance,
+          scale: current,
+        };
+        return current;
+      });
+    };
+
     const runWheelInertia = () => {
       const momentum = wheelMomentumRef.current;
       if (Math.abs(momentum) < 0.0025) {
@@ -848,15 +915,69 @@ function GlobeStage({
       wheelFrameRef.current = window.requestAnimationFrame(runWheelInertia);
     };
 
+    const handleTouchStart = (event: TouchEvent) => {
+      if (event.touches.length < 2) {
+        return;
+      }
+
+      event.preventDefault();
+      syncPinch(event.touches);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (event.touches.length < 2) {
+        return;
+      }
+
+      const pinch = pinchGestureRef.current;
+      const distance = getTouchDistance(event.touches);
+      if (!pinch || distance <= 0) {
+        return;
+      }
+
+      event.preventDefault();
+      isWheelZoomingRef.current = true;
+
+      zoomScaleChangeRef.current(
+        clamp(
+          pinch.scale * (distance / pinch.distance),
+          MIN_GLOBE_SCALE,
+          MAX_GLOBE_SCALE,
+        ),
+      );
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length >= 2) {
+        syncPinch(event.touches);
+        return;
+      }
+
+      resetPinch();
+    };
+
     container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('touchstart', handleTouchStart, {
+      passive: false,
+    });
+    container.addEventListener('touchmove', handleTouchMove, {
+      passive: false,
+    });
+    container.addEventListener('touchend', handleTouchEnd);
+    container.addEventListener('touchcancel', handleTouchEnd);
+
     return () => {
       container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
       if (wheelFrameRef.current) {
         window.cancelAnimationFrame(wheelFrameRef.current);
         wheelFrameRef.current = null;
       }
-      isWheelZoomingRef.current = false;
       wheelMomentumRef.current = 0;
+      resetPinch();
     };
   }, []);
 
@@ -864,13 +985,13 @@ function GlobeStage({
     <div className="relative lg:mx-auto lg:w-full lg:max-w-[980px]">
       <div
         className={cn(
-          'relative overflow-hidden rounded-[2rem] border border-orange-500/15 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.98),_rgba(255,247,237,0.92)_48%,_rgba(255,237,213,0.76)_100%)] p-4 shadow-[0_24px_70px_-40px_rgba(154,52,18,0.45)] sm:p-6',
+          'relative overflow-hidden rounded-[2rem] border border-orange-500/15 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.98),_rgba(255,247,237,0.92)_48%,_rgba(255,237,213,0.76)_100%)] p-2 shadow-[0_24px_70px_-40px_rgba(154,52,18,0.45)] sm:p-6',
           'before:pointer-events-none before:absolute before:inset-x-10 before:top-3 before:h-24 before:rounded-full before:bg-white/70 before:blur-3xl',
         )}
       >
         <div
           ref={containerRef}
-          className="relative z-10 mx-auto aspect-[16/10] w-full max-w-[920px] cursor-grab touch-none overflow-hidden rounded-[1.75rem] border border-white/55 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(255,247,237,0.48)_42%,_rgba(255,237,213,0.18)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] active:cursor-grabbing sm:aspect-[8/5] lg:h-[min(66vh,680px)] lg:w-full lg:max-w-none"
+          className="relative z-10 mx-auto aspect-square min-h-[25rem] w-full max-w-[920px] cursor-grab touch-none overflow-hidden rounded-[1.75rem] border border-white/55 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(255,247,237,0.48)_42%,_rgba(255,237,213,0.18)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] active:cursor-grabbing sm:aspect-[8/5] sm:min-h-0 lg:h-[min(66vh,680px)] lg:w-full lg:max-w-none"
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
         >
@@ -899,7 +1020,15 @@ function GlobeStage({
                 enablePointerInteraction
                 showPointerCursor={false}
                 onGlobeReady={() => {
-                  applyInitialView();
+                  applyInitialGlobeView({
+                    globeRef,
+                    initialViewAppliedRef,
+                    lastCameraTargetIdRef,
+                    lastFocusKeyRef,
+                    cameraTarget,
+                    cameraFocusKey,
+                    zoomScale,
+                  });
 
                   setIsGlobeReady(true);
                 }}
@@ -1462,7 +1591,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           : ATLAS_CARD_INACTIVE_CLASSNAME,
                       )}
                     >
-                      <div className="relative aspect-[4/4.6] overflow-hidden">
+                      <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
                         <Image
                           src={clipCDNImage(country.cover, {
                             width: 420,
@@ -1470,17 +1599,17 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           })}
                           alt={country.label}
                           fill
-                          sizes="224px"
+                          sizes="(min-width: 640px) 224px, 160px"
                           className="object-cover"
                           loading="lazy"
                         />
                         <div className="from-black/16 pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t via-black/0 to-transparent" />
                       </div>
-                      <div className="px-4 py-3.5">
-                        <p className="text-[18px] font-semibold tracking-tight text-neutral-900">
+                      <div className={ATLAS_CARD_BODY_CLASSNAME}>
+                        <p className={ATLAS_CARD_TITLE_CLASSNAME}>
                           {country.label}
                         </p>
-                        <p className="mt-1 text-[14px] leading-6 text-[--orange-8]">
+                        <p className={ATLAS_CARD_META_CLASSNAME}>
                           {country.count} places, {country.postCount} posts
                         </p>
                       </div>
@@ -1509,7 +1638,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           : ATLAS_CARD_INACTIVE_CLASSNAME,
                       )}
                     >
-                      <div className="relative aspect-[4/4.6] overflow-hidden">
+                      <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
                         <Image
                           src={clipCDNImage(location.cover, {
                             width: 420,
@@ -1517,17 +1646,17 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           })}
                           alt={location.label}
                           fill
-                          sizes="224px"
+                          sizes="(min-width: 640px) 224px, 160px"
                           className="object-cover"
                           loading="lazy"
                         />
                         <div className="from-black/16 pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t via-black/0 to-transparent" />
                       </div>
-                      <div className="px-4 py-3.5">
-                        <p className="text-[18px] font-semibold tracking-tight text-neutral-900">
+                      <div className={ATLAS_CARD_BODY_CLASSNAME}>
+                        <p className={ATLAS_CARD_TITLE_CLASSNAME}>
                           {location.label}
                         </p>
-                        <p className="mt-1 text-[14px] leading-6 text-[--orange-8]">
+                        <p className={ATLAS_CARD_META_CLASSNAME}>
                           {location.region}
                         </p>
                       </div>
@@ -1575,7 +1704,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           : ATLAS_CARD_INACTIVE_CLASSNAME,
                       )}
                     >
-                      <div className="relative aspect-[4/4.6] overflow-hidden">
+                      <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
                         <Image
                           src={clipCDNImage(post.cover, {
                             width: 420,
@@ -1583,17 +1712,17 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           })}
                           alt={post.city}
                           fill
-                          sizes="224px"
+                          sizes="(min-width: 640px) 224px, 160px"
                           className="object-cover"
                           loading="lazy"
                         />
                         <div className="from-black/18 pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t via-black/0 to-transparent" />
                       </div>
-                      <div className="px-4 py-3.5">
-                        <p className="text-[18px] font-semibold tracking-tight text-neutral-900">
+                      <div className={ATLAS_CARD_BODY_CLASSNAME}>
+                        <p className={ATLAS_CARD_TITLE_CLASSNAME}>
                           {post.city}
                         </p>
-                        <p className="mt-1 text-[14px] leading-6 text-[--orange-8]">
+                        <p className={ATLAS_CARD_META_CLASSNAME}>
                           {post.location?.region}
                         </p>
                       </div>

@@ -87,6 +87,8 @@ const ZOOM_SCALE: Record<ZoomTier, number> = {
   region: 2.72,
   place: 3.78,
 };
+const REGION_ZOOM_THRESHOLD = 1.62;
+const PLACE_ZOOM_THRESHOLD = ZOOM_SCALE.place;
 const MIN_GLOBE_SCALE = 0.84;
 const MAX_GLOBE_SCALE = 4.42;
 const GLOBE_IMAGE_URL = 'https://r2.mskyurina.top/globe/b3c9a3afc8968a6e.webp';
@@ -195,11 +197,11 @@ function isNodeVisibleFromView(
 }
 
 function getZoomTier(scale: number): ZoomTier {
-  if (scale < 1.62) {
+  if (scale < REGION_ZOOM_THRESHOLD) {
     return 'world';
   }
 
-  if (scale < 3.86) {
+  if (scale < PLACE_ZOOM_THRESHOLD) {
     return 'region';
   }
 
@@ -515,6 +517,8 @@ function GlobeStage({
     distance: number;
     scale: number;
   } | null>(null);
+  const autoRotateEnabledRef = useRef(autoRotateEnabled);
+  const isPinchActiveRef = useRef(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -612,6 +616,10 @@ function GlobeStage({
   useEffect(() => {
     zoomScaleChangeRef.current = onZoomScaleChange;
   }, [onZoomScaleChange]);
+
+  useEffect(() => {
+    autoRotateEnabledRef.current = autoRotateEnabled;
+  }, [autoRotateEnabled]);
 
   useEffect(() => {
     if (!isGlobeReady || !globeRef.current) {
@@ -852,6 +860,21 @@ function GlobeStage({
       isWheelZoomingRef.current = false;
     };
 
+    const setPinchActive = (active: boolean) => {
+      isPinchActiveRef.current = active;
+
+      const controls = globeRef.current?.controls();
+      if (!controls) {
+        return;
+      }
+
+      controls.enabled = !active;
+      controls.autoRotate =
+        !active &&
+        autoRotateEnabledRef.current &&
+        !isPointerOverGlobeRef.current;
+    };
+
     const syncPinch = (touches: TouchList) => {
       const distance = getTouchDistance(touches);
       if (distance <= 0) {
@@ -921,6 +944,8 @@ function GlobeStage({
       }
 
       event.preventDefault();
+      event.stopPropagation();
+      setPinchActive(true);
       syncPinch(event.touches);
     };
 
@@ -936,6 +961,7 @@ function GlobeStage({
       }
 
       event.preventDefault();
+      event.stopPropagation();
       isWheelZoomingRef.current = true;
 
       zoomScaleChangeRef.current(
@@ -951,6 +977,10 @@ function GlobeStage({
       if (event.touches.length >= 2) {
         syncPinch(event.touches);
         return;
+      }
+
+      if (event.touches.length === 0 && isPinchActiveRef.current) {
+        setPinchActive(false);
       }
 
       resetPinch();
@@ -976,6 +1006,7 @@ function GlobeStage({
         window.cancelAnimationFrame(wheelFrameRef.current);
         wheelFrameRef.current = null;
       }
+      setPinchActive(false);
       wheelMomentumRef.current = 0;
       resetPinch();
     };

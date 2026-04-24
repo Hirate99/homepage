@@ -1570,11 +1570,11 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     <>
       <section
         ref={sectionRef}
-        className="relative mx-auto w-full max-w-screen-xl px-4 pb-24 pt-10 sm:pb-28 sm:pt-14 lg:h-screen lg:px-6 lg:py-0"
+        className="relative mx-auto w-full max-w-screen-xl px-4 pb-24 pt-10 sm:pb-28 sm:pt-14 lg:min-h-screen lg:px-6 lg:py-12"
       >
         <motion.div className="pointer-events-none absolute inset-x-4 top-8 h-64 rounded-[2.5rem] bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.1),_rgba(255,255,255,0)_65%)] blur-3xl lg:top-1/2 lg:h-80 lg:-translate-y-1/2" />
 
-        <div className="relative mx-auto w-full max-w-[1120px] space-y-4 lg:flex lg:h-full lg:flex-col lg:items-center lg:justify-center lg:gap-6 lg:space-y-0 lg:py-8">
+        <div className="relative mx-auto w-full max-w-[1120px] space-y-4 lg:flex lg:min-h-[calc(100vh-6rem)] lg:flex-col lg:items-center lg:justify-center lg:gap-6 lg:space-y-0">
           <motion.div className="relative w-full lg:flex lg:flex-none lg:items-center lg:justify-center lg:pt-0">
             <GlobeStage
               nodes={globeNodes}

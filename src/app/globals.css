@@ -78,10 +78,17 @@
 
   html {
     height: -webkit-fill-available;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: #ff5a2f;
+    color: white;
   }
 
   /* If using React, set height on the root div as well */
@@ -101,12 +108,17 @@
   min-width: 0;
 }
 
-@keyframes heroFloat {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
-  50% {
-    transform: translate3d(0, -16px, 0);
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

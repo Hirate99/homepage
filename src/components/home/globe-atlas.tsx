@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { AnimatePresence, motion } from 'framer-motion';
+import { Minus, Plus, RotateCcw } from 'lucide-react';
 import type { GlobeMethods, GlobeProps } from 'react-globe.gl';
 
 import { type CityPost } from '@/lib/collections';
@@ -66,18 +67,16 @@ interface PostNode {
 type MarkerNode = CountryNode | LocationNode | PostNode;
 
 const ATLAS_CARD_CLASSNAME =
-  'group min-w-[160px] max-w-[160px] appearance-none overflow-hidden rounded-[1.5rem] border text-left outline-none ring-0 transition duration-300 focus:outline-none focus:ring-0 sm:min-w-[224px] sm:max-w-[224px]';
+  'group min-w-[152px] max-w-[152px] appearance-none overflow-hidden rounded-[4px] border text-left outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[#ff5a2f] focus-visible:ring-offset-2 sm:min-w-[196px] sm:max-w-[196px]';
 const ATLAS_CARD_INACTIVE_CLASSNAME =
-  'border-[rgba(249,115,22,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,250,245,0.94))] hover:-translate-y-0.5 hover:border-[rgba(249,115,22,0.14)]';
-const ATLAS_CARD_ACTIVE_CLASSNAME =
-  'border-[rgba(249,115,22,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,246,238,0.98))]';
-const ATLAS_CARD_MEDIA_CLASSNAME =
-  'relative aspect-square overflow-hidden sm:aspect-[4/4.6]';
+  'border-[#18332d]/15 bg-white hover:-translate-y-0.5 hover:border-[#18332d]/45';
+const ATLAS_CARD_ACTIVE_CLASSNAME = 'border-[#ff5a2f] bg-[#fff1eb]';
+const ATLAS_CARD_MEDIA_CLASSNAME = 'relative aspect-[4/5] overflow-hidden';
 const ATLAS_CARD_BODY_CLASSNAME = 'px-3 py-3 sm:px-4 sm:py-3.5';
 const ATLAS_CARD_TITLE_CLASSNAME =
-  'text-base font-semibold tracking-tight text-neutral-900 sm:text-[18px]';
+  'text-base font-semibold text-[#10211d] sm:text-[17px]';
 const ATLAS_CARD_META_CLASSNAME =
-  'mt-0.5 text-[13px] leading-5 text-[--orange-8] sm:mt-1 sm:text-[14px] sm:leading-6';
+  'mt-0.5 text-[12px] leading-5 text-[#45645c] sm:mt-1 sm:text-[13px]';
 type GlobeComponentType = ComponentType<
   GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
 >;
@@ -91,7 +90,8 @@ const REGION_ZOOM_THRESHOLD = 1.62;
 const PLACE_ZOOM_THRESHOLD = ZOOM_SCALE.place;
 const MIN_GLOBE_SCALE = 0.84;
 const MAX_GLOBE_SCALE = 4.42;
-const GLOBE_IMAGE_URL = 'https://r2.mskyurina.top/globe/b3c9a3afc8968a6e.webp';
+const GLOBE_IMAGE_URL =
+  '/_next/image?url=https%3A%2F%2Fr2.mskyurina.top%2Fglobe%2Fb3c9a3afc8968a6e.webp&w=3840&q=90';
 const DEFAULT_GLOBE_LAT = 28;
 const DEFAULT_GLOBE_LNG = 18;
 
@@ -449,7 +449,6 @@ function GlobeStage({
   nodes,
   cameraTarget,
   cameraFocusKey,
-  focusOverlay,
   autoRotateEnabled,
   zoomScale,
   zoomTier,
@@ -464,11 +463,6 @@ function GlobeStage({
   nodes: MarkerNode[];
   cameraTarget: MarkerNode | null;
   cameraFocusKey: number;
-  focusOverlay: {
-    eyebrow: string;
-    title: string;
-    meta: string;
-  };
   autoRotateEnabled: boolean;
   zoomScale: number;
   zoomTier: ZoomTier;
@@ -1013,149 +1007,139 @@ function GlobeStage({
   }, []);
 
   return (
-    <div className="relative lg:mx-auto lg:w-full lg:max-w-[980px]">
+    <div
+      ref={containerRef}
+      className="relative mx-auto aspect-square min-h-[23rem] w-full max-w-[980px] cursor-grab touch-none overflow-hidden bg-[#edf2ef] active:cursor-grabbing sm:aspect-[8/5] sm:min-h-0 lg:h-[min(64vh,660px)] lg:w-full lg:max-w-none"
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+    >
+      {!isGlobeReady && (
+        <div className="absolute inset-0 z-10 grid place-items-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#18332d]/15 border-t-[#ff5a2f]" />
+        </div>
+      )}
+      {viewport.width > 0 && viewport.height > 0 && GlobeComponent ? (
+        <div className="absolute inset-0 overflow-hidden">
+          <GlobeComponent
+            ref={globeRef}
+            width={viewport.width}
+            height={viewport.height}
+            backgroundColor="rgba(0,0,0,0)"
+            rendererConfig={{
+              antialias: true,
+              alpha: true,
+              preserveDrawingBuffer: true,
+            }}
+            globeImageUrl={GLOBE_IMAGE_URL}
+            waitForGlobeReady={false}
+            showAtmosphere
+            atmosphereColor="#ff8a62"
+            atmosphereAltitude={0.1}
+            enablePointerInteraction
+            showPointerCursor={false}
+            onGlobeReady={() => {
+              applyInitialGlobeView({
+                globeRef,
+                initialViewAppliedRef,
+                lastCameraTargetIdRef,
+                lastFocusKeyRef,
+                cameraTarget,
+                cameraFocusKey,
+                zoomScale,
+              });
+
+              setIsGlobeReady(true);
+            }}
+          />
+        </div>
+      ) : null}
+
       <div
         className={cn(
-          'relative overflow-hidden rounded-[2rem] border border-orange-500/15 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.98),_rgba(255,247,237,0.92)_48%,_rgba(255,237,213,0.76)_100%)] p-2 shadow-[0_24px_70px_-40px_rgba(154,52,18,0.45)] sm:p-6',
-          'before:pointer-events-none before:absolute before:inset-x-10 before:top-3 before:h-24 before:rounded-full before:bg-white/70 before:blur-3xl',
+          'pointer-events-none absolute inset-0 z-20 transition-opacity duration-300',
+          isGlobeReady ? 'opacity-100' : 'opacity-0',
         )}
       >
-        <div
-          ref={containerRef}
-          className="relative z-10 mx-auto aspect-square min-h-[25rem] w-full max-w-[920px] cursor-grab touch-none overflow-hidden rounded-[1.75rem] border border-white/55 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(255,247,237,0.48)_42%,_rgba(255,237,213,0.18)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] active:cursor-grabbing sm:aspect-[8/5] sm:min-h-0 lg:h-[min(66vh,680px)] lg:w-full lg:max-w-none"
-          onPointerEnter={handlePointerEnter}
-          onPointerLeave={handlePointerLeave}
-        >
-          <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.82)_0%,_rgba(255,247,237,0.28)_48%,_rgba(251,191,36,0)_78%)] blur-2xl" />
-          {!isGlobeReady && (
-            <div className="absolute inset-0 z-10 grid place-items-center">
-              <div className="relative h-24 w-24">
-                <div className="absolute inset-0 rounded-full border border-orange-200/70 bg-white/35 backdrop-blur-sm" />
-                <div className="absolute inset-2 animate-spin rounded-full border border-orange-300/70 border-t-[--orange-8]" />
-                <div className="absolute inset-[26px] rounded-full bg-white/70 shadow-[0_0_40px_rgba(255,255,255,0.8)]" />
-              </div>
-            </div>
-          )}
-          {viewport.width > 0 && viewport.height > 0 && GlobeComponent ? (
-            <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
-              <GlobeComponent
-                ref={globeRef}
-                width={viewport.width}
-                height={viewport.height}
-                backgroundColor="rgba(0,0,0,0)"
-                globeImageUrl={GLOBE_IMAGE_URL}
-                waitForGlobeReady={false}
-                showAtmosphere
-                atmosphereColor="#f1c58d"
-                atmosphereAltitude={0.12}
-                enablePointerInteraction
-                showPointerCursor={false}
-                onGlobeReady={() => {
-                  applyInitialGlobeView({
-                    globeRef,
-                    initialViewAppliedRef,
-                    lastCameraTargetIdRef,
-                    lastFocusKeyRef,
-                    cameraTarget,
-                    cameraFocusKey,
-                    zoomScale,
-                  });
+        {nodes.map((node) => {
+          const isActive = node.id === activeMarkerId;
+          const isHovered = node.id === hoveredMarkerId;
+          const shouldShowLabel = isActive || isHovered;
 
-                  setIsGlobeReady(true);
-                }}
+          return (
+            <button
+              key={node.id}
+              type="button"
+              ref={(element) => {
+                buttonRefs.current[node.id] = element;
+              }}
+              className="group overflow-visible"
+              data-marker-button="true"
+              data-node-id={node.id}
+              style={{
+                ...getMarkerButtonStyle({
+                  x: 0.5,
+                  y: 0.5,
+                  visible: false,
+                }),
+                pointerEvents: 'none',
+              }}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelectMarker(node.id);
+              }}
+              onMouseEnter={() => onHoverMarker(node.id)}
+              onMouseLeave={() => onHoverMarker(null)}
+              onFocus={() => onHoverMarker(node.id)}
+              onBlur={() => onHoverMarker(null)}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              aria-label={node.label}
+            >
+              <span
+                className={cn(
+                  'absolute left-1/2 top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-[#ff5a2f] shadow-[0_0_0_6px_rgba(255,90,47,0.12)] transition',
+                  isActive &&
+                    'h-4 w-4 shadow-[0_0_0_10px_rgba(255,90,47,0.18)]',
+                  isHovered && 'scale-125',
+                )}
               />
-            </div>
-          ) : null}
-
-          <div
-            className={cn(
-              'pointer-events-none absolute inset-0 z-20 transition-opacity duration-300',
-              isGlobeReady ? 'opacity-100' : 'opacity-0',
-            )}
-          >
-            {nodes.map((node) => {
-              const isActive = node.id === activeMarkerId;
-              const isHovered = node.id === hoveredMarkerId;
-              const shouldShowLabel = isActive || isHovered;
-
-              return (
-                <button
-                  key={node.id}
-                  type="button"
-                  ref={(element) => {
-                    buttonRefs.current[node.id] = element;
-                  }}
-                  className="group overflow-visible"
-                  data-marker-button="true"
-                  data-node-id={node.id}
-                  style={{
-                    ...getMarkerButtonStyle({
-                      x: 0.5,
-                      y: 0.5,
-                      visible: false,
-                    }),
-                    pointerEvents: 'none',
-                  }}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onSelectMarker(node.id);
-                  }}
-                  onMouseEnter={() => onHoverMarker(node.id)}
-                  onMouseLeave={() => onHoverMarker(null)}
-                  onFocus={() => onHoverMarker(node.id)}
-                  onBlur={() => onHoverMarker(null)}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  aria-label={node.label}
-                >
-                  <span
-                    className={cn(
-                      'absolute left-1/2 top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-orange-50/90 bg-[--orange-8] shadow-[0_0_0_6px_rgba(251,146,60,0.1)] transition',
-                      isActive &&
-                        'h-4 w-4 shadow-[0_0_0_10px_rgba(251,146,60,0.16)]',
-                      isHovered && 'scale-125',
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'absolute left-1/2 top-1/2 z-0 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-orange-200/35 bg-orange-200/10 opacity-0 transition duration-300',
-                      (isActive || isHovered) && 'animate-pulse opacity-100',
-                    )}
-                  />
-                  <span
-                    ref={(element) => {
-                      labelRefs.current[node.id] = element;
-                    }}
-                    style={{ transform: 'translate(-50%, 18px)' }}
-                    className={cn(
-                      'absolute left-1/2 top-1/2 z-20 flex items-center gap-2 rounded-full border border-orange-500/10 bg-white/90 px-3.5 py-2 text-sm font-medium text-[--orange-9] shadow-lg shadow-orange-900/10 backdrop-blur-md transition',
-                      shouldShowLabel
-                        ? 'opacity-100'
-                        : 'pointer-events-none opacity-0',
-                    )}
-                  >
-                    {node.count > 1 && (
-                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-orange-100 px-1.5 text-[11px] font-semibold text-[--orange-8]">
-                        {node.count}
-                      </span>
-                    )}
-                    <span className="whitespace-nowrap">{node.label}</span>
+              <span
+                className={cn(
+                  'absolute left-1/2 top-1/2 z-0 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#ff5a2f]/35 bg-[#ff5a2f]/10 opacity-0 transition duration-300',
+                  (isActive || isHovered) && 'animate-pulse opacity-100',
+                )}
+              />
+              <span
+                ref={(element) => {
+                  labelRefs.current[node.id] = element;
+                }}
+                style={{ transform: 'translate(-50%, 18px)' }}
+                className={cn(
+                  'absolute left-1/2 top-1/2 z-20 flex items-center gap-2 rounded-[3px] border border-[#18332d]/15 bg-white/95 px-3 py-2 text-sm font-medium text-[#10211d] shadow-lg shadow-[#18332d]/10 backdrop-blur-md transition',
+                  shouldShowLabel
+                    ? 'opacity-100'
+                    : 'pointer-events-none opacity-0',
+                )}
+              >
+                {node.count > 1 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#ff5a2f]/10 px-1.5 text-[11px] font-semibold text-[#d84622]">
+                    {node.count}
                   </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                )}
+                <span className="whitespace-nowrap">{node.label}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 export function GlobeAtlas({ posts }: GlobeAtlasProps) {
-  const sectionRef = useRef<HTMLElement>(null);
   const focusSeedPost = useMemo(
     () => posts.find((post) => post.location) ?? null,
     [posts],
@@ -1311,32 +1295,6 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
 
     return selectedLocation?.posts ?? [];
   }, [countryNodes, displayZoomTier, regionNodes, selectedLocation?.posts]);
-
-  const focusOverlay = useMemo(() => {
-    if (displayZoomTier === 'world') {
-      return {
-        eyebrow: 'Country',
-        title: selectedCountry?.label ?? '',
-        meta: selectedCountry
-          ? `${selectedCountry.count} places, ${selectedCountry.postCount} posts`
-          : '',
-      };
-    }
-
-    if (displayZoomTier === 'region') {
-      return {
-        eyebrow: 'Place',
-        title: selectedLocation?.label ?? '',
-        meta: selectedLocation?.region ?? '',
-      };
-    }
-
-    return {
-      eyebrow: 'Post',
-      title: activePost?.city ?? '',
-      meta: activePost?.location?.country ?? selectedCountry?.label ?? '',
-    };
-  }, [activePost, displayZoomTier, selectedCountry, selectedLocation]);
 
   const postNodes = useMemo(
     () => buildAllPostNodes(locationNodes),
@@ -1566,202 +1524,252 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     }
   };
 
+  const resetAtlasView = () => {
+    setSelectedCountryId(initialCountryId);
+    setSelectedLocationId(initialLocationId);
+    setActivePostId(initialPost?.id ?? atlasPosts[0].id);
+    setCameraTargetId(initialCountryId || null);
+    setCameraFocusKey((current) => current + 1);
+    setDisplayZoomTier('world');
+    setZoomScale(ZOOM_SCALE.world);
+    setIsAutoRotateFrozen(false);
+  };
+
   return (
     <>
       <section
-        ref={sectionRef}
-        className="relative mx-auto w-full max-w-screen-xl px-4 pb-24 pt-10 sm:pb-28 sm:pt-14 lg:min-h-screen lg:px-6 lg:py-12"
+        id="atlas"
+        className="relative w-full scroll-mt-0 bg-[#edf2ef] px-4 pb-20 pt-12 text-[#10211d] sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
+        aria-labelledby="atlas-title"
       >
-        <motion.div className="pointer-events-none absolute inset-x-4 top-8 h-64 rounded-[2.5rem] bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.1),_rgba(255,255,255,0)_65%)] blur-3xl lg:top-1/2 lg:h-80 lg:-translate-y-1/2" />
-
-        <div className="relative mx-auto w-full max-w-[1120px] space-y-4 lg:flex lg:min-h-[calc(100vh-6rem)] lg:flex-col lg:items-center lg:justify-center lg:gap-6 lg:space-y-0">
-          <motion.div className="relative w-full lg:flex lg:flex-none lg:items-center lg:justify-center lg:pt-0">
-            <GlobeStage
-              nodes={globeNodes}
-              cameraTarget={cameraTarget}
-              cameraFocusKey={cameraFocusKey}
-              focusOverlay={focusOverlay}
-              autoRotateEnabled={!isAutoRotateFrozen}
-              zoomScale={zoomScale}
-              zoomTier={displayZoomTier}
-              activeMarkerId={activeMarkerId}
-              hoveredMarkerId={hoveredMarkerId}
-              onHoverMarker={setHoveredMarkerId}
-              onSelectMarker={handleMarkerSelection}
-              onZoomScaleChange={handleZoomScaleChange}
-              onCenteredMarkerChange={handleCenteredMarkerChange}
-              onGlobeLeave={() => {
-                setIsAutoRotateFrozen(false);
-              }}
-            />
-          </motion.div>
-
-          <motion.div
-            layout
-            className="overflow-visible rounded-[2rem] border border-orange-500/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,248,242,0.92))] p-3 shadow-[0_24px_60px_-42px_rgba(154,52,18,0.36)] backdrop-blur-xl sm:p-4 lg:mx-auto lg:w-full lg:max-w-[980px]"
-          >
-            <div className="-mx-1 flex gap-3 overflow-x-auto overflow-y-visible px-1 py-2">
-              {displayZoomTier === 'world' &&
-                (dockItems as CountryNode[]).map((country) => {
-                  const isActive = country.id === selectedCountry.id;
-
-                  return (
-                    <button
-                      key={country.id}
-                      type="button"
-                      onClick={() => {
-                        handleMarkerSelection(country.id, {
-                          freezeRotation: true,
-                        });
-                      }}
-                      style={{ WebkitTapHighlightColor: 'transparent' }}
-                      className={cn(
-                        ATLAS_CARD_CLASSNAME,
-                        isActive
-                          ? ATLAS_CARD_ACTIVE_CLASSNAME
-                          : ATLAS_CARD_INACTIVE_CLASSNAME,
-                      )}
-                    >
-                      <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
-                        <Image
-                          src={clipCDNImage(country.cover, {
-                            width: 420,
-                            quality: 78,
-                          })}
-                          alt={country.label}
-                          fill
-                          sizes="(min-width: 640px) 224px, 160px"
-                          className="object-cover"
-                          loading="lazy"
-                        />
-                        <div className="from-black/16 pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t via-black/0 to-transparent" />
-                      </div>
-                      <div className={ATLAS_CARD_BODY_CLASSNAME}>
-                        <p className={ATLAS_CARD_TITLE_CLASSNAME}>
-                          {country.label}
-                        </p>
-                        <p className={ATLAS_CARD_META_CLASSNAME}>
-                          {country.count} places, {country.postCount} posts
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-
-              {displayZoomTier === 'region' &&
-                (dockItems as LocationNode[]).map((location) => {
-                  const isActive = location.id === selectedLocation.id;
-
-                  return (
-                    <button
-                      key={location.id}
-                      type="button"
-                      onClick={() => {
-                        handleMarkerSelection(location.id, {
-                          freezeRotation: true,
-                        });
-                      }}
-                      style={{ WebkitTapHighlightColor: 'transparent' }}
-                      className={cn(
-                        ATLAS_CARD_CLASSNAME,
-                        isActive
-                          ? ATLAS_CARD_ACTIVE_CLASSNAME
-                          : ATLAS_CARD_INACTIVE_CLASSNAME,
-                      )}
-                    >
-                      <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
-                        <Image
-                          src={clipCDNImage(location.cover, {
-                            width: 420,
-                            quality: 78,
-                          })}
-                          alt={location.label}
-                          fill
-                          sizes="(min-width: 640px) 224px, 160px"
-                          className="object-cover"
-                          loading="lazy"
-                        />
-                        <div className="from-black/16 pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t via-black/0 to-transparent" />
-                      </div>
-                      <div className={ATLAS_CARD_BODY_CLASSNAME}>
-                        <p className={ATLAS_CARD_TITLE_CLASSNAME}>
-                          {location.label}
-                        </p>
-                        <p className={ATLAS_CARD_META_CLASSNAME}>
-                          {location.region}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-
-              {displayZoomTier === 'place' &&
-                (dockItems as CityPost[]).map((post) => {
-                  const isActive = post.id === activePost.id;
-
-                  return (
-                    <button
-                      key={post.id}
-                      type="button"
-                      onClick={(event) => {
-                        const parentLocationId =
-                          locationNodes.find(
-                            (node) =>
-                              node.label ===
-                                (post.location?.locationName ?? '') &&
-                              node.country === post.location?.country,
-                          )?.id ?? null;
-                        const parentCountryId =
-                          countryNodes.find(
-                            (node) => node.label === post.location?.country,
-                          )?.id ?? null;
-
-                        if (parentCountryId) {
-                          setSelectedCountryId(parentCountryId);
-                        }
-                        if (parentLocationId) {
-                          setSelectedLocationId(parentLocationId);
-                        }
-                        setActivePostId(post.id);
-                        setCameraTargetId(`post-${post.id}`);
-                        setIsAutoRotateFrozen(true);
-                        openViewer(post.id, event.currentTarget);
-                      }}
-                      style={{ WebkitTapHighlightColor: 'transparent' }}
-                      className={cn(
-                        ATLAS_CARD_CLASSNAME,
-                        isActive
-                          ? ATLAS_CARD_ACTIVE_CLASSNAME
-                          : ATLAS_CARD_INACTIVE_CLASSNAME,
-                      )}
-                    >
-                      <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
-                        <Image
-                          src={clipCDNImage(post.cover, {
-                            width: 420,
-                            quality: 80,
-                          })}
-                          alt={post.city}
-                          fill
-                          sizes="(min-width: 640px) 224px, 160px"
-                          className="object-cover"
-                          loading="lazy"
-                        />
-                        <div className="from-black/18 pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t via-black/0 to-transparent" />
-                      </div>
-                      <div className={ATLAS_CARD_BODY_CLASSNAME}>
-                        <p className={ATLAS_CARD_TITLE_CLASSNAME}>
-                          {post.city}
-                        </p>
-                        <p className={ATLAS_CARD_META_CLASSNAME}>
-                          {post.location?.region}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+        <div className="relative mx-auto w-full max-w-[1180px]">
+          <header className="flex flex-col items-start gap-5 border-b border-[#18332d]/25 pb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-7">
+            <h2
+              id="atlas-title"
+              className="font-serif text-5xl leading-none sm:text-7xl"
+            >
+              A living atlas.
+            </h2>
+            <div className="flex shrink-0 items-end">
+              <div className="flex border border-[#18332d]/25 bg-white">
+                <button
+                  type="button"
+                  className="grid h-10 w-10 place-items-center border-r border-[#18332d]/20 transition-colors hover:bg-[#ff5a2f] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5a2f]"
+                  onClick={() =>
+                    handleZoomScaleChange((current) => current * 0.82)
+                  }
+                  aria-label="Zoom out"
+                >
+                  <Minus className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="grid h-10 w-10 place-items-center border-r border-[#18332d]/20 transition-colors hover:bg-[#ff5a2f] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5a2f]"
+                  onClick={() =>
+                    handleZoomScaleChange((current) => current * 1.22)
+                  }
+                  aria-label="Zoom in"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="grid h-10 w-10 place-items-center transition-colors hover:bg-[#ff5a2f] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5a2f]"
+                  onClick={resetAtlasView}
+                  aria-label="Reset atlas view"
+                  title="Reset atlas view"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             </div>
-          </motion.div>
+          </header>
+
+          <div className="space-y-5 pt-2 lg:flex lg:flex-col lg:gap-5 lg:space-y-0">
+            <motion.div className="relative w-full lg:flex lg:flex-none lg:items-center lg:justify-center lg:pt-0">
+              <GlobeStage
+                nodes={globeNodes}
+                cameraTarget={cameraTarget}
+                cameraFocusKey={cameraFocusKey}
+                autoRotateEnabled={!isAutoRotateFrozen}
+                zoomScale={zoomScale}
+                zoomTier={displayZoomTier}
+                activeMarkerId={activeMarkerId}
+                hoveredMarkerId={hoveredMarkerId}
+                onHoverMarker={setHoveredMarkerId}
+                onSelectMarker={handleMarkerSelection}
+                onZoomScaleChange={handleZoomScaleChange}
+                onCenteredMarkerChange={handleCenteredMarkerChange}
+                onGlobeLeave={() => {
+                  setIsAutoRotateFrozen(false);
+                }}
+              />
+            </motion.div>
+
+            <motion.div
+              layout
+              className="overflow-visible border-t border-[#18332d]/25 pt-3 lg:mx-auto lg:w-full"
+            >
+              <div className="-mx-1 flex gap-3 overflow-x-auto overflow-y-visible px-1 py-2 sm:gap-4">
+                {displayZoomTier === 'world' &&
+                  (dockItems as CountryNode[]).map((country) => {
+                    const isActive = country.id === selectedCountry.id;
+
+                    return (
+                      <button
+                        key={country.id}
+                        type="button"
+                        onClick={() => {
+                          handleMarkerSelection(country.id, {
+                            freezeRotation: true,
+                          });
+                        }}
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                        className={cn(
+                          ATLAS_CARD_CLASSNAME,
+                          isActive
+                            ? ATLAS_CARD_ACTIVE_CLASSNAME
+                            : ATLAS_CARD_INACTIVE_CLASSNAME,
+                        )}
+                      >
+                        <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
+                          <Image
+                            src={clipCDNImage(country.cover, {
+                              width: 420,
+                              quality: 78,
+                            })}
+                            alt={country.label}
+                            fill
+                            sizes="(min-width: 640px) 196px, 152px"
+                            className="object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className={ATLAS_CARD_BODY_CLASSNAME}>
+                          <p className={ATLAS_CARD_TITLE_CLASSNAME}>
+                            {country.label}
+                          </p>
+                          <p className={ATLAS_CARD_META_CLASSNAME}>
+                            {country.count} places, {country.postCount} posts
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                {displayZoomTier === 'region' &&
+                  (dockItems as LocationNode[]).map((location) => {
+                    const isActive = location.id === selectedLocation.id;
+
+                    return (
+                      <button
+                        key={location.id}
+                        type="button"
+                        onClick={() => {
+                          handleMarkerSelection(location.id, {
+                            freezeRotation: true,
+                          });
+                        }}
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                        className={cn(
+                          ATLAS_CARD_CLASSNAME,
+                          isActive
+                            ? ATLAS_CARD_ACTIVE_CLASSNAME
+                            : ATLAS_CARD_INACTIVE_CLASSNAME,
+                        )}
+                      >
+                        <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
+                          <Image
+                            src={clipCDNImage(location.cover, {
+                              width: 420,
+                              quality: 78,
+                            })}
+                            alt={location.label}
+                            fill
+                            sizes="(min-width: 640px) 196px, 152px"
+                            className="object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className={ATLAS_CARD_BODY_CLASSNAME}>
+                          <p className={ATLAS_CARD_TITLE_CLASSNAME}>
+                            {location.label}
+                          </p>
+                          <p className={ATLAS_CARD_META_CLASSNAME}>
+                            {location.region}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                {displayZoomTier === 'place' &&
+                  (dockItems as CityPost[]).map((post) => {
+                    const isActive = post.id === activePost.id;
+
+                    return (
+                      <button
+                        key={post.id}
+                        type="button"
+                        onClick={(event) => {
+                          const parentLocationId =
+                            locationNodes.find(
+                              (node) =>
+                                node.label ===
+                                  (post.location?.locationName ?? '') &&
+                                node.country === post.location?.country,
+                            )?.id ?? null;
+                          const parentCountryId =
+                            countryNodes.find(
+                              (node) => node.label === post.location?.country,
+                            )?.id ?? null;
+
+                          if (parentCountryId) {
+                            setSelectedCountryId(parentCountryId);
+                          }
+                          if (parentLocationId) {
+                            setSelectedLocationId(parentLocationId);
+                          }
+                          setActivePostId(post.id);
+                          setCameraTargetId(`post-${post.id}`);
+                          setIsAutoRotateFrozen(true);
+                          openViewer(post.id, event.currentTarget);
+                        }}
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                        className={cn(
+                          ATLAS_CARD_CLASSNAME,
+                          isActive
+                            ? ATLAS_CARD_ACTIVE_CLASSNAME
+                            : ATLAS_CARD_INACTIVE_CLASSNAME,
+                        )}
+                      >
+                        <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
+                          <Image
+                            src={clipCDNImage(post.cover, {
+                              width: 420,
+                              quality: 80,
+                            })}
+                            alt={post.city}
+                            fill
+                            sizes="(min-width: 640px) 196px, 152px"
+                            className="object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className={ATLAS_CARD_BODY_CLASSNAME}>
+                          <p className={ATLAS_CARD_TITLE_CLASSNAME}>
+                            {post.city}
+                          </p>
+                          <p className={ATLAS_CARD_META_CLASSNAME}>
+                            {post.location?.region}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            </motion.div>
+          </div>
         </div>
       </section>
 

@@ -1,0 +1,2 @@
+export const heroActionClass =
+  'inline-flex h-10 items-center justify-center gap-2 border-b border-[var(--hero-rule)] px-1 text-sm font-medium text-[var(--hero-ink)] transition-colors hover:border-[var(--hero-accent)] hover:text-[var(--hero-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hero-accent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--hero-bg)] sm:px-2';

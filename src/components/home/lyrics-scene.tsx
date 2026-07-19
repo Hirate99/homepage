@@ -3,24 +3,16 @@
 import { useEffect, useRef } from 'react';
 
 import {
-  BufferGeometry,
-  CanvasTexture,
   Color,
   Fog,
   Group,
-  LinearFilter,
-  Line,
-  LineBasicMaterial,
-  LineSegments,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
-  PlaneGeometry,
   Raycaster,
   RingGeometry,
   Scene,
-  SRGBColorSpace,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -28,230 +20,14 @@ import {
 
 import { notoSerif } from '@/fonts';
 
-import { Lyrics } from './lyrics.data';
+import { createMobileLayout, getLyricFragments } from './lyrics-scene/layout';
+import { createLyricMesh } from './lyrics-scene/lyric-mesh';
+import { createAtmosphere } from './lyrics-scene/scene-objects';
+import { getSongSceneTheme } from './lyrics-scene/themes';
+import type { LyricMesh } from './lyrics-scene/types';
+import type { SongDefinition } from './songs';
 
-interface LyricLayout {
-  x: number;
-  y: number;
-  z: number;
-  rotation: number;
-  rotationX: number;
-  rotationY: number;
-  size: number;
-  color: string;
-  opacity: number;
-}
-
-interface LyricMeshData {
-  index: number;
-  baseX: number;
-  baseY: number;
-  baseZ: number;
-  baseRotation: number;
-  baseRotationX: number;
-  baseRotationY: number;
-  baseOpacity: number;
-  phase: number;
-}
-
-type LyricMesh = Mesh<PlaneGeometry, MeshBasicMaterial> & {
-  userData: LyricMeshData;
-};
-
-const lyricFragments = Array.from(
-  new Set(Lyrics.split(/\n+/).filter(Boolean)),
-).slice(0, 15);
-
-const lyricColors = ['#c94825', '#df6037', '#e98968', '#edaf96'];
-
-const lyricLayout: LyricLayout[] = lyricFragments.map((_, index) => {
-  const angle = index * 1.16 + 0.35;
-  const depth = -index * 0.62 - (index % 3) * 0.35;
-  const radiusX = 4.35 + Math.sin(index * 0.7) * 0.55;
-  const radiusY = 3.25 + Math.cos(index * 0.45) * 0.35;
-
-  return {
-    x: Math.cos(angle) * radiusX,
-    y: Math.sin(angle) * radiusY,
-    z: depth,
-    rotation: Math.sin(angle) * 0.08,
-    rotationX: -Math.sin(angle) * 0.11,
-    rotationY: Math.cos(angle) * 0.24,
-    size: 0.72 + (index % 4) * 0.09,
-    color: lyricColors[index % lyricColors.length],
-    opacity: 0.7 - Math.min(index * 0.018, 0.28),
-  };
-});
-
-const mobileLyricPositions: Record<
-  number,
-  { x: number; y: number; z: number; rotation: number }
-> = {
-  0: { x: 1.25, y: 2.9, z: -0.5, rotation: -0.04 },
-  1: { x: 1.25, y: 1.6, z: -0.2, rotation: 0.045 },
-  2: { x: 0, y: -0.4, z: -0.5, rotation: -0.02 },
-  5: { x: -1.5, y: -1.4, z: -0.45, rotation: -0.045 },
-  6: { x: 1.45, y: -2.25, z: -0.2, rotation: 0.065 },
-  7: { x: 0, y: -3.1, z: -0.65, rotation: 0 },
-};
-
-const mobileLyricOrder = Object.keys(mobileLyricPositions).map(Number);
-
-function createTunnelLines() {
-  const material = new LineBasicMaterial({
-    color: '#cf5a36',
-    transparent: true,
-    opacity: 0.14,
-  });
-  const lines: Array<Line<BufferGeometry, LineBasicMaterial>> = [];
-  const corners = [
-    [-5.2, -3.75],
-    [5.2, -3.75],
-    [5.2, 3.75],
-    [-5.2, 3.75],
-  ];
-
-  corners.forEach(([x, y]) => {
-    const geometry = new BufferGeometry().setFromPoints([
-      new Vector3(x, y, 1.8),
-      new Vector3(x * 0.42, y * 0.42, -13),
-    ]);
-    lines.push(new Line(geometry, material));
-  });
-
-  [-1.4, -4.6, -7.8, -11].forEach((z) => {
-    const depthProgress = (1.8 - z) / 14.8;
-    const scale = 1 - depthProgress * 0.58;
-    const geometry = new BufferGeometry().setFromPoints([
-      new Vector3(-5.2 * scale, -3.75 * scale, z),
-      new Vector3(5.2 * scale, -3.75 * scale, z),
-      new Vector3(5.2 * scale, 3.75 * scale, z),
-      new Vector3(-5.2 * scale, 3.75 * scale, z),
-      new Vector3(-5.2 * scale, -3.75 * scale, z),
-    ]);
-    lines.push(new Line(geometry, material));
-  });
-
-  return { lines, material };
-}
-
-function createBackdropGrid() {
-  const points: Vector3[] = [];
-
-  for (let x = -5; x <= 5; x += 0.9) {
-    points.push(new Vector3(x, -9, -3.4), new Vector3(x, 9, -3.4));
-  }
-  for (let y = -9; y <= 9; y += 0.9) {
-    points.push(new Vector3(-5, y, -3.4), new Vector3(5, y, -3.4));
-  }
-
-  const geometry = new BufferGeometry().setFromPoints(points);
-  const material = new LineBasicMaterial({
-    color: '#d56848',
-    transparent: true,
-    opacity: 0.075,
-    depthWrite: false,
-    fog: false,
-  });
-  const lines = new LineSegments(geometry, material);
-  lines.rotation.z = -0.035;
-  lines.visible = false;
-
-  return { lines, geometry, material };
-}
-
-function createLyricMesh(
-  text: string,
-  index: number,
-  layout: LyricLayout,
-  fontFamily: string,
-) {
-  const fontSize = 86;
-  const paddingX = 40;
-  const paddingY = 28;
-  const pixelRatio = 2;
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-
-  if (!context) {
-    throw new Error('Unable to create lyric texture context.');
-  }
-
-  context.font = `600 ${fontSize}px ${fontFamily}`;
-  const textWidth = Math.ceil(context.measureText(text).width);
-  const logicalWidth = textWidth + paddingX * 2;
-  const logicalHeight = fontSize + paddingY * 2;
-
-  canvas.width = logicalWidth * pixelRatio;
-  canvas.height = logicalHeight * pixelRatio;
-  context.scale(pixelRatio, pixelRatio);
-  context.font = `600 ${fontSize}px ${fontFamily}`;
-  context.fillStyle = '#ffffff';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(text, logicalWidth / 2, logicalHeight / 2 + 2);
-
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  texture.minFilter = LinearFilter;
-  texture.magFilter = LinearFilter;
-
-  const height = layout.size;
-  const width = (logicalWidth / logicalHeight) * height;
-  const geometry = new PlaneGeometry(width, height, 48, 4);
-  const material = new MeshBasicMaterial({
-    map: texture,
-    color: new Color(layout.color),
-    transparent: true,
-    opacity: layout.opacity,
-    depthWrite: false,
-  });
-  material.userData.lyricWave = {
-    strength: { value: 0 },
-    phase: { value: 0 },
-  };
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uLyricWaveStrength = material.userData.lyricWave.strength;
-    shader.uniforms.uLyricWavePhase = material.userData.lyricWave.phase;
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-        uniform float uLyricWaveStrength;
-        uniform float uLyricWavePhase;`,
-      )
-      .replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        float lyricWaveEnvelope = sin(uv.x * 3.14159265);
-        float lyricWave = sin(uv.x * 15.0 - uLyricWavePhase) * lyricWaveEnvelope;
-        transformed.z += lyricWave * uLyricWaveStrength * 0.14;
-        transformed.y += cos(uv.x * 10.0 - uLyricWavePhase * 0.82) * lyricWaveEnvelope * uLyricWaveStrength * 0.045;`,
-      );
-  };
-  material.customProgramCacheKey = () => 'lyric-wave-v1';
-  const mesh = new Mesh(geometry, material) as LyricMesh;
-
-  mesh.position.set(layout.x, layout.y, layout.z);
-  mesh.rotation.x = layout.rotationX;
-  mesh.rotation.y = layout.rotationY;
-  mesh.rotation.z = layout.rotation;
-  mesh.userData = {
-    index,
-    baseX: layout.x,
-    baseY: layout.y,
-    baseZ: layout.z,
-    baseRotation: layout.rotation,
-    baseRotationX: layout.rotationX,
-    baseRotationY: layout.rotationY,
-    baseOpacity: layout.opacity,
-    phase: index * 0.83,
-  };
-
-  return mesh;
-}
-
-export function LyricsScene() {
+export function LyricsScene({ song }: { song: SongDefinition }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fontProbeRef = useRef<HTMLSpanElement>(null);
 
@@ -265,7 +41,10 @@ export function LyricsScene() {
     let cleanup = () => {};
 
     const initialize = async () => {
-      await document.fonts.ready;
+      await Promise.race([
+        document.fonts.ready,
+        new Promise((resolve) => window.setTimeout(resolve, 240)),
+      ]);
       if (disposed || !containerRef.current) {
         return;
       }
@@ -273,9 +52,18 @@ export function LyricsScene() {
       const fontFamily = fontProbeRef.current
         ? window.getComputedStyle(fontProbeRef.current).fontFamily
         : 'serif';
+      const lyricFragments = getLyricFragments(song);
+      const theme = getSongSceneTheme(song.theme);
+      const lyricLayout = theme.createLayout(song, lyricFragments);
+      const { positions: mobileLyricPositions, order: mobileLyricOrder } =
+        createMobileLayout(song, lyricFragments);
       const scene = new Scene();
-      scene.background = new Color('#f4efe3');
-      scene.fog = new Fog('#f4efe3', 12, 28);
+      scene.background = new Color(song.colors.background);
+      scene.fog = new Fog(
+        song.colors.background,
+        theme.fog.near,
+        theme.fog.far,
+      );
       const camera = new PerspectiveCamera(43, 1, 0.1, 100);
       camera.position.set(0, 0, 12);
 
@@ -286,22 +74,28 @@ export function LyricsScene() {
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.domElement.dataset.lyricsCanvas = 'true';
+      renderer.domElement.dataset.songId = song.id;
       renderer.domElement.setAttribute(
         'aria-label',
-        'Interactive three-dimensional Japanese lyric sculpture',
+        `Interactive three-dimensional lyric scene for ${song.title} by ${song.artist}`,
       );
       renderer.domElement.setAttribute('role', 'img');
       renderer.domElement.className = 'absolute inset-0 h-full w-full';
       containerRef.current.appendChild(renderer.domElement);
 
       const lyricGroup = new Group();
+      const airLyricGroup = new Group();
+      lyricGroup.add(airLyricGroup);
       scene.add(lyricGroup);
 
-      const backdropGrid = createBackdropGrid();
-      scene.add(backdropGrid.lines);
-
-      const tunnel = createTunnelLines();
-      tunnel.lines.forEach((line) => lyricGroup.add(line));
+      const atmosphere = createAtmosphere(song, theme);
+      scene.add(atmosphere.mesh);
+      const environment = theme.createEnvironment(song);
+      scene.add(environment.group);
+      const groundLyricGroup = environment.lyricSurface ?? new Group();
+      if (!environment.lyricSurface) {
+        lyricGroup.add(groundLyricGroup);
+      }
 
       const meshes = lyricFragments.map((text, index) => {
         const mesh = createLyricMesh(
@@ -309,14 +103,17 @@ export function LyricsScene() {
           index,
           lyricLayout[index],
           fontFamily,
+          theme,
         );
-        lyricGroup.add(mesh);
+        const layer =
+          lyricLayout[index].surface === 'ground'
+            ? groundLyricGroup
+            : airLyricGroup;
+        layer.add(mesh);
         return mesh;
       });
       const lyricEchoes = meshes.map((mesh) => {
-        const colors = ['#ec6138', '#77a89d'];
-
-        return colors.map((color, echoIndex) => {
+        return song.colors.echoes.map((color, echoIndex) => {
           const material = new MeshBasicMaterial({
             map: mesh.material.map,
             color,
@@ -326,7 +123,11 @@ export function LyricsScene() {
           });
           const echo = new Mesh(mesh.geometry, material);
           echo.renderOrder = 8 - echoIndex;
-          lyricGroup.add(echo);
+          const layer =
+            lyricLayout[mesh.userData.index].surface === 'ground'
+              ? groundLyricGroup
+              : airLyricGroup;
+          layer.add(echo);
           return echo;
         });
       });
@@ -334,34 +135,60 @@ export function LyricsScene() {
         mesh.renderOrder = 10;
       });
 
-      const rippleGeometry = new RingGeometry(0.92, 1, 96);
-      const rippleRings = ['#d84d29', '#77a89d', '#173a32', '#ec8967'].map(
-        (color, index) => {
-          const material = new MeshBasicMaterial({
-            color,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-            depthTest: false,
-            fog: false,
-          });
-          const ring = new Mesh(rippleGeometry, material);
-          ring.visible = false;
-          ring.renderOrder = 12 - index;
-          lyricGroup.add(ring);
-          return ring;
-        },
+      const rippleGeometry = new RingGeometry(0.982, 1, 128);
+      const rippleRings = song.colors.ripples.map((color, index) => {
+        const material = new MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          depthTest: true,
+          fog: false,
+        });
+        const ring = new Mesh(rippleGeometry, material);
+        ring.visible = false;
+        ring.renderOrder = 12 - index;
+        groundLyricGroup.add(ring);
+        return ring;
+      });
+      const groundLyricIndices = lyricLayout.flatMap((layout, index) =>
+        layout.surface === 'ground' ? [index] : [],
       );
+      const ambientRippleGeometry = new RingGeometry(0.91, 1, 72);
+      const ambientRainRipples = Array.from({ length: 7 }, (_, index) => {
+        const material = new MeshBasicMaterial({
+          color: song.colors.ripples[index % song.colors.ripples.length],
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          depthTest: true,
+          fog: false,
+        });
+        const ring = new Mesh(ambientRippleGeometry, material);
+        ring.rotation.order = 'YXZ';
+        ring.visible = false;
+        ring.renderOrder = 11;
+        groundLyricGroup.add(ring);
+
+        return {
+          ring,
+          duration: 1550 + (index % 4) * 270,
+          offset: index * 0.173,
+          cycle: Number.NEGATIVE_INFINITY,
+        };
+      });
+      const ambientGroundStrengths = new Float32Array(meshes.length);
 
       const pointer = new Vector2(0, 0);
       const pointerTarget = new Vector2(0, 0);
       const raycaster = new Raycaster();
-      const activeColor = new Color('#173a32');
+      const activeColor = new Color(song.colors.ink);
       const idleColors = lyricLayout.map((item) => new Color(item.color));
       let hoveredIndex: number | null = null;
       let rippleIndex: number | null = null;
       let rippleStartedAt = Number.NEGATIVE_INFINITY;
       const rippleOrigin = new Vector3();
+      const rippleRotation = new Vector3();
       let hasStartedAnimation = false;
       let entranceStartedAt = 0;
       let frameId = 0;
@@ -378,7 +205,9 @@ export function LyricsScene() {
         );
         raycaster.setFromCamera(pointerTarget, camera);
         const hit = raycaster.intersectObjects(
-          meshes.filter((mesh) => mesh.visible),
+          meshes.filter(
+            (mesh) => mesh.visible && mesh.userData.visibility > 0.15,
+          ),
           false,
         )[0];
 
@@ -395,47 +224,67 @@ export function LyricsScene() {
         const aspect = width / Math.max(height, 1);
 
         renderer.setSize(width, height, false);
+        atmosphere.material.uniforms.uResolution.value.set(
+          renderer.domElement.width,
+          renderer.domElement.height,
+        );
         camera.aspect = aspect;
         camera.fov = aspect < 0.72 ? 55 : 43;
         camera.updateProjectionMatrix();
 
         const isCompact = aspect < 0.72;
-        const compactScale = isCompact ? 0.82 : aspect < 1 ? 0.84 : 1;
+        const compactScale = isCompact
+          ? theme.compact.groupScale
+          : aspect < 1
+            ? 0.84
+            : 1;
         lyricGroup.scale.set(compactScale, compactScale, compactScale);
-        tunnel.lines.forEach((line) => {
-          line.visible = !isCompact;
-        });
-        backdropGrid.lines.visible = isCompact;
+        environment.resize(isCompact);
 
         meshes.forEach((mesh, index) => {
           const desktopLayout = lyricLayout[index];
           const mobilePosition = mobileLyricPositions[index];
-          const isVisible = !isCompact || Boolean(mobilePosition);
+          const usesWorldSurface =
+            desktopLayout.surface === 'ground' &&
+            Boolean(environment.lyricSurface);
+          const isVisible =
+            !isCompact || Boolean(mobilePosition) || usesWorldSurface;
 
           mesh.visible = isVisible;
           lyricEchoes[index].forEach((echo) => {
             echo.visible = isVisible;
           });
-          mesh.userData.baseX = isCompact
-            ? (mobilePosition?.x ?? desktopLayout.x)
-            : desktopLayout.x;
-          mesh.userData.baseY = isCompact
-            ? (mobilePosition?.y ?? desktopLayout.y)
-            : desktopLayout.y;
-          mesh.userData.baseZ = isCompact
-            ? (mobilePosition?.z ?? desktopLayout.z)
-            : desktopLayout.z;
-          mesh.userData.baseRotation = isCompact
-            ? (mobilePosition?.rotation ?? desktopLayout.rotation * 0.32)
-            : desktopLayout.rotation;
-          mesh.userData.baseRotationX = isCompact
-            ? desktopLayout.rotationX * 0.3
-            : desktopLayout.rotationX;
-          mesh.userData.baseRotationY = isCompact
-            ? desktopLayout.rotationY * 0.35
-            : desktopLayout.rotationY;
+          mesh.userData.baseX =
+            isCompact && !usesWorldSurface
+              ? (mobilePosition?.x ?? desktopLayout.x)
+              : desktopLayout.x;
+          mesh.userData.baseY =
+            isCompact && !usesWorldSurface
+              ? (mobilePosition?.y ?? desktopLayout.y)
+              : desktopLayout.y;
+          mesh.userData.baseZ =
+            isCompact && !usesWorldSurface
+              ? (mobilePosition?.z ?? desktopLayout.z)
+              : desktopLayout.z;
+          mesh.userData.baseRotation =
+            isCompact && !usesWorldSurface
+              ? (mobilePosition?.rotation ?? desktopLayout.rotation * 0.32)
+              : desktopLayout.rotation;
+          mesh.userData.baseRotationX =
+            isCompact && !usesWorldSurface
+              ? desktopLayout.rotationX *
+                (desktopLayout.surface === 'ground' ? 0.7 : 0.3)
+              : desktopLayout.rotationX;
+          mesh.userData.baseRotationY =
+            isCompact && !usesWorldSurface
+              ? desktopLayout.rotationY * 0.35
+              : desktopLayout.rotationY;
           mesh.userData.baseOpacity = isCompact
-            ? Math.max(desktopLayout.opacity, 0.78)
+            ? usesWorldSurface
+              ? mobilePosition
+                ? Math.max(desktopLayout.opacity, 0.72)
+                : Math.max(desktopLayout.opacity * 0.9, 0.3)
+              : Math.max(desktopLayout.opacity, theme.compact.minimumOpacity)
             : desktopLayout.opacity;
           if (!hasStartedAnimation) {
             mesh.position.set(
@@ -448,7 +297,7 @@ export function LyricsScene() {
               mesh.userData.baseRotationY,
               mesh.userData.baseRotation,
             );
-            mesh.scale.setScalar(isCompact ? 1.18 : 1);
+            mesh.scale.setScalar(isCompact ? theme.compact.textScale : 1);
           }
         });
       };
@@ -465,7 +314,7 @@ export function LyricsScene() {
           event.clientY >= rect.top &&
           event.clientY <= rect.bottom;
 
-        const target = event.target as HTMLElement | null;
+        const target = event.target instanceof Element ? event.target : null;
         if (!isInside || target?.closest('a, button')) {
           hoveredIndex = null;
           pointerTarget.set(0, 0);
@@ -476,7 +325,7 @@ export function LyricsScene() {
       };
 
       const triggerRipple = (event: PointerEvent) => {
-        const target = event.target as HTMLElement | null;
+        const target = event.target instanceof Element ? event.target : null;
         if (target?.closest('a, button')) {
           return;
         }
@@ -490,7 +339,25 @@ export function LyricsScene() {
         rippleIndex = hitIndex;
         rippleStartedAt = performance.now();
         const data = meshes[hitIndex].userData;
-        rippleOrigin.set(data.baseX, data.baseY, data.baseZ + 0.06);
+        const rippleLayer =
+          data.surface === 'ground' ? groundLyricGroup : airLyricGroup;
+        rippleRings.forEach((ring) => {
+          rippleLayer.add(ring);
+          ring.material.depthTest = data.surface === 'ground';
+          ring.rotation.order = data.surface === 'ground' ? 'YXZ' : 'XYZ';
+          ring.material.needsUpdate = true;
+        });
+        rippleOrigin.copy(meshes[hitIndex].position);
+        if (data.surface === 'ground') {
+          rippleOrigin.y += 0.035;
+        } else {
+          rippleOrigin.z += 0.06;
+        }
+        rippleRotation.set(
+          data.baseRotationX,
+          data.baseRotationY,
+          data.baseRotation,
+        );
       };
 
       const prefersReducedMotion = window.matchMedia(
@@ -500,12 +367,20 @@ export function LyricsScene() {
       const animate = (time: number) => {
         const reducedMotion = prefersReducedMotion.matches;
         pointer.lerp(pointerTarget, reducedMotion ? 1 : 0.065);
+        atmosphere.material.uniforms.uTime.value = reducedMotion
+          ? 0
+          : time * 0.001;
+        atmosphere.material.uniforms.uPointer.value.copy(pointer);
         const entranceElapsed = time - entranceStartedAt;
         const backdropEntrance = reducedMotion
           ? 1
           : MathUtils.clamp(entranceElapsed / 900, 0, 1);
-        backdropGrid.material.opacity = backdropEntrance * 0.075;
-        tunnel.material.opacity = backdropEntrance * 0.14;
+        environment.update({
+          time,
+          entrance: backdropEntrance,
+          reducedMotion,
+          pointer,
+        });
 
         const rippleAge = time - rippleStartedAt;
         const isRippleActive =
@@ -544,28 +419,117 @@ export function LyricsScene() {
 
           const easedProgress = 1 - Math.pow(1 - progress, 3);
           ring.position.copy(rippleOrigin);
-          ring.position.z += index * 0.045;
-          ring.scale.setScalar(0.12 + easedProgress * 4.8);
+          if (
+            rippleIndex !== null &&
+            meshes[rippleIndex].userData.surface === 'ground'
+          ) {
+            ring.position.y += index * 0.008;
+          } else {
+            ring.position.z += index * 0.045;
+          }
+          ring.rotation.set(
+            rippleRotation.x,
+            rippleRotation.y,
+            rippleRotation.z,
+          );
+          const isGroundRipple =
+            rippleIndex !== null &&
+            meshes[rippleIndex].userData.surface === 'ground';
+          const radius =
+            0.12 +
+            easedProgress * (isGroundRipple ? 3.05 : theme.ripple.radius);
+          const groundRippleScale = isGroundRipple ? 0.9 : theme.ripple.scaleY;
+          ring.scale.set(
+            radius * theme.ripple.scaleX,
+            radius * groundRippleScale,
+            1,
+          );
           ring.material.opacity =
-            Math.sin(progress * Math.PI) * (0.34 - index * 0.045);
+            Math.sin(progress * Math.PI) *
+            (theme.ripple.opacity - index * 0.045) *
+            (isGroundRipple ? 0.68 : 1);
         });
 
-        lyricGroup.rotation.x = MathUtils.lerp(
-          lyricGroup.rotation.x,
+        ambientGroundStrengths.fill(0);
+        ambientRainRipples.forEach((ripple, rippleIndex) => {
+          if (reducedMotion || groundLyricIndices.length === 0) {
+            ripple.ring.visible = false;
+            return;
+          }
+
+          const elapsed = time / ripple.duration + ripple.offset;
+          const cycle = Math.floor(elapsed);
+          const progress = elapsed - cycle;
+          if (cycle !== ripple.cycle) {
+            const targetIndex =
+              groundLyricIndices[
+                Math.abs(cycle * 3 + rippleIndex * 5) %
+                  groundLyricIndices.length
+              ];
+            const target = meshes[targetIndex].userData;
+            const jitterX = Math.sin(cycle * 7.31 + rippleIndex) * 0.24;
+            const jitterZ = Math.cos(cycle * 5.17 + rippleIndex) * 0.18;
+            ripple.ring.position.set(
+              target.baseX + jitterX,
+              target.baseY + 0.035,
+              target.baseZ + jitterZ,
+            );
+            ripple.ring.rotation.set(
+              target.baseRotationX,
+              target.baseRotationY,
+              target.baseRotation,
+            );
+            ripple.cycle = cycle;
+          }
+
+          const envelope = Math.sin(progress * Math.PI);
+          const radius = 0.06 + progress * (1.18 + (rippleIndex % 3) * 0.12);
+          ripple.ring.visible = envelope > 0.015;
+          ripple.ring.scale.set(radius * 1.08, radius, 1);
+          ripple.ring.material.opacity =
+            envelope * (0.13 + (rippleIndex % 3) * 0.02);
+
+          groundLyricIndices.forEach((lyricIndex) => {
+            const data = meshes[lyricIndex].userData;
+            const distance = Math.hypot(
+              data.baseX - ripple.ring.position.x,
+              data.baseZ - ripple.ring.position.z,
+            );
+            const waveDistance = Math.abs(distance - radius);
+            const strength =
+              Math.exp(-Math.pow(waveDistance / 0.24, 2)) * envelope * 0.32;
+            ambientGroundStrengths[lyricIndex] = Math.max(
+              ambientGroundStrengths[lyricIndex],
+              strength,
+            );
+          });
+        });
+
+        airLyricGroup.rotation.x = MathUtils.lerp(
+          airLyricGroup.rotation.x,
           reducedMotion || camera.aspect < 0.72 ? 0 : -pointer.y * 0.16,
           0.07,
         );
-        lyricGroup.rotation.y = MathUtils.lerp(
-          lyricGroup.rotation.y,
+        airLyricGroup.rotation.y = MathUtils.lerp(
+          airLyricGroup.rotation.y,
           reducedMotion || camera.aspect < 0.72 ? 0 : pointer.x * 0.24,
           0.07,
         );
-        lyricGroup.rotation.z = reducedMotion
+        airLyricGroup.rotation.z = reducedMotion
           ? 0
           : Math.sin(time * 0.00016) * 0.018;
-        lyricGroup.position.z = reducedMotion
+        airLyricGroup.position.z = reducedMotion
           ? 0
           : Math.sin(time * 0.00022) * 0.24;
+        const sequencePosition =
+          theme.sequence && !reducedMotion
+            ? ((Math.max(entranceElapsed - 700, 0) / theme.sequence.duration) *
+                theme.sequence.steps) %
+              theme.sequence.steps
+            : 0;
+        renderer.domElement.dataset.lyricSequence = theme.sequence
+          ? String(Math.floor(sequencePosition + 0.5) % theme.sequence.steps)
+          : '';
 
         meshes.forEach((mesh, index) => {
           const data = mesh.userData;
@@ -583,12 +547,34 @@ export function LyricsScene() {
               );
           const entranceEase = 1 - Math.pow(1 - entranceProgress, 3);
           const entranceOffset = 1 - entranceEase;
+          let sequenceVisibility = 1;
+          if (theme.sequence && data.sequence !== undefined && !reducedMotion) {
+            const halfSteps = theme.sequence.steps / 2;
+            const sequenceDistance = Math.abs(
+              ((((sequencePosition - data.sequence + halfSteps) %
+                theme.sequence.steps) +
+                theme.sequence.steps) %
+                theme.sequence.steps) -
+                halfSteps,
+            );
+            sequenceVisibility =
+              1 - MathUtils.smoothstep(sequenceDistance, 0.45, 0.55);
+          }
+          data.visibility = entranceEase * sequenceVisibility;
           const floatY = reducedMotion
             ? 0
-            : Math.sin(time * 0.00055 + data.phase) * 0.1;
+            : Math.sin(time * theme.motion.floatSpeed + data.phase) *
+              theme.motion.floatY *
+              (data.surface === 'ground' ? 0 : 1);
           const floatX = reducedMotion
             ? 0
-            : Math.cos(time * 0.00037 + data.phase) * 0.06;
+            : Math.cos(time * 0.00037 + data.phase) *
+              theme.motion.floatX *
+              (data.surface === 'ground' ? 0 : 1);
+          const surfaceTravel =
+            data.surface === 'ground' && !reducedMotion
+              ? Math.sin(time * 0.00018 + data.phase) * 0.1
+              : 0;
           const deltaX = data.baseX - rippleOrigin.x;
           const deltaY = data.baseY - rippleOrigin.y;
           const deltaZ = (data.baseZ - rippleOrigin.z) * 0.45;
@@ -600,21 +586,34 @@ export function LyricsScene() {
             ? Math.exp(-Math.pow(waveOffset / 0.62, 2))
             : 0;
           const directionLength = Math.max(Math.hypot(deltaX, deltaY), 0.001);
+          const rippleTranslation =
+            data.surface === 'ground' ? 0 : waveStrength * 0.1;
           const targetX =
             data.baseX +
             floatX +
-            (deltaX / directionLength) * waveStrength * 0.1 +
-            (index % 2 === 0 ? -1 : 1) * entranceOffset * 0.38;
+            Math.cos(data.baseRotationY) * surfaceTravel +
+            (deltaX / directionLength) * rippleTranslation +
+            (index % 2 === 0 ? -1 : 1) * entranceOffset * theme.entrance.x;
           const targetY =
             data.baseY +
             floatY +
-            (deltaY / directionLength) * waveStrength * 0.1 +
-            entranceOffset * 0.18;
+            (deltaY / directionLength) * rippleTranslation +
+            entranceOffset * (data.surface === 'ground' ? 0 : theme.entrance.y);
           const targetZ =
-            data.baseZ + waveStrength * 0.28 - entranceOffset * 2.2;
+            data.baseZ +
+            (data.surface === 'ground'
+              ? -Math.sin(data.baseRotationY) * surfaceTravel
+              : waveStrength * theme.motion.wavePush) -
+            entranceOffset * (data.surface === 'ground' ? 0 : theme.entrance.z);
+          const groundRainStrength = ambientGroundStrengths[index];
           const targetOpacity =
-            (isActive ? 1 : data.baseOpacity) * entranceEase;
-          const targetTextScale = camera.aspect < 0.72 ? 1.18 : 1;
+            (isActive ? 1 : data.baseOpacity) *
+            entranceEase *
+            sequenceVisibility *
+            (data.surface === 'ground' ? 0.94 + groundRainStrength * 0.22 : 1);
+          const targetTextScale =
+            (camera.aspect < 0.72 ? theme.compact.textScale : 1) *
+            (data.surface === 'ground' ? 0.96 : 1);
           const clickedWaveProgress = MathUtils.clamp(
             visualRippleAge / 1450,
             0,
@@ -631,6 +630,7 @@ export function LyricsScene() {
             clickedWaveStrength,
             waveStrength * 0.68,
             entranceWaveStrength,
+            groundRainStrength,
           );
           const lyricWaveUniforms = mesh.material.userData.lyricWave as {
             strength: { value: number };
@@ -642,7 +642,8 @@ export function LyricsScene() {
             reducedMotion ? 1 : 0.18,
           );
           lyricWaveUniforms.phase.value =
-            visualRippleAge * 0.018 - distanceFromRipple * 1.4;
+            (isRippleActive ? visualRippleAge * 0.018 : time * 0.012) -
+            distanceFromRipple * 1.4;
 
           mesh.position.x = MathUtils.lerp(mesh.position.x, targetX, 0.07);
           mesh.position.y = MathUtils.lerp(mesh.position.y, targetY, 0.07);
@@ -651,24 +652,38 @@ export function LyricsScene() {
           mesh.scale.y = MathUtils.lerp(mesh.scale.y, targetTextScale, 0.09);
           mesh.rotation.z = MathUtils.lerp(
             mesh.rotation.z,
-            data.baseRotation + waveStrength * (deltaX >= 0 ? 0.035 : -0.035),
+            data.baseRotation +
+              (data.surface === 'ground'
+                ? 0
+                : waveStrength * (deltaX >= 0 ? 0.035 : -0.035)),
             0.08,
           );
           mesh.rotation.x = MathUtils.lerp(
             mesh.rotation.x,
-            data.baseRotationX - waveStrength * 0.035,
+            data.baseRotationX -
+              (data.surface === 'ground' ? 0 : waveStrength * 0.035),
             0.08,
           );
           mesh.rotation.y = MathUtils.lerp(
             mesh.rotation.y,
-            data.baseRotationY + waveStrength * 0.045,
+            data.baseRotationY +
+              (data.surface === 'ground' ? 0 : waveStrength * 0.045),
             0.08,
           );
+          const opacityResponse =
+            data.sequence !== undefined && !reducedMotion ? 0.28 : 0.08;
           mesh.material.opacity = MathUtils.lerp(
             mesh.material.opacity,
             targetOpacity,
-            0.08,
+            opacityResponse,
           );
+          if (
+            data.sequence !== undefined &&
+            sequenceVisibility < 0.01 &&
+            mesh.material.opacity < 0.015
+          ) {
+            mesh.material.opacity = 0;
+          }
           mesh.material.color.lerp(
             isActive ? activeColor : idleColors[index],
             0.08,
@@ -677,9 +692,17 @@ export function LyricsScene() {
           lyricEchoes[index].forEach((echo, echoIndex) => {
             const direction = echoIndex === 0 ? -1 : 1;
             echo.position.copy(mesh.position);
-            echo.position.x += direction * (0.09 + Math.abs(pointer.x) * 0.05);
-            echo.position.y += direction * 0.035;
-            echo.position.z -= (echoIndex + 1) * 0.28;
+            echo.position.x +=
+              direction *
+              (data.surface === 'ground'
+                ? 0.055
+                : 0.09 + Math.abs(pointer.x) * 0.05);
+            echo.position.y +=
+              data.surface === 'ground'
+                ? (echoIndex + 1) * 0.008
+                : direction * 0.035;
+            echo.position.z -=
+              data.surface === 'ground' ? 0 : (echoIndex + 1) * 0.28;
             echo.rotation.copy(mesh.rotation);
             echo.scale.copy(mesh.scale);
             echo.material.opacity = MathUtils.lerp(
@@ -709,13 +732,13 @@ export function LyricsScene() {
           return;
         }
 
-        mesh.position.x += index % 2 === 0 ? -0.38 : 0.38;
-        mesh.position.y += 0.18;
-        mesh.position.z -= 2.2;
+        mesh.position.x += (index % 2 === 0 ? -1 : 1) * theme.entrance.x;
+        if (mesh.userData.surface === 'air') {
+          mesh.position.y += theme.entrance.y;
+          mesh.position.z -= theme.entrance.z;
+        }
         mesh.material.opacity = 0;
       });
-      tunnel.material.opacity = prefersReducedMotion.matches ? 0.14 : 0;
-      backdropGrid.material.opacity = prefersReducedMotion.matches ? 0.075 : 0;
       entranceStartedAt = performance.now();
       hasStartedAnimation = true;
       frameId = window.requestAnimationFrame(animate);
@@ -733,10 +756,11 @@ export function LyricsScene() {
         lyricEchoes.flat().forEach((echo) => echo.material.dispose());
         rippleGeometry.dispose();
         rippleRings.forEach((ring) => ring.material.dispose());
-        backdropGrid.geometry.dispose();
-        backdropGrid.material.dispose();
-        tunnel.lines.forEach((line) => line.geometry.dispose());
-        tunnel.material.dispose();
+        ambientRippleGeometry.dispose();
+        ambientRainRipples.forEach((ripple) => ripple.ring.material.dispose());
+        environment.dispose();
+        atmosphere.geometry.dispose();
+        atmosphere.material.dispose();
         renderer.dispose();
         renderer.forceContextLoss();
         renderer.domElement.remove();
@@ -749,19 +773,20 @@ export function LyricsScene() {
       disposed = true;
       cleanup();
     };
-  }, []);
+  }, [song]);
 
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 overflow-hidden bg-[#f4efe3]"
+      className="absolute inset-0 overflow-hidden"
+      style={{ backgroundColor: song.colors.background }}
     >
       <span
         ref={fontProbeRef}
         className={`${notoSerif.className} pointer-events-none absolute opacity-0`}
         aria-hidden="true"
       >
-        青い、濃い、橙色の日
+        {song.title}
       </span>
     </div>
   );

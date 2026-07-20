@@ -12,9 +12,12 @@ export function Home({
   song: SongDefinition;
 }) {
   return (
-    <main className="min-w-[280px] overflow-hidden bg-[#edf2ef]">
+    <main
+      className="min-w-[280px] overflow-hidden"
+      style={{ backgroundColor: song.colors.background }}
+    >
       <IntroHero song={song} />
-      <GlobeAtlas posts={posts} />
+      <GlobeAtlas posts={posts} song={song} />
     </main>
   );
 }

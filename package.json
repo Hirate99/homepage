@@ -14,6 +14,7 @@
     "start": "next start",
     "lint": "next lint",
     "prepare": "husky",
+    "atlas:textures": "bun scripts/generate-atlas-textures.mjs",
     "backfill:image-dimensions": "node scripts/backfill-image-dimensions.mjs",
     "backfill:collection-locations": "node scripts/backfill-collection-locations.mjs"
   },

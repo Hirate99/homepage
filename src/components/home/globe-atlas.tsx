@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import {
   type CSSProperties,
   type ComponentType,
@@ -11,19 +10,24 @@ import {
   useState,
 } from 'react';
 
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Minus, Plus, RotateCcw } from 'lucide-react';
 import type { GlobeMethods, GlobeProps } from 'react-globe.gl';
+import { MeshLambertMaterial } from 'three';
 
 import { type CityPost } from '@/lib/collections';
-import { clipCDNImage, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 import { ExpandedPost, type CardRect } from './images';
+import { AtlasDockCard } from './atlas/atlas-dock-card';
+import { ATLAS_TEXTURES, type AtlasTheme, getAtlasTheme } from './atlas/theme';
+import type { SongDefinition } from './songs';
 
 type ZoomTier = 'world' | 'region' | 'place';
 
 interface GlobeAtlasProps {
   posts: CityPost[];
+  song: SongDefinition;
 }
 
 interface LocationNode {
@@ -66,17 +70,8 @@ interface PostNode {
 
 type MarkerNode = CountryNode | LocationNode | PostNode;
 
-const ATLAS_CARD_CLASSNAME =
-  'group min-w-[152px] max-w-[152px] appearance-none overflow-hidden rounded-[4px] border text-left outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[#ff5a2f] focus-visible:ring-offset-2 sm:min-w-[196px] sm:max-w-[196px]';
-const ATLAS_CARD_INACTIVE_CLASSNAME =
-  'border-[#18332d]/15 bg-white hover:-translate-y-0.5 hover:border-[#18332d]/45';
-const ATLAS_CARD_ACTIVE_CLASSNAME = 'border-[#ff5a2f] bg-[#fff1eb]';
-const ATLAS_CARD_MEDIA_CLASSNAME = 'relative aspect-[4/5] overflow-hidden';
-const ATLAS_CARD_BODY_CLASSNAME = 'px-3 py-3 sm:px-4 sm:py-3.5';
-const ATLAS_CARD_TITLE_CLASSNAME =
-  'text-base font-semibold text-[#10211d] sm:text-[17px]';
-const ATLAS_CARD_META_CLASSNAME =
-  'mt-0.5 text-[12px] leading-5 text-[#45645c] sm:mt-1 sm:text-[13px]';
+const ATLAS_CONTROL_CLASSNAME =
+  'grid h-11 w-11 place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-inset';
 type GlobeComponentType = ComponentType<
   GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
 >;
@@ -90,8 +85,6 @@ const REGION_ZOOM_THRESHOLD = 1.62;
 const PLACE_ZOOM_THRESHOLD = ZOOM_SCALE.place;
 const MIN_GLOBE_SCALE = 0.84;
 const MAX_GLOBE_SCALE = 4.42;
-const GLOBE_IMAGE_URL =
-  '/_next/image?url=https%3A%2F%2Fr2.mskyurina.top%2Fglobe%2Fb3c9a3afc8968a6e.webp&w=3840&q=90';
 const DEFAULT_GLOBE_LAT = 28;
 const DEFAULT_GLOBE_LNG = 18;
 
@@ -459,6 +452,8 @@ function GlobeStage({
   onZoomScaleChange,
   onCenteredMarkerChange,
   onGlobeLeave,
+  theme,
+  reduceMotion,
 }: {
   nodes: MarkerNode[];
   cameraTarget: MarkerNode | null;
@@ -473,6 +468,8 @@ function GlobeStage({
   onZoomScaleChange: (value: number | ((prev: number) => number)) => void;
   onCenteredMarkerChange: (id: string | null) => void;
   onGlobeLeave: () => void;
+  theme: AtlasTheme;
+  reduceMotion: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods>();
@@ -505,7 +502,6 @@ function GlobeStage({
   const isWheelZoomingRef = useRef(false);
   const focusTransitionUntilRef = useRef(0);
   const focusTransitionTimerRef = useRef<number | null>(null);
-  const pointerPositionRef = useRef<{ x: number; y: number } | null>(null);
   const initialViewAppliedRef = useRef(false);
   const pinchGestureRef = useRef<{
     distance: number;
@@ -513,6 +509,25 @@ function GlobeStage({
   } | null>(null);
   const autoRotateEnabledRef = useRef(autoRotateEnabled);
   const isPinchActiveRef = useRef(false);
+  const globeMaterial = useMemo(
+    () =>
+      new MeshLambertMaterial({
+        bumpScale: theme.globe.bumpScale,
+        emissive: theme.globe.emissive,
+        emissiveIntensity: 0.15,
+      }),
+    [theme.globe],
+  );
+  const surfaceTexture =
+    viewport.width >= 720
+      ? theme.globe.textures.detailed
+      : theme.globe.textures.compact;
+
+  useEffect(() => {
+    return () => {
+      globeMaterial.dispose();
+    };
+  }, [globeMaterial]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -555,43 +570,6 @@ function GlobeStage({
   }, [viewport]);
 
   useEffect(() => {
-    if (
-      isGlobeReady ||
-      !GlobeComponent ||
-      viewport.width === 0 ||
-      viewport.height === 0
-    ) {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      applyInitialGlobeView({
-        globeRef,
-        initialViewAppliedRef,
-        lastCameraTargetIdRef,
-        lastFocusKeyRef,
-        cameraTarget,
-        cameraFocusKey,
-        zoomScale,
-      });
-
-      setIsGlobeReady(true);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [
-    GlobeComponent,
-    cameraFocusKey,
-    cameraTarget,
-    isGlobeReady,
-    viewport.height,
-    viewport.width,
-    zoomScale,
-  ]);
-
-  useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
 
@@ -624,7 +602,13 @@ function GlobeStage({
     const hasFocusShift =
       lastFocusKeyRef.current !== cameraFocusKey ||
       lastCameraTargetIdRef.current !== (cameraTarget?.id ?? null);
-    const focusDuration = hasFocusShift ? (cameraTarget ? 1150 : 680) : 0;
+    const focusDuration = reduceMotion
+      ? 0
+      : hasFocusShift
+        ? cameraTarget
+          ? 980
+          : 620
+        : 0;
     const nextView = hasFocusShift
       ? cameraTarget
         ? getGlobeView(cameraTarget.lat, cameraTarget.lng, zoomScale)
@@ -668,6 +652,7 @@ function GlobeStage({
     cameraFocusKey,
     cameraTarget,
     isGlobeReady,
+    reduceMotion,
     zoomScale,
   ]);
 
@@ -687,23 +672,6 @@ function GlobeStage({
   }, [autoRotateEnabled, isGlobeReady, zoomTier]);
 
   useEffect(() => {
-    const handlePointerMove = (event: PointerEvent) => {
-      pointerPositionRef.current = {
-        x: event.clientX,
-        y: event.clientY,
-      };
-    };
-
-    window.addEventListener('pointermove', handlePointerMove, {
-      passive: true,
-    });
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-    };
-  }, []);
-
-  useEffect(() => {
     if (
       !isGlobeReady ||
       !globeRef.current ||
@@ -721,24 +689,6 @@ function GlobeStage({
       if (!globe || width === 0 || height === 0) {
         frameId = window.requestAnimationFrame(animate);
         return;
-      }
-
-      const pointer = pointerPositionRef.current;
-      const containerRect =
-        containerRef.current?.getBoundingClientRect() ?? null;
-      const isPointerWithinContainer = Boolean(
-        pointer &&
-          containerRect &&
-          pointer.x >= containerRect.left &&
-          pointer.x <= containerRect.right &&
-          pointer.y >= containerRect.top &&
-          pointer.y <= containerRect.bottom,
-      );
-
-      if (isPointerOverGlobeRef.current !== isPointerWithinContainer) {
-        isPointerOverGlobeRef.current = isPointerWithinContainer;
-        globe.controls().autoRotate =
-          autoRotateEnabled && !isPointerWithinContainer;
       }
 
       const currentNodes = nodesRef.current;
@@ -823,7 +773,7 @@ function GlobeStage({
         focusTransitionTimerRef.current = null;
       }
     };
-  }, [autoRotateEnabled, isGlobeReady, viewport]);
+  }, [isGlobeReady, viewport]);
 
   const handlePointerEnter = () => {
     isPointerOverGlobeRef.current = true;
@@ -905,6 +855,10 @@ function GlobeStage({
     };
 
     const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
@@ -1009,13 +963,20 @@ function GlobeStage({
   return (
     <div
       ref={containerRef}
-      className="relative mx-auto aspect-square min-h-[23rem] w-full max-w-[980px] cursor-grab touch-none overflow-hidden bg-[#edf2ef] active:cursor-grabbing sm:aspect-[8/5] sm:min-h-0 lg:h-[min(64vh,660px)] lg:w-full lg:max-w-none"
+      data-slot="atlas-globe-stage"
+      className="relative mx-auto h-[min(72svh,570px)] min-h-[430px] w-full cursor-grab touch-pan-y overflow-hidden active:cursor-grabbing sm:h-[620px] lg:h-[min(68vh,700px)]"
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
+      role="group"
+      aria-label="Interactive globe. Drag to rotate, use the zoom controls or pinch to zoom, and select a map marker to explore photographs."
     >
       {!isGlobeReady && (
-        <div className="absolute inset-0 z-10 grid place-items-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#18332d]/15 border-t-[#ff5a2f]" />
+        <div
+          className="absolute inset-0 z-10 grid place-items-center"
+          role="status"
+          aria-label="Loading atlas"
+        >
+          <div className="h-11 w-11 animate-spin rounded-full border-2 border-[var(--atlas-rule)] border-t-[var(--atlas-accent)] motion-reduce:animate-none" />
         </div>
       )}
       {viewport.width > 0 && viewport.height > 0 && GlobeComponent ? (
@@ -1028,13 +989,15 @@ function GlobeStage({
             rendererConfig={{
               antialias: true,
               alpha: true,
-              preserveDrawingBuffer: true,
             }}
-            globeImageUrl={GLOBE_IMAGE_URL}
-            waitForGlobeReady={false}
+            globeImageUrl={surfaceTexture}
+            bumpImageUrl={ATLAS_TEXTURES.elevation}
+            globeMaterial={globeMaterial}
+            waitForGlobeReady
+            animateIn={!reduceMotion}
             showAtmosphere
-            atmosphereColor="#ff8a62"
-            atmosphereAltitude={0.1}
+            atmosphereColor={theme.atmosphere}
+            atmosphereAltitude={theme.globe.atmosphereAltitude}
             enablePointerInteraction
             showPointerCursor={false}
             onGlobeReady={() => {
@@ -1047,6 +1010,23 @@ function GlobeStage({
                 cameraFocusKey,
                 zoomScale,
               });
+
+              const renderer = globeRef.current?.renderer();
+              if (renderer) {
+                const maxAnisotropy = Math.min(
+                  8,
+                  renderer.capabilities.getMaxAnisotropy(),
+                );
+                for (const texture of [
+                  globeMaterial.map,
+                  globeMaterial.bumpMap,
+                ]) {
+                  if (texture) {
+                    texture.anisotropy = maxAnisotropy;
+                    texture.needsUpdate = true;
+                  }
+                }
+              }
 
               setIsGlobeReady(true);
             }}
@@ -1072,9 +1052,10 @@ function GlobeStage({
               ref={(element) => {
                 buttonRefs.current[node.id] = element;
               }}
-              className="group overflow-visible"
+              className="group overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
               data-marker-button="true"
               data-node-id={node.id}
+              data-state={isActive ? 'active' : 'idle'}
               style={{
                 ...getMarkerButtonStyle({
                   x: 0.5,
@@ -1083,10 +1064,8 @@ function GlobeStage({
                 }),
                 pointerEvents: 'none',
               }}
-              onMouseDown={(event) => {
-                event.preventDefault();
+              onPointerDown={(event) => {
                 event.stopPropagation();
-                onSelectMarker(node.id);
               }}
               onMouseEnter={() => onHoverMarker(node.id)}
               onMouseLeave={() => onHoverMarker(null)}
@@ -1095,20 +1074,20 @@ function GlobeStage({
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                onSelectMarker(node.id);
               }}
               aria-label={node.label}
             >
               <span
                 className={cn(
-                  'absolute left-1/2 top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-[#ff5a2f] shadow-[0_0_0_6px_rgba(255,90,47,0.12)] transition',
-                  isActive &&
-                    'h-4 w-4 shadow-[0_0_0_10px_rgba(255,90,47,0.18)]',
+                  'absolute left-1/2 top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--atlas-on-accent)] bg-[var(--atlas-accent)] shadow-[0_0_0_6px_var(--atlas-glow)] transition',
+                  isActive && 'h-4 w-4 shadow-[0_0_0_10px_var(--atlas-glow)]',
                   isHovered && 'scale-125',
                 )}
               />
               <span
                 className={cn(
-                  'absolute left-1/2 top-1/2 z-0 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#ff5a2f]/35 bg-[#ff5a2f]/10 opacity-0 transition duration-300',
+                  'absolute left-1/2 top-1/2 z-0 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--atlas-accent)] bg-[var(--atlas-glow)] opacity-0 transition duration-300',
                   (isActive || isHovered) && 'animate-pulse opacity-100',
                 )}
               />
@@ -1118,14 +1097,14 @@ function GlobeStage({
                 }}
                 style={{ transform: 'translate(-50%, 18px)' }}
                 className={cn(
-                  'absolute left-1/2 top-1/2 z-20 flex items-center gap-2 rounded-[3px] border border-[#18332d]/15 bg-white/95 px-3 py-2 text-sm font-medium text-[#10211d] shadow-lg shadow-[#18332d]/10 backdrop-blur-md transition',
+                  'absolute left-1/2 top-1/2 z-20 flex items-center gap-2 rounded-lg border border-[var(--atlas-rule)] bg-[var(--atlas-card)] px-3 py-2 text-sm font-medium text-[var(--atlas-ink)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md transition',
                   shouldShowLabel
                     ? 'opacity-100'
                     : 'pointer-events-none opacity-0',
                 )}
               >
                 {node.count > 1 && (
-                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#ff5a2f]/10 px-1.5 text-[11px] font-semibold text-[#d84622]">
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--atlas-glow)] px-1.5 text-[11px] font-semibold text-[var(--atlas-accent)]">
                     {node.count}
                   </span>
                 )}
@@ -1139,7 +1118,9 @@ function GlobeStage({
   );
 }
 
-export function GlobeAtlas({ posts }: GlobeAtlasProps) {
+export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
+  const shouldReduceMotion = Boolean(useReducedMotion());
+  const atlasTheme = useMemo(() => getAtlasTheme(song), [song]);
   const focusSeedPost = useMemo(
     () => posts.find((post) => post.location) ?? null,
     [posts],
@@ -1535,125 +1516,144 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setIsAutoRotateFrozen(false);
   };
 
+  const activePath =
+    displayZoomTier === 'world'
+      ? selectedCountry.label
+      : displayZoomTier === 'region'
+        ? `${selectedCountry.label} / ${selectedLocation.label}`
+        : `${selectedLocation.label} / ${activePost.city}`;
+
   return (
     <>
       <section
         id="atlas"
-        className="relative w-full scroll-mt-0 bg-[#edf2ef] px-4 pb-20 pt-12 text-[#10211d] sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
+        data-song={song.id}
+        data-theme={song.theme}
+        style={atlasTheme.cssVariables}
+        className="relative w-full scroll-mt-0 bg-[var(--atlas-bg)] px-4 pb-20 pt-12 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
         aria-labelledby="atlas-title"
       >
-        <div className="relative mx-auto w-full max-w-[1180px]">
-          <header className="flex flex-col items-start gap-5 border-b border-[#18332d]/25 pb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-7">
+        <div className="relative mx-auto w-full max-w-[1240px]">
+          <header className="border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:pb-9 sm:pt-7">
             <h2
               id="atlas-title"
-              className="font-serif text-5xl leading-none sm:text-7xl"
+              className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
             >
-              A living atlas.
+              Places.
             </h2>
-            <div className="flex shrink-0 items-end">
-              <div className="flex border border-[#18332d]/25 bg-white">
-                <button
-                  type="button"
-                  className="grid h-10 w-10 place-items-center border-r border-[#18332d]/20 transition-colors hover:bg-[#ff5a2f] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5a2f]"
-                  onClick={() =>
-                    handleZoomScaleChange((current) => current * 0.82)
-                  }
-                  aria-label="Zoom out"
-                >
-                  <Minus className="h-4 w-4" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="grid h-10 w-10 place-items-center border-r border-[#18332d]/20 transition-colors hover:bg-[#ff5a2f] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5a2f]"
-                  onClick={() =>
-                    handleZoomScaleChange((current) => current * 1.22)
-                  }
-                  aria-label="Zoom in"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="grid h-10 w-10 place-items-center transition-colors hover:bg-[#ff5a2f] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5a2f]"
-                  onClick={resetAtlasView}
-                  aria-label="Reset atlas view"
-                  title="Reset atlas view"
-                >
-                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
           </header>
 
-          <div className="space-y-5 pt-2 lg:flex lg:flex-col lg:gap-5 lg:space-y-0">
-            <motion.div className="relative w-full lg:flex lg:flex-none lg:items-center lg:justify-center lg:pt-0">
+          <div className="space-y-5">
+            <motion.div
+              layout={!shouldReduceMotion}
+              className="relative w-full overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] shadow-[0_32px_90px_-58px_var(--atlas-shadow)] sm:rounded-[28px]"
+            >
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_right,var(--atlas-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--atlas-grid)_1px,transparent_1px)] bg-[size:48px_48px] opacity-45"
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-0 [background:radial-gradient(circle_at_50%_46%,var(--atlas-glow),transparent_54%)]"
+              />
               <GlobeStage
                 nodes={globeNodes}
                 cameraTarget={cameraTarget}
                 cameraFocusKey={cameraFocusKey}
-                autoRotateEnabled={!isAutoRotateFrozen}
+                autoRotateEnabled={!isAutoRotateFrozen && !shouldReduceMotion}
                 zoomScale={zoomScale}
                 zoomTier={displayZoomTier}
                 activeMarkerId={activeMarkerId}
                 hoveredMarkerId={hoveredMarkerId}
                 onHoverMarker={setHoveredMarkerId}
-                onSelectMarker={handleMarkerSelection}
+                onSelectMarker={(markerId) =>
+                  handleMarkerSelection(markerId, { freezeRotation: true })
+                }
                 onZoomScaleChange={handleZoomScaleChange}
                 onCenteredMarkerChange={handleCenteredMarkerChange}
                 onGlobeLeave={() => {
                   setIsAutoRotateFrozen(false);
                 }}
+                theme={atlasTheme}
+                reduceMotion={shouldReduceMotion}
+              />
+
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 p-3 sm:p-5">
+                <div className="bg-[var(--atlas-card)]/90 max-w-[62%] rounded-xl border border-[var(--atlas-rule)] px-3 py-2.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-none sm:px-4 sm:py-3">
+                  <p className="truncate text-sm font-semibold text-[var(--atlas-ink)] sm:text-base">
+                    {activePath}
+                  </p>
+                </div>
+
+                <div className="bg-[var(--atlas-card)]/90 pointer-events-auto flex shrink-0 overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
+                  <button
+                    type="button"
+                    className={cn(
+                      ATLAS_CONTROL_CLASSNAME,
+                      'border-r border-[var(--atlas-rule)]',
+                    )}
+                    onClick={() =>
+                      handleZoomScaleChange((current) => current * 0.82)
+                    }
+                    aria-label="Zoom out"
+                    title="Zoom out"
+                  >
+                    <Minus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      ATLAS_CONTROL_CLASSNAME,
+                      'border-r border-[var(--atlas-rule)]',
+                    )}
+                    onClick={() =>
+                      handleZoomScaleChange((current) => current * 1.22)
+                    }
+                    aria-label="Zoom in"
+                    title="Zoom in"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className={ATLAS_CONTROL_CLASSNAME}
+                    onClick={resetAtlasView}
+                    aria-label="Reset atlas view"
+                    title="Reset atlas view"
+                  >
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                aria-hidden="true"
+                className="via-[var(--atlas-panel)]/70 pointer-events-none absolute inset-x-0 bottom-0 z-20 h-28 bg-gradient-to-t from-[var(--atlas-panel)] to-transparent sm:h-36"
               />
             </motion.div>
 
             <motion.div
-              layout
-              className="overflow-visible border-t border-[#18332d]/25 pt-3 lg:mx-auto lg:w-full"
+              layout={!shouldReduceMotion}
+              className="overflow-visible border-t border-[var(--atlas-rule)] pt-4 lg:mx-auto lg:w-full"
             >
-              <div className="-mx-1 flex gap-3 overflow-x-auto overflow-y-visible px-1 py-2 sm:gap-4">
+              <div className="-mx-1 flex gap-3 overflow-x-auto overflow-y-visible px-1 pb-4 pt-2 [scrollbar-width:none] sm:gap-4 [&::-webkit-scrollbar]:hidden">
                 {displayZoomTier === 'world' &&
                   (dockItems as CountryNode[]).map((country) => {
                     const isActive = country.id === selectedCountry.id;
 
                     return (
-                      <button
+                      <AtlasDockCard
                         key={country.id}
-                        type="button"
+                        active={isActive}
+                        image={country.cover}
+                        title={country.label}
+                        meta={`${country.count} places · ${country.postCount} posts`}
                         onClick={() => {
                           handleMarkerSelection(country.id, {
                             freezeRotation: true,
                           });
                         }}
-                        style={{ WebkitTapHighlightColor: 'transparent' }}
-                        className={cn(
-                          ATLAS_CARD_CLASSNAME,
-                          isActive
-                            ? ATLAS_CARD_ACTIVE_CLASSNAME
-                            : ATLAS_CARD_INACTIVE_CLASSNAME,
-                        )}
-                      >
-                        <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
-                          <Image
-                            src={clipCDNImage(country.cover, {
-                              width: 420,
-                              quality: 78,
-                            })}
-                            alt={country.label}
-                            fill
-                            sizes="(min-width: 640px) 196px, 152px"
-                            className="object-cover"
-                            loading="lazy"
-                          />
-                        </div>
-                        <div className={ATLAS_CARD_BODY_CLASSNAME}>
-                          <p className={ATLAS_CARD_TITLE_CLASSNAME}>
-                            {country.label}
-                          </p>
-                          <p className={ATLAS_CARD_META_CLASSNAME}>
-                            {country.count} places, {country.postCount} posts
-                          </p>
-                        </div>
-                      </button>
+                      />
                     );
                   })}
 
@@ -1662,44 +1662,18 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                     const isActive = location.id === selectedLocation.id;
 
                     return (
-                      <button
+                      <AtlasDockCard
                         key={location.id}
-                        type="button"
+                        active={isActive}
+                        image={location.cover}
+                        title={location.label}
+                        meta={location.region}
                         onClick={() => {
                           handleMarkerSelection(location.id, {
                             freezeRotation: true,
                           });
                         }}
-                        style={{ WebkitTapHighlightColor: 'transparent' }}
-                        className={cn(
-                          ATLAS_CARD_CLASSNAME,
-                          isActive
-                            ? ATLAS_CARD_ACTIVE_CLASSNAME
-                            : ATLAS_CARD_INACTIVE_CLASSNAME,
-                        )}
-                      >
-                        <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
-                          <Image
-                            src={clipCDNImage(location.cover, {
-                              width: 420,
-                              quality: 78,
-                            })}
-                            alt={location.label}
-                            fill
-                            sizes="(min-width: 640px) 196px, 152px"
-                            className="object-cover"
-                            loading="lazy"
-                          />
-                        </div>
-                        <div className={ATLAS_CARD_BODY_CLASSNAME}>
-                          <p className={ATLAS_CARD_TITLE_CLASSNAME}>
-                            {location.label}
-                          </p>
-                          <p className={ATLAS_CARD_META_CLASSNAME}>
-                            {location.region}
-                          </p>
-                        </div>
-                      </button>
+                      />
                     );
                   })}
 
@@ -1708,10 +1682,13 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                     const isActive = post.id === activePost.id;
 
                     return (
-                      <button
+                      <AtlasDockCard
                         key={post.id}
-                        type="button"
-                        onClick={(event) => {
+                        active={isActive}
+                        image={post.cover}
+                        title={post.city}
+                        meta={post.location?.region ?? selectedLocation.region}
+                        onClick={(element) => {
                           const parentLocationId =
                             locationNodes.find(
                               (node) =>
@@ -1733,38 +1710,9 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           setActivePostId(post.id);
                           setCameraTargetId(`post-${post.id}`);
                           setIsAutoRotateFrozen(true);
-                          openViewer(post.id, event.currentTarget);
+                          openViewer(post.id, element);
                         }}
-                        style={{ WebkitTapHighlightColor: 'transparent' }}
-                        className={cn(
-                          ATLAS_CARD_CLASSNAME,
-                          isActive
-                            ? ATLAS_CARD_ACTIVE_CLASSNAME
-                            : ATLAS_CARD_INACTIVE_CLASSNAME,
-                        )}
-                      >
-                        <div className={ATLAS_CARD_MEDIA_CLASSNAME}>
-                          <Image
-                            src={clipCDNImage(post.cover, {
-                              width: 420,
-                              quality: 80,
-                            })}
-                            alt={post.city}
-                            fill
-                            sizes="(min-width: 640px) 196px, 152px"
-                            className="object-cover"
-                            loading="lazy"
-                          />
-                        </div>
-                        <div className={ATLAS_CARD_BODY_CLASSNAME}>
-                          <p className={ATLAS_CARD_TITLE_CLASSNAME}>
-                            {post.city}
-                          </p>
-                          <p className={ATLAS_CARD_META_CLASSNAME}>
-                            {post.location?.region}
-                          </p>
-                        </div>
-                      </button>
+                      />
                     );
                   })}
               </div>

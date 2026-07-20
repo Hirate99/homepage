@@ -1,4 +1,4 @@
-export type SongThemeId = 'heat-tunnel' | 'rain-night';
+export type SongThemeId = 'california-afterimage' | 'rain-night';
 
 export interface SongColors {
   background: string;
@@ -13,11 +13,20 @@ export interface SongColors {
 }
 
 export interface SongMobileLyric {
-  text: string;
+  cueId: string;
   x: number;
   y: number;
   z: number;
   rotation: number;
+}
+
+export type SongLyricRole = 'anchor' | 'echo' | 'ground' | 'horizon' | 'title';
+
+export interface SongLyricCue {
+  id: string;
+  text: string;
+  section: string;
+  role?: SongLyricRole;
 }
 
 export interface SongDefinition {
@@ -25,6 +34,7 @@ export interface SongDefinition {
   title: string;
   artist: string;
   lyrics: string;
+  lyricCues: SongLyricCue[];
   theme: SongThemeId;
   colors: SongColors;
   mobileLyrics: SongMobileLyric[];

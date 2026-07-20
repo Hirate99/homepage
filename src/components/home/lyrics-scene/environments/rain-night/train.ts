@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 
 import type { SongColors } from '../../../songs/types';
 
-import type { RainSceneKit } from './scene-kit';
+import type { SceneKit } from '../scene-kit';
 
 function hermite(
   progress: number,
@@ -65,7 +65,7 @@ function getTrainVelocity(progress: number) {
   return 0;
 }
 
-export function createRainTrain(kit: RainSceneKit, colors: SongColors) {
+export function createRainTrain(kit: SceneKit, colors: SongColors) {
   const group = new Group();
   const train = new Group();
   const cycleDuration = 13_600;

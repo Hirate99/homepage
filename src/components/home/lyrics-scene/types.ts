@@ -13,9 +13,11 @@ export interface LyricLayout {
   writingMode?: 'horizontal' | 'vertical';
   surface?: 'air' | 'ground';
   sequence?: number;
+  revealOrder?: number;
 }
 
 export interface LyricMeshData {
+  cueId: string;
   index: number;
   baseX: number;
   baseY: number;
@@ -27,6 +29,7 @@ export interface LyricMeshData {
   phase: number;
   surface: 'air' | 'ground';
   sequence?: number;
+  revealOrder?: number;
   visibility: number;
 }
 

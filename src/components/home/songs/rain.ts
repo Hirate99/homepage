@@ -1,6 +1,6 @@
-import type { SongDefinition } from './types';
+import type { SongDefinition, SongLyricCue } from './types';
 
-const RainLyrics = [
+const RainLyricTexts = [
   '君の生活のことをおもう',
   '雨のにおいがする',
   '体温はずっと下がらないまま',
@@ -24,13 +24,56 @@ const RainLyrics = [
   'またどこかで',
   'あいましょう',
   'さようなら',
-].join('\n');
+];
+
+const RainLyricIds = [
+  'life',
+  'rain-scent',
+  'temperature',
+  'inside-room',
+  'through-window',
+  'shifting-light-first',
+  'rain-refrain-first',
+  'gifted-cd',
+  'repeat',
+  'constant-speed',
+  'still-inside',
+  'night-only',
+  'shifting-light-second',
+  'rain-refrain-second',
+  'rain-single',
+  'if-possible',
+  'as-we-are',
+  'from-me',
+  'do-not-notice',
+  'well-then',
+  'somewhere-again',
+  'meet-again',
+  'goodbye',
+] as const;
+
+const RainLyricCues: SongLyricCue[] = RainLyricTexts.map((text, index) => ({
+  id: RainLyricIds[index] ?? `rain-${index}`,
+  text,
+  section:
+    index < 7
+      ? 'room'
+      : index < 13
+        ? 'memory'
+        : index < 17
+          ? 'distance'
+          : 'farewell',
+  role: index < 3 ? 'anchor' : index === 6 ? 'title' : 'ground',
+}));
+
+const RainLyrics = RainLyricTexts.join('\n');
 
 export const RainSong: SongDefinition = {
   id: 'rain',
   title: '雨',
   artist: '羊文学',
   lyrics: RainLyrics,
+  lyricCues: RainLyricCues,
   theme: 'rain-night',
   colors: {
     background: '#071927',
@@ -45,24 +88,24 @@ export const RainSong: SongDefinition = {
   },
   mobileLyrics: [
     {
-      text: '君の生活のことをおもう',
+      cueId: 'life',
       x: 0.35,
       y: 2.7,
       z: -0.75,
       rotation: -0.02,
     },
-    { text: '雨のにおいがする', x: 1.35, y: 1.45, z: -0.25, rotation: 0.035 },
-    { text: '窓から見える', x: -1.4, y: 0.1, z: -0.35, rotation: -0.035 },
-    { text: '光が揺れてる', x: 1.4, y: -0.8, z: -0.3, rotation: 0.04 },
-    { text: '雨、雨', x: 0, y: -1.55, z: -0.2, rotation: 0 },
+    { cueId: 'rain-scent', x: 1.35, y: 1.45, z: -0.25, rotation: 0.035 },
+    { cueId: 'through-window', x: -1.4, y: 0.1, z: -0.35, rotation: -0.035 },
+    { cueId: 'shifting-light-first', x: 1.4, y: -0.8, z: -0.3, rotation: 0.04 },
+    { cueId: 'rain-refrain-first', x: 0, y: -1.55, z: -0.2, rotation: 0 },
     {
-      text: '君がくれたCDを聴く',
+      cueId: 'gifted-cd',
       x: 0,
       y: -2.3,
       z: -0.65,
       rotation: -0.015,
     },
-    { text: 'できれば', x: -1.4, y: -3.05, z: -0.25, rotation: -0.04 },
-    { text: 'さようなら', x: 1.25, y: -3.35, z: -0.3, rotation: 0.04 },
+    { cueId: 'if-possible', x: -1.4, y: -3.05, z: -0.25, rotation: -0.04 },
+    { cueId: 'goodbye', x: 1.25, y: -3.35, z: -0.3, rotation: 0.04 },
   ],
 };

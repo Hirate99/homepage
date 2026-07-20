@@ -4,7 +4,7 @@ import type { SongColors } from '../../songs/types';
 
 import { createRainCity } from './rain-night/city';
 import { createRainIntersection } from './rain-night/intersection';
-import { createRainSceneKit } from './rain-night/scene-kit';
+import { createSceneKit } from './scene-kit';
 import { createRainTraffic } from './rain-night/traffic';
 import { createRainTrain } from './rain-night/train';
 import { createWindowRain } from './rain-night/weather';
@@ -13,7 +13,7 @@ import type { SceneEnvironment } from './types';
 export function createRainNightEnvironment(
   colors: SongColors,
 ): SceneEnvironment {
-  const kit = createRainSceneKit();
+  const kit = createSceneKit();
   const city = createRainCity(kit, colors);
   const intersection = createRainIntersection(kit, colors);
   const traffic = createRainTraffic(kit, colors);

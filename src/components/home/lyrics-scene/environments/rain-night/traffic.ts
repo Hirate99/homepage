@@ -3,14 +3,14 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 
 import type { SongColors } from '../../../songs/types';
 
-import type { RainSceneKit } from './scene-kit';
+import type { SceneKit } from '../scene-kit';
 
 interface TrafficRoute {
   from: [number, number];
   to: [number, number];
 }
 
-export function createRainTraffic(kit: RainSceneKit, colors: SongColors) {
+export function createRainTraffic(kit: SceneKit, colors: SongColors) {
   const group = new Group();
   kit.group.add(group);
 

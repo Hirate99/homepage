@@ -10,14 +10,16 @@ import {
 
 import type { SongSceneTheme } from './themes';
 import type { LyricLayout, LyricMesh } from './types';
+import type { SongLyricCue } from '../songs';
 
 export function createLyricMesh(
-  text: string,
+  cue: SongLyricCue,
   index: number,
   layout: LyricLayout,
   fontFamily: string,
   theme: SongSceneTheme,
 ) {
+  const { text } = cue;
   const fontSize = 86;
   const paddingX = 40;
   const paddingY = 28;
@@ -92,11 +94,23 @@ export function createLyricMesh(
     rain: { value: theme.textWaveAxis === 'vertical' ? 1 : 0 },
     ground: { value: layout.surface === 'ground' ? 1 : 0 },
   };
+  material.userData.lyricReveal = {
+    enabled: { value: theme.lyricReveal?.style === 'scan' ? 1 : 0 },
+    glow: { value: new Color(theme.lyricReveal?.glowColor ?? '#ffffff') },
+    progress: { value: theme.lyricReveal ? 0 : 1 },
+    vertical: { value: isVertical ? 1 : 0 },
+  };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uLyricWaveStrength = material.userData.lyricWave.strength;
     shader.uniforms.uLyricWavePhase = material.userData.lyricWave.phase;
     shader.uniforms.uLyricWaveRain = material.userData.lyricWave.rain;
     shader.uniforms.uLyricWaveGround = material.userData.lyricWave.ground;
+    shader.uniforms.uLyricRevealEnabled = material.userData.lyricReveal.enabled;
+    shader.uniforms.uLyricRevealGlow = material.userData.lyricReveal.glow;
+    shader.uniforms.uLyricRevealProgress =
+      material.userData.lyricReveal.progress;
+    shader.uniforms.uLyricRevealVertical =
+      material.userData.lyricReveal.vertical;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -104,7 +118,8 @@ export function createLyricMesh(
         uniform float uLyricWaveStrength;
         uniform float uLyricWavePhase;
         uniform float uLyricWaveRain;
-        uniform float uLyricWaveGround;`,
+        uniform float uLyricWaveGround;
+        uniform float uLyricRevealProgress;`,
       )
       .replace(
         '#include <begin_vertex>',
@@ -122,8 +137,45 @@ export function createLyricMesh(
         transformed.x += sin(uv.y * 12.0 - uLyricWavePhase * 0.7) * lyricWaveEnvelope * uLyricWaveStrength * 0.035 * uLyricWaveRain;
         transformed.y += cos(uv.x * 11.0 - uLyricWavePhase * 0.72) * lyricWaveEnvelope * uLyricWaveStrength * 0.024 * uLyricWaveGround;`,
       );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uLyricRevealEnabled;
+        uniform float uLyricRevealProgress;
+        uniform float uLyricRevealVertical;
+        uniform vec3 uLyricRevealGlow;`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        float lyricRevealAxis = mix(vMapUv.x, 1.0 - vMapUv.y, uLyricRevealVertical);
+        float lyricRevealMask = 1.0 - smoothstep(
+          uLyricRevealProgress,
+          uLyricRevealProgress + 0.045,
+          lyricRevealAxis
+        );
+        lyricRevealMask = mix(1.0, lyricRevealMask, uLyricRevealEnabled);
+        float lyricRevealHead = exp(
+          -pow((lyricRevealAxis - uLyricRevealProgress) / 0.035, 2.0)
+        );
+        float lyricRevealAfterglow = exp(
+          -pow((lyricRevealAxis - (uLyricRevealProgress - 0.09)) / 0.11, 2.0)
+        );
+        lyricRevealHead *= step(0.01, uLyricRevealProgress) * step(uLyricRevealProgress, 0.99);
+        lyricRevealHead *= uLyricRevealEnabled;
+        lyricRevealAfterglow *= step(0.04, uLyricRevealProgress) * step(uLyricRevealProgress, 0.99);
+        lyricRevealAfterglow *= uLyricRevealEnabled * sampledDiffuseColor.a;
+        diffuseColor.a *= lyricRevealMask;
+        diffuseColor.rgb += uLyricRevealGlow * lyricRevealAfterglow * 0.12;
+        diffuseColor.rgb = mix(
+          diffuseColor.rgb,
+          uLyricRevealGlow,
+          lyricRevealHead * sampledDiffuseColor.a * 0.78
+        );`,
+      );
   };
-  material.customProgramCacheKey = () => `lyric-wave-v2-${theme.id}`;
+  material.customProgramCacheKey = () => `lyric-wave-v3-${theme.id}`;
 
   const mesh = new Mesh(geometry, material) as LyricMesh;
   if (layout.surface === 'ground') {
@@ -132,6 +184,7 @@ export function createLyricMesh(
   mesh.position.set(layout.x, layout.y, layout.z);
   mesh.rotation.set(layout.rotationX, layout.rotationY, layout.rotation);
   mesh.userData = {
+    cueId: cue.id,
     index,
     baseX: layout.x,
     baseY: layout.y,
@@ -143,6 +196,7 @@ export function createLyricMesh(
     phase: index * 0.83,
     surface: layout.surface ?? 'air',
     sequence: layout.sequence,
+    revealOrder: layout.revealOrder,
     visibility: 1,
   };
 

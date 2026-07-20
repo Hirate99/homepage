@@ -20,7 +20,7 @@ import {
 
 import { notoSerif } from '@/fonts';
 
-import { createMobileLayout, getLyricFragments } from './lyrics-scene/layout';
+import { createMobileLayout, getLyricCues } from './lyrics-scene/layout';
 import { createLyricMesh } from './lyrics-scene/lyric-mesh';
 import { createAtmosphere } from './lyrics-scene/scene-objects';
 import { getSongSceneTheme } from './lyrics-scene/themes';
@@ -52,11 +52,11 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       const fontFamily = fontProbeRef.current
         ? window.getComputedStyle(fontProbeRef.current).fontFamily
         : 'serif';
-      const lyricFragments = getLyricFragments(song);
+      const lyricCues = getLyricCues(song);
       const theme = getSongSceneTheme(song.theme);
-      const lyricLayout = theme.createLayout(song, lyricFragments);
+      const lyricLayout = theme.createLayout(song, lyricCues);
       const { positions: mobileLyricPositions, order: mobileLyricOrder } =
-        createMobileLayout(song, lyricFragments);
+        createMobileLayout(song, lyricCues);
       const scene = new Scene();
       scene.background = new Color(song.colors.background);
       scene.fog = new Fog(
@@ -75,12 +75,15 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.domElement.dataset.lyricsCanvas = 'true';
       renderer.domElement.dataset.songId = song.id;
+      renderer.domElement.dataset.sceneInteraction =
+        theme.interaction.activation;
       renderer.domElement.setAttribute(
         'aria-label',
         `Interactive three-dimensional lyric scene for ${song.title} by ${song.artist}`,
       );
       renderer.domElement.setAttribute('role', 'img');
-      renderer.domElement.className = 'absolute inset-0 h-full w-full';
+      renderer.domElement.className =
+        'absolute inset-0 h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hero-accent)]';
       containerRef.current.appendChild(renderer.domElement);
 
       const lyricGroup = new Group();
@@ -91,15 +94,26 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       const atmosphere = createAtmosphere(song, theme);
       scene.add(atmosphere.mesh);
       const environment = theme.createEnvironment(song);
+      const environmentInteractions = environment.interactions ?? [];
+      if (environmentInteractions.length > 0) {
+        renderer.domElement.tabIndex = 0;
+        renderer.domElement.setAttribute('role', 'button');
+        renderer.domElement.setAttribute(
+          'aria-label',
+          `${renderer.domElement.getAttribute('aria-label')}. ${environmentInteractions
+            .map((target) => target.ariaLabel)
+            .join('. ')}. Press Enter or Space to activate.`,
+        );
+      }
       scene.add(environment.group);
       const groundLyricGroup = environment.lyricSurface ?? new Group();
       if (!environment.lyricSurface) {
         lyricGroup.add(groundLyricGroup);
       }
 
-      const meshes = lyricFragments.map((text, index) => {
+      const meshes = lyricCues.map((cue, index) => {
         const mesh = createLyricMesh(
-          text,
+          cue,
           index,
           lyricLayout[index],
           fontFamily,
@@ -135,56 +149,68 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
         mesh.renderOrder = 10;
       });
 
-      const rippleGeometry = new RingGeometry(0.982, 1, 128);
-      const rippleRings = song.colors.ripples.map((color, index) => {
-        const material = new MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          depthTest: true,
-          fog: false,
-        });
-        const ring = new Mesh(rippleGeometry, material);
-        ring.visible = false;
-        ring.renderOrder = 12 - index;
-        groundLyricGroup.add(ring);
-        return ring;
-      });
+      const rippleGeometry =
+        theme.interaction.effect === 'none'
+          ? null
+          : new RingGeometry(0.982, 1, 128);
+      const rippleRings = rippleGeometry
+        ? song.colors.ripples.map((color, index) => {
+            const material = new MeshBasicMaterial({
+              color,
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+              depthTest: true,
+              fog: false,
+            });
+            const ring = new Mesh(rippleGeometry, material);
+            ring.visible = false;
+            ring.renderOrder = 12 - index;
+            groundLyricGroup.add(ring);
+            return ring;
+          })
+        : [];
       const groundLyricIndices = lyricLayout.flatMap((layout, index) =>
         layout.surface === 'ground' ? [index] : [],
       );
       const ambientRippleGeometry = new RingGeometry(0.91, 1, 72);
-      const ambientRainRipples = Array.from({ length: 7 }, (_, index) => {
-        const material = new MeshBasicMaterial({
-          color: song.colors.ripples[index % song.colors.ripples.length],
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          depthTest: true,
-          fog: false,
-        });
-        const ring = new Mesh(ambientRippleGeometry, material);
-        ring.rotation.order = 'YXZ';
-        ring.visible = false;
-        ring.renderOrder = 11;
-        groundLyricGroup.add(ring);
+      const ambientSurfaceRipples = theme.ambientSurfaceRipples
+        ? Array.from({ length: 7 }, (_, index) => {
+            const material = new MeshBasicMaterial({
+              color: song.colors.ripples[index % song.colors.ripples.length],
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+              depthTest: true,
+              fog: false,
+            });
+            const ring = new Mesh(ambientRippleGeometry, material);
+            ring.rotation.order = 'YXZ';
+            ring.visible = false;
+            ring.renderOrder = 11;
+            groundLyricGroup.add(ring);
 
-        return {
-          ring,
-          duration: 1550 + (index % 4) * 270,
-          offset: index * 0.173,
-          cycle: Number.NEGATIVE_INFINITY,
-        };
-      });
+            return {
+              ring,
+              duration: 1550 + (index % 4) * 270,
+              offset: index * 0.173,
+              cycle: Number.NEGATIVE_INFINITY,
+            };
+          })
+        : [];
       const ambientGroundStrengths = new Float32Array(meshes.length);
 
       const pointer = new Vector2(0, 0);
       const pointerTarget = new Vector2(0, 0);
       const raycaster = new Raycaster();
-      const activeColor = new Color(song.colors.ink);
+      const projectedPosition = new Vector3();
+      const worldPosition = new Vector3();
       const idleColors = lyricLayout.map((item) => new Color(item.color));
       let hoveredIndex: number | null = null;
+      let hoveredEnvironmentTarget:
+        | (typeof environmentInteractions)[number]
+        | null = null;
+      let environmentActivatedAt = Number.NEGATIVE_INFINITY;
       let rippleIndex: number | null = null;
       let rippleStartedAt = Number.NEGATIVE_INFINITY;
       const rippleOrigin = new Vector3();
@@ -212,6 +238,40 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
         )[0];
 
         return hit ? (hit.object as LyricMesh).userData.index : null;
+      };
+
+      const hitTestEnvironment = () => {
+        if (environmentInteractions.length === 0) {
+          return null;
+        }
+
+        raycaster.setFromCamera(pointerTarget, camera);
+        const hit = raycaster.intersectObjects(
+          environmentInteractions.map((target) => target.object),
+          true,
+        )[0];
+        if (!hit) {
+          return null;
+        }
+
+        return (
+          environmentInteractions.find(
+            (target) =>
+              hit.object === target.object ||
+              target.object.getObjectById(hit.object.id) !== undefined,
+          ) ?? null
+        );
+      };
+
+      const setHoveredEnvironmentTarget = (
+        target: (typeof environmentInteractions)[number] | null,
+      ) => {
+        if (target === hoveredEnvironmentTarget) {
+          return;
+        }
+        hoveredEnvironmentTarget?.onHoverChange(false);
+        hoveredEnvironmentTarget = target;
+        hoveredEnvironmentTarget?.onHoverChange(true);
       };
 
       const resize = () => {
@@ -272,8 +332,10 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
               : desktopLayout.rotation;
           mesh.userData.baseRotationX =
             isCompact && !usesWorldSurface
-              ? desktopLayout.rotationX *
-                (desktopLayout.surface === 'ground' ? 0.7 : 0.3)
+              ? mobilePosition
+                ? 0
+                : desktopLayout.rotationX *
+                  (desktopLayout.surface === 'ground' ? 0.7 : 0.3)
               : desktopLayout.rotationX;
           mesh.userData.baseRotationY =
             isCompact && !usesWorldSurface
@@ -317,20 +379,84 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
         const target = event.target instanceof Element ? event.target : null;
         if (!isInside || target?.closest('a, button')) {
           hoveredIndex = null;
+          setHoveredEnvironmentTarget(null);
           pointerTarget.set(0, 0);
           return;
         }
 
-        hoveredIndex = hitTest(event);
+        const lyricIndex = hitTest(event);
+        const environmentTarget = hitTestEnvironment();
+        setHoveredEnvironmentTarget(environmentTarget);
+        hoveredIndex = environmentTarget ? null : lyricIndex;
+      };
+
+      const activateEnvironmentTarget = (event: PointerEvent) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('a, button')) {
+          return false;
+        }
+
+        hitTest(event);
+        const environmentTarget = hitTestEnvironment();
+        if (!environmentTarget) {
+          return false;
+        }
+
+        setHoveredEnvironmentTarget(environmentTarget);
+        environmentTarget.onActivate();
+        environmentActivatedAt = performance.now();
+        return true;
+      };
+
+      const handlePointerDown = (event: PointerEvent) => {
+        if (activateEnvironmentTarget(event)) {
+          return;
+        }
+        triggerRipple(event);
+      };
+
+      const handleSceneKeyDown = (event: KeyboardEvent) => {
+        if (
+          environmentInteractions.length === 0 ||
+          (event.key !== 'Enter' && event.key !== ' ')
+        ) {
+          return;
+        }
+        event.preventDefault();
+        const target = hoveredEnvironmentTarget ?? environmentInteractions[0];
+        target?.onActivate();
+        environmentActivatedAt = performance.now();
       };
 
       const triggerRipple = (event: PointerEvent) => {
+        if (theme.interaction.activation === 'none') {
+          return;
+        }
+
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest('a, button')) {
           return;
         }
 
-        const hitIndex = hitTest(event);
+        let hitIndex = hitTest(event);
+        if (hitIndex === null && theme.interaction.activation === 'scene') {
+          let nearestDistance = Number.POSITIVE_INFINITY;
+          meshes.forEach((mesh, index) => {
+            if (!mesh.visible || mesh.userData.visibility < 0.15) {
+              return;
+            }
+            mesh.getWorldPosition(worldPosition);
+            projectedPosition.copy(worldPosition).project(camera);
+            const distance = Math.hypot(
+              projectedPosition.x - pointerTarget.x,
+              projectedPosition.y - pointerTarget.y,
+            );
+            if (distance < nearestDistance) {
+              nearestDistance = distance;
+              hitIndex = index;
+            }
+          });
+        }
         if (hitIndex === null) {
           return;
         }
@@ -375,24 +501,37 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
         const backdropEntrance = reducedMotion
           ? 1
           : MathUtils.clamp(entranceElapsed / 900, 0, 1);
+        const rippleAge = time - rippleStartedAt;
+        const isRippleActive =
+          rippleIndex !== null &&
+          rippleAge >= 0 &&
+          rippleAge < theme.activationDuration;
+        if (rippleIndex !== null && rippleAge >= theme.activationDuration) {
+          rippleIndex = null;
+        }
+        const visualRippleAge = isRippleActive
+          ? reducedMotion
+            ? theme.activationDuration * 0.36
+            : rippleAge
+          : 0;
         environment.update({
           time,
           entrance: backdropEntrance,
           reducedMotion,
           pointer,
+          activation:
+            isRippleActive && rippleIndex !== null
+              ? {
+                  index: rippleIndex,
+                  age: visualRippleAge,
+                  progress: MathUtils.clamp(
+                    visualRippleAge / theme.activationDuration,
+                    0,
+                    1,
+                  ),
+                }
+              : null,
         });
-
-        const rippleAge = time - rippleStartedAt;
-        const isRippleActive =
-          rippleIndex !== null && rippleAge >= 0 && rippleAge < 1800;
-        if (rippleIndex !== null && rippleAge >= 1800) {
-          rippleIndex = null;
-        }
-        const visualRippleAge = isRippleActive
-          ? reducedMotion
-            ? 650
-            : rippleAge
-          : 0;
         const activeIndex = isRippleActive ? rippleIndex : hoveredIndex;
         renderer.domElement.dataset.activeLyric =
           activeIndex === null ? '' : String(activeIndex);
@@ -401,8 +540,22 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           : hoveredIndex !== null
             ? 'hovered'
             : 'idle';
+        const environmentIsActive =
+          time - environmentActivatedAt >= 0 &&
+          time - environmentActivatedAt < 1_050;
+        renderer.domElement.dataset.sceneInteractionTarget =
+          hoveredEnvironmentTarget?.id ?? '';
+        renderer.domElement.dataset.sceneInteractionState = environmentIsActive
+          ? 'activated'
+          : hoveredEnvironmentTarget
+            ? 'hovered'
+            : 'idle';
         renderer.domElement.style.cursor =
-          hoveredIndex !== null ? 'pointer' : 'default';
+          hoveredEnvironmentTarget ||
+          (theme.interaction.activation !== 'none' &&
+            (hoveredIndex !== null || theme.interaction.activation === 'scene'))
+            ? 'pointer'
+            : 'default';
 
         rippleRings.forEach((ring, index) => {
           const progress = MathUtils.clamp(
@@ -410,7 +563,11 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
             0,
             1,
           );
-          const isVisible = isRippleActive && progress > 0 && progress < 1;
+          const isVisible =
+            theme.interaction.effect === 'ripple' &&
+            isRippleActive &&
+            progress > 0 &&
+            progress < 1;
           ring.visible = isVisible;
           if (!isVisible) {
             ring.material.opacity = 0;
@@ -451,7 +608,7 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
         });
 
         ambientGroundStrengths.fill(0);
-        ambientRainRipples.forEach((ripple, rippleIndex) => {
+        ambientSurfaceRipples.forEach((ripple, rippleIndex) => {
           if (reducedMotion || groundLyricIndices.length === 0) {
             ripple.ring.visible = false;
             return;
@@ -523,7 +680,11 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           : Math.sin(time * 0.00022) * 0.24;
         const sequencePosition =
           theme.sequence && !reducedMotion
-            ? ((Math.max(entranceElapsed - 700, 0) / theme.sequence.duration) *
+            ? ((((Math.max(entranceElapsed - 700, 0) /
+                theme.sequence.duration) *
+                theme.sequence.steps +
+                (theme.lyricReveal ? -0.5 : 0)) %
+                theme.sequence.steps) +
                 theme.sequence.steps) %
               theme.sequence.steps
             : 0;
@@ -531,6 +692,8 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           ? String(Math.floor(sequencePosition + 0.5) % theme.sequence.steps)
           : '';
 
+        let hasWritingLyrics = false;
+        let hasHoldingLyrics = false;
         meshes.forEach((mesh, index) => {
           const data = mesh.userData;
           const isActive = index === activeIndex;
@@ -548,19 +711,56 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           const entranceEase = 1 - Math.pow(1 - entranceProgress, 3);
           const entranceOffset = 1 - entranceEase;
           let sequenceVisibility = 1;
-          if (theme.sequence && data.sequence !== undefined && !reducedMotion) {
-            const halfSteps = theme.sequence.steps / 2;
-            const sequenceDistance = Math.abs(
-              ((((sequencePosition - data.sequence + halfSteps) %
-                theme.sequence.steps) +
-                theme.sequence.steps) %
-                theme.sequence.steps) -
-                halfSteps,
-            );
-            sequenceVisibility =
-              1 - MathUtils.smoothstep(sequenceDistance, 0.45, 0.55);
+          let revealProgress = 1;
+          if (theme.sequence && data.sequence !== undefined) {
+            if (reducedMotion) {
+              sequenceVisibility = data.sequence === 0 ? 1 : 0;
+              revealProgress = 1;
+            } else {
+              const halfSteps = theme.sequence.steps / 2;
+              const sequencePhase =
+                ((((sequencePosition - data.sequence + halfSteps) %
+                  theme.sequence.steps) +
+                  theme.sequence.steps) %
+                  theme.sequence.steps) -
+                halfSteps;
+              if (theme.lyricReveal?.style === 'scan') {
+                const revealStart =
+                  -0.5 + (data.revealOrder ?? 0) * theme.lyricReveal.stagger;
+                const revealEnd = revealStart + theme.lyricReveal.duration;
+                revealProgress = MathUtils.smoothstep(
+                  sequencePhase,
+                  revealStart,
+                  revealEnd,
+                );
+                sequenceVisibility =
+                  MathUtils.smoothstep(sequencePhase, -0.62, -0.5) *
+                  (1 - MathUtils.smoothstep(sequencePhase, 0.48, 0.66));
+                if (entranceElapsed < 700) {
+                  revealProgress = 0;
+                  sequenceVisibility = 0;
+                }
+              } else {
+                const sequenceDistance = Math.abs(sequencePhase);
+                sequenceVisibility =
+                  1 - MathUtils.smoothstep(sequenceDistance, 0.45, 0.55);
+              }
+            }
           }
-          data.visibility = entranceEase * sequenceVisibility;
+          const revealVisibility = theme.lyricReveal
+            ? MathUtils.smoothstep(revealProgress, 0, 0.08)
+            : 1;
+          data.visibility =
+            entranceEase * sequenceVisibility * revealVisibility;
+          if (
+            data.visibility > 0.05 &&
+            revealProgress > 0.01 &&
+            revealProgress < 0.99
+          ) {
+            hasWritingLyrics = true;
+          } else if (data.visibility > 0.08) {
+            hasHoldingLyrics = true;
+          }
           const floatY = reducedMotion
             ? 0
             : Math.sin(time * theme.motion.floatSpeed + data.phase) *
@@ -579,15 +779,29 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           const deltaY = data.baseY - rippleOrigin.y;
           const deltaZ = (data.baseZ - rippleOrigin.z) * 0.45;
           const distanceFromRipple = Math.hypot(deltaX, deltaY, deltaZ);
-          const rippleProgress = MathUtils.clamp(visualRippleAge / 1450, 0, 1);
+          const rippleProgress = MathUtils.clamp(
+            visualRippleAge / (theme.activationDuration * 0.8),
+            0,
+            1,
+          );
           const waveRadius = rippleProgress * 8.5;
-          const waveOffset = distanceFromRipple - waveRadius;
+          const radialWaveOffset = distanceFromRipple - waveRadius;
+          const signalHeadZ = MathUtils.lerp(4, -24, rippleProgress);
+          const signalHeadX = MathUtils.lerp(-8.4, 8.4, rippleProgress);
+          const signalWaveOffset =
+            theme.interaction.signalAxis === 'horizontal'
+              ? data.baseX - signalHeadX
+              : data.baseZ - signalHeadZ;
           const waveStrength = isRippleActive
-            ? Math.exp(-Math.pow(waveOffset / 0.62, 2))
+            ? theme.interaction.effect === 'signal'
+              ? Math.exp(-Math.pow(signalWaveOffset / 0.92, 2))
+              : Math.exp(-Math.pow(radialWaveOffset / 0.62, 2))
             : 0;
           const directionLength = Math.max(Math.hypot(deltaX, deltaY), 0.001);
           const rippleTranslation =
-            data.surface === 'ground' ? 0 : waveStrength * 0.1;
+            data.surface === 'ground' || theme.interaction.effect === 'signal'
+              ? 0
+              : waveStrength * 0.1;
           const targetX =
             data.baseX +
             floatX +
@@ -598,6 +812,9 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
             data.baseY +
             floatY +
             (deltaY / directionLength) * rippleTranslation +
+            (theme.lyricReveal
+              ? (1 - MathUtils.smoothstep(revealProgress, 0.18, 0.86)) * 0.045
+              : 0) +
             entranceOffset * (data.surface === 'ground' ? 0 : theme.entrance.y);
           const targetZ =
             data.baseZ +
@@ -613,9 +830,16 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
             (data.surface === 'ground' ? 0.94 + groundRainStrength * 0.22 : 1);
           const targetTextScale =
             (camera.aspect < 0.72 ? theme.compact.textScale : 1) *
-            (data.surface === 'ground' ? 0.96 : 1);
+            (data.surface === 'ground' ? 0.96 : 1) *
+            (theme.lyricReveal
+              ? MathUtils.lerp(
+                  0.965,
+                  1,
+                  MathUtils.smoothstep(revealProgress, 0.12, 0.9),
+                )
+              : 1);
           const clickedWaveProgress = MathUtils.clamp(
-            visualRippleAge / 1450,
+            visualRippleAge / (theme.activationDuration * 0.8),
             0,
             1,
           );
@@ -644,6 +868,16 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           lyricWaveUniforms.phase.value =
             (isRippleActive ? visualRippleAge * 0.018 : time * 0.012) -
             distanceFromRipple * 1.4;
+          const lyricRevealUniforms = mesh.material.userData.lyricReveal as {
+            progress: { value: number };
+          };
+          lyricRevealUniforms.progress.value = reducedMotion
+            ? 1
+            : MathUtils.lerp(
+                lyricRevealUniforms.progress.value,
+                revealProgress,
+                0.34,
+              );
 
           mesh.position.x = MathUtils.lerp(mesh.position.x, targetX, 0.07);
           mesh.position.y = MathUtils.lerp(mesh.position.y, targetY, 0.07);
@@ -684,10 +918,7 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           ) {
             mesh.material.opacity = 0;
           }
-          mesh.material.color.lerp(
-            isActive ? activeColor : idleColors[index],
-            0.08,
-          );
+          mesh.material.color.copy(idleColors[index]);
 
           lyricEchoes[index].forEach((echo, echoIndex) => {
             const direction = echoIndex === 0 ? -1 : 1;
@@ -709,7 +940,7 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
               echo.material.opacity,
               isActive && isRippleActive
                 ? waveStrength * (0.3 - echoIndex * 0.09)
-                : isHovered
+                : isHovered && theme.interaction.hoverEffect === 'echo'
                   ? 0.16 - echoIndex * 0.055
                   : 0,
               0.12,
@@ -717,14 +948,30 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           });
         });
 
+        renderer.domElement.dataset.lyricState = hasWritingLyrics
+          ? 'writing'
+          : hasHoldingLyrics
+            ? 'holding'
+            : 'transition';
+
         renderer.render(scene, camera);
         frameId = window.requestAnimationFrame(animate);
       };
 
       const resizeObserver = new ResizeObserver(resize);
       resizeObserver.observe(containerRef.current);
-      window.addEventListener('pointermove', updatePointer, { passive: true });
-      window.addEventListener('pointerdown', triggerRipple);
+      if (
+        theme.interaction.activation !== 'none' ||
+        environmentInteractions.length > 0
+      ) {
+        window.addEventListener('pointermove', updatePointer, {
+          passive: true,
+        });
+        window.addEventListener('pointerdown', handlePointerDown);
+      }
+      if (environmentInteractions.length > 0) {
+        renderer.domElement.addEventListener('keydown', handleSceneKeyDown);
+      }
       resize();
       meshes.forEach((mesh, index) => {
         if (prefersReducedMotion.matches) {
@@ -746,18 +993,32 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       cleanup = () => {
         window.cancelAnimationFrame(frameId);
         resizeObserver.disconnect();
-        window.removeEventListener('pointermove', updatePointer);
-        window.removeEventListener('pointerdown', triggerRipple);
+        if (
+          theme.interaction.activation !== 'none' ||
+          environmentInteractions.length > 0
+        ) {
+          window.removeEventListener('pointermove', updatePointer);
+          window.removeEventListener('pointerdown', handlePointerDown);
+        }
+        if (environmentInteractions.length > 0) {
+          renderer.domElement.removeEventListener(
+            'keydown',
+            handleSceneKeyDown,
+          );
+        }
+        setHoveredEnvironmentTarget(null);
         meshes.forEach((mesh) => {
           mesh.geometry.dispose();
           mesh.material.map?.dispose();
           mesh.material.dispose();
         });
         lyricEchoes.flat().forEach((echo) => echo.material.dispose());
-        rippleGeometry.dispose();
+        rippleGeometry?.dispose();
         rippleRings.forEach((ring) => ring.material.dispose());
         ambientRippleGeometry.dispose();
-        ambientRainRipples.forEach((ripple) => ripple.ring.material.dispose());
+        ambientSurfaceRipples.forEach((ripple) =>
+          ripple.ring.material.dispose(),
+        );
         environment.dispose();
         atmosphere.geometry.dispose();
         atmosphere.material.dispose();

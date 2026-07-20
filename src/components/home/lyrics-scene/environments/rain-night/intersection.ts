@@ -2,7 +2,7 @@ import { CircleGeometry, Group, PlaneGeometry } from 'three';
 
 import type { SongColors } from '../../../songs/types';
 
-import type { RainSceneKit } from './scene-kit';
+import type { SceneKit } from '../scene-kit';
 
 type Point = [number, number];
 
@@ -11,7 +11,7 @@ interface PedestrianRoute {
   to: Point;
 }
 
-export function createRainIntersection(kit: RainSceneKit, colors: SongColors) {
+export function createRainIntersection(kit: SceneKit, colors: SongColors) {
   const group = new Group();
   kit.group.add(group);
 

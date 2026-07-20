@@ -227,12 +227,13 @@ const GroundSequences = [
 
 export const RainNightTheme: SongSceneTheme = {
   id: 'rain-night',
-  atmosphereMix: 1,
+  atmosphere: 'rain',
   textWaveAxis: 'vertical',
   createEnvironment: (song) => createRainNightEnvironment(song.colors),
   fog: { near: 16, far: 40 },
-  createLayout: (song, fragments) => {
-    return fragments.map((text, index) => {
+  createLayout: (song, cues) => {
+    return cues.map((cue, index) => {
+      const { text } = cue;
       const air = AirLyrics[text];
       if (air) {
         return {
@@ -283,6 +284,13 @@ export const RainNightTheme: SongSceneTheme = {
   },
   entrance: { x: 0.12, y: 0.68, z: 2.8 },
   ripple: { radius: 5.8, scaleX: 1.2, scaleY: 0.32, opacity: 0.42 },
+  ambientSurfaceRipples: true,
+  activationDuration: 1_800,
+  interaction: {
+    activation: 'lyrics',
+    effect: 'ripple',
+    hoverEffect: 'echo',
+  },
   motion: {
     floatX: 0.025,
     floatY: 0.045,

@@ -2,7 +2,7 @@ import { BoxGeometry, CylinderGeometry, Group, PlaneGeometry } from 'three';
 
 import type { SongColors } from '../../../songs/types';
 
-import type { RainSceneKit } from './scene-kit';
+import type { SceneKit } from '../scene-kit';
 
 interface BuildingDefinition {
   x: number;
@@ -22,7 +22,7 @@ interface BuildingDefinition {
   };
 }
 
-export function createRainCity(kit: RainSceneKit, colors: SongColors) {
+export function createRainCity(kit: SceneKit, colors: SongColors) {
   const group = new Group();
   kit.group.add(group);
 
@@ -89,7 +89,7 @@ export function createRainCity(kit: RainSceneKit, colors: SongColors) {
     },
   ];
   const billboardScans: Array<{
-    mesh: ReturnType<RainSceneKit['addMesh']>;
+    mesh: ReturnType<SceneKit['addMesh']>;
     centerY: number;
     travel: number;
     phase: number;

@@ -1,10 +1,10 @@
-import type { SongDefinition } from '../songs';
+import type { SongDefinition, SongLyricCue } from '../songs';
 
-export function getLyricFragments(song: SongDefinition) {
-  return Array.from(new Set(song.lyrics.split(/\n+/).filter(Boolean)));
+export function getLyricCues(song: SongDefinition) {
+  return song.lyricCues;
 }
 
-export function createMobileLayout(song: SongDefinition, fragments: string[]) {
+export function createMobileLayout(song: SongDefinition, cues: SongLyricCue[]) {
   const positions: Record<
     number,
     { x: number; y: number; z: number; rotation: number }
@@ -12,7 +12,7 @@ export function createMobileLayout(song: SongDefinition, fragments: string[]) {
   const order: number[] = [];
 
   song.mobileLyrics.forEach((item) => {
-    const index = fragments.indexOf(item.text);
+    const index = cues.findIndex((cue) => cue.id === item.cueId);
     if (index >= 0) {
       positions[index] = item;
       order.push(index);

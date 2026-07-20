@@ -1,36 +1,93 @@
 import { Lyrics } from '../lyrics.data';
 
-import type { SongDefinition } from './types';
+import type { SongDefinition, SongLyricCue } from './types';
+
+const OrangeLyricIds = [
+  'waiting',
+  'chasing',
+  'receding-days',
+  'voice-origin',
+  'voice-fades',
+  'yearning',
+  'embrace',
+  'broken',
+  'love-and-sorrow',
+  'burned-by-longing',
+  'far-away',
+  'question-that-day',
+  'continues-forever',
+  'still-waiting',
+  'walking-alone',
+  'rusted-walkway',
+  'blue-deep-orange-day',
+  'beside-you',
+  'without-color',
+] as const;
+
+const OrangeLyricTexts = Array.from(
+  new Set(Lyrics.split(/\n+/).filter(Boolean)),
+);
+
+const OrangeLyricCues: SongLyricCue[] = OrangeLyricTexts.map((text, index) => ({
+  id: OrangeLyricIds[index] ?? `orange-day-${index}`,
+  text,
+  section:
+    index < 3
+      ? 'distance'
+      : index < 5
+        ? 'signal'
+        : index < 10
+          ? 'fracture'
+          : index < 14
+            ? 'waiting'
+            : 'afterimage',
+  role:
+    index === 16
+      ? 'title'
+      : index >= 14
+        ? 'horizon'
+        : index < 5
+          ? 'anchor'
+          : 'ground',
+}));
 
 export const OrangeDaySong: SongDefinition = {
   id: 'orange-day',
   title: '青い、濃い、橙色の日',
   artist: 'MASS OF THE FERMENTING DREGS',
   lyrics: Lyrics,
-  theme: 'heat-tunnel',
+  lyricCues: OrangeLyricCues,
+  theme: 'california-afterimage',
   colors: {
-    background: '#f4efe3',
-    ink: '#173a32',
-    accent: '#c94825',
-    signal: '#77a89d',
-    rule: 'rgba(23, 58, 50, 0.28)',
-    lyrics: ['#c94825', '#df6037', '#e98968', '#edaf96'],
-    echoes: ['#ec6138', '#77a89d'],
-    structure: '#cf5a36',
-    ripples: ['#d84d29', '#77a89d', '#173a32', '#ec8967'],
+    background: '#f3dfb9',
+    ink: '#173d3d',
+    accent: '#df6438',
+    signal: '#efb765',
+    rule: 'rgba(23, 61, 61, 0.26)',
+    lyrics: ['#d95731', '#e87549', '#244f50', '#5e9096', '#a9674e'],
+    echoes: ['#e46238', '#72a8ad'],
+    structure: '#8d6654',
+    ripples: ['#ea7448', '#efb765', '#6c9da2', '#c94f31'],
   },
   mobileLyrics: [
-    { text: '待ちぼうけさ', x: 1.25, y: 2.9, z: -0.5, rotation: -0.04 },
-    { text: '追い掛けても', x: 1.25, y: 1.6, z: -0.2, rotation: 0.045 },
+    { cueId: 'waiting', x: 1.1, y: 2.55, z: -0.5, rotation: -0.04 },
+    { cueId: 'chasing', x: 1.05, y: 1.4, z: -0.2, rotation: 0.045 },
     {
-      text: '遠ざかっていく日も見えない',
+      cueId: 'receding-days',
       x: 0,
-      y: -0.4,
+      y: 0.1,
       z: -0.5,
       rotation: -0.02,
     },
-    { text: '焦がれて', x: -1.5, y: -1.4, z: -0.45, rotation: -0.045 },
-    { text: '抱いたら', x: 1.45, y: -2.25, z: -0.2, rotation: 0.065 },
-    { text: '壊れてしまったよ', x: 0, y: -3.1, z: -0.65, rotation: 0 },
+    { cueId: 'voice-fades', x: -0.7, y: -0.85, z: -0.45, rotation: -0.035 },
+    { cueId: 'yearning', x: -1.25, y: -1.7, z: -0.35, rotation: -0.045 },
+    {
+      cueId: 'blue-deep-orange-day',
+      x: 0.55,
+      y: -2.6,
+      z: -0.4,
+      rotation: 0.025,
+    },
+    { cueId: 'without-color', x: 0, y: -3.3, z: -0.65, rotation: 0 },
   ],
 };

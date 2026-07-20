@@ -2,9 +2,9 @@ import { Group, PlaneGeometry, RingGeometry, Vector3 } from 'three';
 
 import type { SongColors } from '../../../songs/types';
 
-import type { RainSceneKit } from './scene-kit';
+import type { SceneKit } from '../scene-kit';
 
-export function createWindowRain(kit: RainSceneKit, colors: SongColors) {
+export function createWindowRain(kit: SceneKit, colors: SongColors) {
   const group = new Group();
   kit.group.add(group);
 

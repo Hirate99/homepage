@@ -1,11 +1,11 @@
 import type { SongThemeId } from '../../songs/types';
 
-import { HeatTunnelTheme } from './heat-tunnel';
+import { CaliforniaAfterimageTheme } from './california-afterimage';
 import { RainNightTheme } from './rain-night';
 import type { SongSceneTheme } from './types';
 
 const SongSceneThemes: Record<SongThemeId, SongSceneTheme> = {
-  'heat-tunnel': HeatTunnelTheme,
+  'california-afterimage': CaliforniaAfterimageTheme,
   'rain-night': RainNightTheme,
 };
 

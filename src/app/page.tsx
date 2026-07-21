@@ -2,7 +2,6 @@ import { type Viewport } from 'next';
 
 import { Home } from '@/components/home';
 import { findSong, getRandomSong } from '@/components/home/songs';
-import { getCityPosts } from '@/lib/collections';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -23,6 +22,5 @@ export default async function Page({
     ? params.song[0]
     : params.song;
   const song = findSong(requestedSong ?? null) ?? getRandomSong();
-  const posts = await getCityPosts();
-  return <Home posts={posts} song={song} />;
+  return <Home song={song} />;
 }

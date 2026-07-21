@@ -20,55 +20,31 @@ import { cn } from '@/lib/utils';
 
 import { ExpandedPost, type CardRect } from './images';
 import { AtlasDockCard } from './atlas/atlas-dock-card';
+import {
+  MAX_GLOBE_SCALE,
+  MIN_GLOBE_SCALE,
+  ZOOM_SCALE,
+  buildAllPostNodes,
+  buildCountryNodes,
+  buildLocationNodes,
+  clamp,
+  getCenteredNodeId,
+  getZoomTier,
+  latLngToXYZ,
+  sortPosts,
+  type CountryNode,
+  type LocationNode,
+  type MarkerNode,
+  type PostNode,
+  type ZoomTier,
+} from './atlas/model';
 import { ATLAS_TEXTURES, type AtlasTheme, getAtlasTheme } from './atlas/theme';
 import type { SongDefinition } from './songs';
-
-type ZoomTier = 'world' | 'region' | 'place';
 
 interface GlobeAtlasProps {
   posts: CityPost[];
   song: SongDefinition;
 }
-
-interface LocationNode {
-  kind: 'location';
-  id: string;
-  label: string;
-  country: string;
-  region: string;
-  lat: number;
-  lng: number;
-  count: number;
-  posts: CityPost[];
-  cover: string;
-}
-
-interface CountryNode {
-  kind: 'country';
-  id: string;
-  label: string;
-  lat: number;
-  lng: number;
-  count: number;
-  postCount: number;
-  locations: LocationNode[];
-  cover: string;
-}
-
-interface PostNode {
-  kind: 'post';
-  id: string;
-  label: string;
-  country: string;
-  region: string;
-  lat: number;
-  lng: number;
-  count: number;
-  post: CityPost;
-  cover: string;
-}
-
-type MarkerNode = CountryNode | LocationNode | PostNode;
 
 const ATLAS_CONTROL_CLASSNAME =
   'grid h-11 w-11 place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-inset';
@@ -76,31 +52,8 @@ type GlobeComponentType = ComponentType<
   GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
 >;
 
-const ZOOM_SCALE: Record<ZoomTier, number> = {
-  world: 0.9,
-  region: 2.72,
-  place: 3.78,
-};
-const REGION_ZOOM_THRESHOLD = 1.62;
-const PLACE_ZOOM_THRESHOLD = ZOOM_SCALE.place;
-const MIN_GLOBE_SCALE = 0.84;
-const MAX_GLOBE_SCALE = 4.42;
 const DEFAULT_GLOBE_LAT = 28;
 const DEFAULT_GLOBE_LNG = 18;
-
-function sortPosts(posts: CityPost[]) {
-  return [...posts].sort((left, right) => {
-    if (left.sortOrder !== right.sortOrder) {
-      return left.sortOrder - right.sortOrder;
-    }
-
-    return left.city.localeCompare(right.city);
-  });
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function getTouchDistance(touches: TouchList) {
   if (touches.length < 2) {
@@ -189,176 +142,6 @@ function isNodeVisibleFromView(
   return nodeX * viewX + nodeY * viewY + nodeZ * viewZ > 0;
 }
 
-function getZoomTier(scale: number): ZoomTier {
-  if (scale < REGION_ZOOM_THRESHOLD) {
-    return 'world';
-  }
-
-  if (scale < PLACE_ZOOM_THRESHOLD) {
-    return 'region';
-  }
-
-  return 'place';
-}
-
-function averageCoordinates(points: Array<{ lat: number; lng: number }>) {
-  const total = points.reduce(
-    (acc, point) => ({
-      lat: acc.lat + point.lat,
-      lng: acc.lng + point.lng,
-    }),
-    { lat: 0, lng: 0 },
-  );
-
-  return {
-    lat: total.lat / points.length,
-    lng: total.lng / points.length,
-  };
-}
-
-function buildLocationNodes(posts: CityPost[]) {
-  const groups = new Map<string, LocationNode>();
-
-  for (const post of posts) {
-    if (!post.location) {
-      continue;
-    }
-
-    const key = `${post.location.country}:${post.location.locationName}`;
-    const existing = groups.get(key);
-
-    if (existing) {
-      existing.posts.push(post);
-      existing.count += 1;
-      continue;
-    }
-
-    groups.set(key, {
-      kind: 'location',
-      id: `location-${key.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      label: post.location.locationName,
-      country: post.location.country,
-      region: post.location.region,
-      lat: post.location.latitude,
-      lng: post.location.longitude,
-      count: 1,
-      posts: [post],
-      cover: post.cover,
-    });
-  }
-
-  return [...groups.values()].sort((left, right) =>
-    left.label.localeCompare(right.label),
-  );
-}
-
-function buildCountryNodes(locations: LocationNode[]) {
-  const groups = new Map<string, CountryNode>();
-
-  for (const location of locations) {
-    const existing = groups.get(location.country);
-
-    if (existing) {
-      existing.locations.push(location);
-      existing.count += 1;
-      existing.postCount += location.posts.length;
-      const average = averageCoordinates(
-        existing.locations.map((item) => ({ lat: item.lat, lng: item.lng })),
-      );
-      existing.lat = average.lat;
-      existing.lng = average.lng;
-      continue;
-    }
-
-    groups.set(location.country, {
-      kind: 'country',
-      id: `country-${location.country.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      label: location.country,
-      lat: location.lat,
-      lng: location.lng,
-      count: 1,
-      postCount: location.posts.length,
-      locations: [location],
-      cover: location.cover,
-    });
-  }
-
-  return [...groups.values()].sort((left, right) =>
-    left.label.localeCompare(right.label),
-  );
-}
-
-function wrapLongitude(lng: number) {
-  return ((lng + 540) % 360) - 180;
-}
-
-function offsetCoordinates(
-  lat: number,
-  lng: number,
-  index: number,
-  total: number,
-) {
-  if (total <= 1) {
-    return { lat, lng };
-  }
-
-  const angle = (Math.PI * 2 * index) / total - Math.PI / 2;
-  const radius = 1.35 + Math.floor(index / 6) * 0.55;
-  const latOffset = Math.sin(angle) * radius;
-  const lngOffset =
-    (Math.cos(angle) * radius) /
-    Math.max(Math.cos((lat * Math.PI) / 180), 0.35);
-
-  return {
-    lat: clamp(lat + latOffset, -85, 85),
-    lng: wrapLongitude(lng + lngOffset),
-  };
-}
-
-function buildPostNodes(location: LocationNode | undefined): PostNode[] {
-  if (!location) {
-    return [];
-  }
-
-  return location.posts.map<PostNode>((post, index) => {
-    const coords = offsetCoordinates(
-      location.lat,
-      location.lng,
-      index,
-      location.posts.length,
-    );
-
-    return {
-      kind: 'post',
-      id: `post-${post.id}`,
-      label: post.location?.locationName ?? post.city,
-      country: location.country,
-      region: location.region,
-      lat: coords.lat,
-      lng: coords.lng,
-      count: 1,
-      post,
-      cover: post.cover,
-    };
-  });
-}
-
-function buildAllPostNodes(locations: LocationNode[]) {
-  return locations.flatMap((location) => buildPostNodes(location));
-}
-
-function latLngToXYZ(lat: number, lng: number) {
-  const latRadians = (lat * Math.PI) / 180;
-  const lngRadians = (lng * Math.PI) / 180 - Math.PI;
-  const cosLat = Math.cos(latRadians);
-
-  return [
-    -cosLat * Math.cos(lngRadians),
-    Math.sin(latRadians),
-    cosLat * Math.sin(lngRadians),
-  ] as const;
-}
-
 function getMarkerButtonStyle(position: {
   x: number;
   y: number;
@@ -394,48 +177,6 @@ function getMarkerLabelTransform(position: {
   }
 
   return 'translate(-50%, 18px)';
-}
-
-function getCenteredNodeId(
-  projectedNodes: Array<{
-    node: MarkerNode;
-    position: { x: number; y: number; visible: boolean };
-  }>,
-  currentId: string | null,
-) {
-  const visibleNodes = projectedNodes
-    .filter(({ position }) => position.visible)
-    .map(({ node, position }) => ({
-      id: node.id,
-      distance: Math.hypot(position.x - 0.5, position.y - 0.5),
-    }))
-    .sort((left, right) => left.distance - right.distance);
-
-  const nearest = visibleNodes[0];
-  if (!nearest) {
-    return currentId;
-  }
-
-  const current = currentId
-    ? (visibleNodes.find((item) => item.id === currentId) ?? null)
-    : null;
-
-  if (!current) {
-    return nearest.id;
-  }
-
-  if (current.distance > 0.16) {
-    return nearest.id;
-  }
-
-  if (
-    nearest.id !== current.id &&
-    nearest.distance + 0.035 < current.distance
-  ) {
-    return nearest.id;
-  }
-
-  return current.id;
 }
 
 function GlobeStage({
@@ -479,6 +220,7 @@ function GlobeStage({
     useState<GlobeComponentType | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [isGlobeReady, setIsGlobeReady] = useState(false);
+  const [isStageActive, setIsStageActive] = useState(true);
   const nodesRef = useRef<MarkerNode[]>(nodes);
   const viewportRef = useRef(viewport);
   const isPointerOverGlobeRef = useRef(false);
@@ -570,6 +312,31 @@ function GlobeStage({
   useEffect(() => {
     viewportRef.current = viewport;
   }, [viewport]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    let isInViewport = true;
+    const syncActivity = () => {
+      setIsStageActive(isInViewport && document.visibilityState === 'visible');
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      isInViewport = entry.isIntersecting;
+      syncActivity();
+    });
+
+    observer.observe(container);
+    document.addEventListener('visibilitychange', syncActivity);
+    syncActivity();
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', syncActivity);
+    };
+  }, []);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -671,19 +438,27 @@ function GlobeStage({
       return;
     }
 
+    if (isStageActive) {
+      globeRef.current.resumeAnimation();
+    } else {
+      globeRef.current.pauseAnimation();
+    }
+
     const controls = globeRef.current.controls();
     controls.enablePan = false;
     controls.enableZoom = false;
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.rotateSpeed = zoomTier === 'world' ? 0.85 : 0.65;
-    controls.autoRotate = autoRotateEnabled && !isPointerOverGlobeRef.current;
+    controls.autoRotate =
+      isStageActive && autoRotateEnabled && !isPointerOverGlobeRef.current;
     controls.autoRotateSpeed = zoomTier === 'world' ? 0.55 : 0.32;
-  }, [autoRotateEnabled, isGlobeReady, zoomTier]);
+  }, [autoRotateEnabled, isGlobeReady, isStageActive, zoomTier]);
 
   useEffect(() => {
     if (
       !isGlobeReady ||
+      !isStageActive ||
       !globeRef.current ||
       viewport.width === 0 ||
       viewport.height === 0
@@ -783,7 +558,7 @@ function GlobeStage({
         focusTransitionTimerRef.current = null;
       }
     };
-  }, [isGlobeReady, viewport]);
+  }, [isGlobeReady, isStageActive, viewport]);
 
   const handlePointerEnter = () => {
     isPointerOverGlobeRef.current = true;
@@ -797,7 +572,7 @@ function GlobeStage({
     isPointerOverGlobeRef.current = false;
     const controls = globeRef.current?.controls();
     if (controls) {
-      controls.autoRotate = autoRotateEnabled;
+      controls.autoRotate = isStageActive && autoRotateEnabled;
     }
     onHoverMarker(null);
   };
@@ -899,6 +674,9 @@ function GlobeStage({
         return;
       }
 
+      event.preventDefault();
+      event.stopPropagation();
+
       const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
       const direction = delta > 0 ? -1 : 1;
       const immediateStep = nextStep * direction;
@@ -915,8 +693,6 @@ function GlobeStage({
       }
 
       userInteractionRef.current();
-      event.preventDefault();
-      event.stopPropagation();
 
       isWheelZoomingRef.current = true;
       lastWheelEventAtRef.current = performance.now();

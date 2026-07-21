@@ -1,5 +1,3 @@
-'use client';
-
 import type { CSSProperties } from 'react';
 
 import Link from 'next/link';
@@ -12,7 +10,7 @@ import { TooltipProvider } from '../ui/tooltip';
 import { AboutDrawer } from './about-drawer';
 import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
-import { LyricsScene } from './lyrics-scene';
+import { LyricsSceneLoader } from './lyrics-scene-loader';
 import { RoleTicker } from './role-ticker';
 import type { SongDefinition } from './songs';
 
@@ -33,7 +31,7 @@ export function IntroHero({ song }: { song: SongDefinition }) {
       data-song={song.id}
       style={themeStyle}
     >
-      <LyricsScene song={song} />
+      <LyricsSceneLoader song={song} />
 
       <div className="pointer-events-none relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] sm:px-8 lg:px-12">
         <header className="pointer-events-auto flex h-20 shrink-0 items-center">

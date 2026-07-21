@@ -496,6 +496,7 @@ function GlobeStage({
   const lastCameraTargetIdRef = useRef<string | null>(null);
   const lastFocusKeyRef = useRef(cameraFocusKey);
   const zoomScaleChangeRef = useRef(onZoomScaleChange);
+  const zoomScaleRef = useRef(zoomScale);
   const wheelMomentumRef = useRef(0);
   const wheelFrameRef = useRef<number | null>(null);
   const lastWheelEventAtRef = useRef(0);
@@ -588,6 +589,10 @@ function GlobeStage({
   useEffect(() => {
     zoomScaleChangeRef.current = onZoomScaleChange;
   }, [onZoomScaleChange]);
+
+  useEffect(() => {
+    zoomScaleRef.current = zoomScale;
+  }, [zoomScale]);
 
   useEffect(() => {
     autoRotateEnabledRef.current = autoRotateEnabled;
@@ -834,18 +839,36 @@ function GlobeStage({
       });
     };
 
+    const stopWheelInertia = () => {
+      if (wheelFrameRef.current !== null) {
+        window.cancelAnimationFrame(wheelFrameRef.current);
+        wheelFrameRef.current = null;
+      }
+
+      wheelMomentumRef.current = 0;
+      isWheelZoomingRef.current = false;
+    };
+
     const runWheelInertia = () => {
       const momentum = wheelMomentumRef.current;
       if (Math.abs(momentum) < 0.0025) {
-        wheelMomentumRef.current = 0;
-        wheelFrameRef.current = null;
-        isWheelZoomingRef.current = false;
+        stopWheelInertia();
         return;
       }
 
-      zoomScaleChangeRef.current((current) =>
-        clamp(current + momentum, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE),
+      const currentScale = zoomScaleRef.current;
+      const nextScale = clamp(
+        currentScale + momentum,
+        MIN_GLOBE_SCALE,
+        MAX_GLOBE_SCALE,
       );
+      if (nextScale === currentScale) {
+        stopWheelInertia();
+        return;
+      }
+
+      zoomScaleRef.current = nextScale;
+      zoomScaleChangeRef.current(nextScale);
 
       const now = performance.now();
       const isStillScrolling = now - lastWheelEventAtRef.current < 110;
@@ -855,31 +878,41 @@ function GlobeStage({
     };
 
     const handleWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) {
+      const delta =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? event.deltaY * 12
+          : event.deltaY;
+      if (!Number.isFinite(delta) || delta === 0) {
+        return;
+      }
+
+      const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
+      const direction = delta > 0 ? -1 : 1;
+      const immediateStep = nextStep * direction;
+      const currentScale = zoomScaleRef.current;
+      const nextScale = clamp(
+        currentScale + immediateStep,
+        MIN_GLOBE_SCALE,
+        MAX_GLOBE_SCALE,
+      );
+
+      if (nextScale === currentScale) {
+        stopWheelInertia();
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
 
-      const delta =
-        event.deltaMode === WheelEvent.DOM_DELTA_LINE
-          ? event.deltaY * 12
-          : event.deltaY;
-      const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
-      const direction = delta > 0 ? -1 : 1;
-      const immediateStep = nextStep * direction;
-
       isWheelZoomingRef.current = true;
       lastWheelEventAtRef.current = performance.now();
 
-      zoomScaleChangeRef.current((current) =>
-        clamp(current + immediateStep, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE),
-      );
+      zoomScaleRef.current = nextScale;
+      zoomScaleChangeRef.current(nextScale);
 
       wheelMomentumRef.current = immediateStep * 0.28;
 
-      if (wheelFrameRef.current) {
+      if (wheelFrameRef.current !== null) {
         return;
       }
 
@@ -950,12 +983,8 @@ function GlobeStage({
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
-      if (wheelFrameRef.current) {
-        window.cancelAnimationFrame(wheelFrameRef.current);
-        wheelFrameRef.current = null;
-      }
+      stopWheelInertia();
       setPinchActive(false);
-      wheelMomentumRef.current = 0;
       resetPinch();
     };
   }, []);
@@ -968,7 +997,7 @@ function GlobeStage({
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       role="group"
-      aria-label="Interactive globe. Drag to rotate, use the zoom controls or pinch to zoom, and select a map marker to explore photographs."
+      aria-label="Interactive globe. Drag to rotate, scroll the mouse wheel, use the zoom controls, or pinch to zoom, and select a map marker to explore photographs."
     >
       {!isGlobeReady && (
         <div

@@ -27,7 +27,7 @@ export function AtlasDockCard({
       onClick={(event) => onClick(event.currentTarget)}
       style={{ WebkitTapHighlightColor: 'transparent' }}
       className={cn(
-        'group relative min-w-[172px] max-w-[172px] appearance-none overflow-hidden rounded-[14px] border bg-[var(--atlas-card)] text-left shadow-[0_12px_36px_-28px_var(--atlas-shadow)] outline-none duration-200 [transition-property:transform,border-color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--atlas-bg)] sm:min-w-[224px] sm:max-w-[224px]',
+        'group relative min-w-[172px] max-w-[172px] snap-start appearance-none overflow-hidden rounded-[14px] border bg-[var(--atlas-card)] text-left shadow-[0_12px_36px_-28px_var(--atlas-shadow)] outline-none duration-200 [transition-property:transform,border-color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--atlas-bg)] sm:min-w-[224px] sm:max-w-[224px]',
         active
           ? 'border-[var(--atlas-accent)] bg-[var(--atlas-card-active)] shadow-[0_18px_44px_-26px_var(--atlas-shadow)]'
           : 'border-[var(--atlas-rule)] sm:hover:-translate-y-0.5 sm:hover:border-[var(--atlas-accent)]',

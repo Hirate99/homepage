@@ -11,7 +11,7 @@ import {
 } from 'react';
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Minus, Plus, RotateCcw } from 'lucide-react';
+import { ChevronRight, Minus, Plus, RotateCcw } from 'lucide-react';
 import type { GlobeMethods, GlobeProps } from 'react-globe.gl';
 import { MeshLambertMaterial } from 'three';
 
@@ -451,7 +451,7 @@ function GlobeStage({
   onSelectMarker,
   onZoomScaleChange,
   onCenteredMarkerChange,
-  onGlobeLeave,
+  onUserInteraction,
   theme,
   reduceMotion,
 }: {
@@ -467,7 +467,7 @@ function GlobeStage({
   onSelectMarker: (id: string) => void;
   onZoomScaleChange: (value: number | ((prev: number) => number)) => void;
   onCenteredMarkerChange: (id: string | null) => void;
-  onGlobeLeave: () => void;
+  onUserInteraction: () => void;
   theme: AtlasTheme;
   reduceMotion: boolean;
 }) {
@@ -493,9 +493,11 @@ function GlobeStage({
   const hoveredMarkerIdRef = useRef<string | null>(hoveredMarkerId);
   const activeMarkerIdRef = useRef<string | null>(activeMarkerId);
   const centeredMarkerChangeRef = useRef(onCenteredMarkerChange);
+  const userInteractionRef = useRef(onUserInteraction);
   const lastCameraTargetIdRef = useRef<string | null>(null);
   const lastFocusKeyRef = useRef(cameraFocusKey);
   const zoomScaleChangeRef = useRef(onZoomScaleChange);
+  const zoomScaleRef = useRef(zoomScale);
   const wheelMomentumRef = useRef(0);
   const wheelFrameRef = useRef<number | null>(null);
   const lastWheelEventAtRef = useRef(0);
@@ -586,8 +588,16 @@ function GlobeStage({
   }, [onCenteredMarkerChange]);
 
   useEffect(() => {
+    userInteractionRef.current = onUserInteraction;
+  }, [onUserInteraction]);
+
+  useEffect(() => {
     zoomScaleChangeRef.current = onZoomScaleChange;
   }, [onZoomScaleChange]);
+
+  useEffect(() => {
+    zoomScaleRef.current = zoomScale;
+  }, [zoomScale]);
 
   useEffect(() => {
     autoRotateEnabledRef.current = autoRotateEnabled;
@@ -790,7 +800,15 @@ function GlobeStage({
       controls.autoRotate = autoRotateEnabled;
     }
     onHoverMarker(null);
-    onGlobeLeave();
+  };
+
+  const handlePointerDown = () => {
+    onUserInteraction();
+
+    const controls = globeRef.current?.controls();
+    if (controls) {
+      controls.autoRotate = false;
+    }
   };
 
   useEffect(() => {
@@ -834,18 +852,36 @@ function GlobeStage({
       });
     };
 
+    const stopWheelInertia = () => {
+      if (wheelFrameRef.current !== null) {
+        window.cancelAnimationFrame(wheelFrameRef.current);
+        wheelFrameRef.current = null;
+      }
+
+      wheelMomentumRef.current = 0;
+      isWheelZoomingRef.current = false;
+    };
+
     const runWheelInertia = () => {
       const momentum = wheelMomentumRef.current;
       if (Math.abs(momentum) < 0.0025) {
-        wheelMomentumRef.current = 0;
-        wheelFrameRef.current = null;
-        isWheelZoomingRef.current = false;
+        stopWheelInertia();
         return;
       }
 
-      zoomScaleChangeRef.current((current) =>
-        clamp(current + momentum, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE),
+      const currentScale = zoomScaleRef.current;
+      const nextScale = clamp(
+        currentScale + momentum,
+        MIN_GLOBE_SCALE,
+        MAX_GLOBE_SCALE,
       );
+      if (nextScale === currentScale) {
+        stopWheelInertia();
+        return;
+      }
+
+      zoomScaleRef.current = nextScale;
+      zoomScaleChangeRef.current(nextScale);
 
       const now = performance.now();
       const isStillScrolling = now - lastWheelEventAtRef.current < 110;
@@ -855,31 +891,42 @@ function GlobeStage({
     };
 
     const handleWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
       const delta =
         event.deltaMode === WheelEvent.DOM_DELTA_LINE
           ? event.deltaY * 12
           : event.deltaY;
+      if (!Number.isFinite(delta) || delta === 0) {
+        return;
+      }
+
       const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
       const direction = delta > 0 ? -1 : 1;
       const immediateStep = nextStep * direction;
+      const currentScale = zoomScaleRef.current;
+      const nextScale = clamp(
+        currentScale + immediateStep,
+        MIN_GLOBE_SCALE,
+        MAX_GLOBE_SCALE,
+      );
+
+      if (nextScale === currentScale) {
+        stopWheelInertia();
+        return;
+      }
+
+      userInteractionRef.current();
+      event.preventDefault();
+      event.stopPropagation();
 
       isWheelZoomingRef.current = true;
       lastWheelEventAtRef.current = performance.now();
 
-      zoomScaleChangeRef.current((current) =>
-        clamp(current + immediateStep, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE),
-      );
+      zoomScaleRef.current = nextScale;
+      zoomScaleChangeRef.current(nextScale);
 
       wheelMomentumRef.current = immediateStep * 0.28;
 
-      if (wheelFrameRef.current) {
+      if (wheelFrameRef.current !== null) {
         return;
       }
 
@@ -893,6 +940,7 @@ function GlobeStage({
 
       event.preventDefault();
       event.stopPropagation();
+      userInteractionRef.current();
       setPinchActive(true);
       syncPinch(event.touches);
     };
@@ -950,12 +998,8 @@ function GlobeStage({
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
-      if (wheelFrameRef.current) {
-        window.cancelAnimationFrame(wheelFrameRef.current);
-        wheelFrameRef.current = null;
-      }
+      stopWheelInertia();
       setPinchActive(false);
-      wheelMomentumRef.current = 0;
       resetPinch();
     };
   }, []);
@@ -967,8 +1011,9 @@ function GlobeStage({
       className="relative mx-auto h-[min(72svh,570px)] min-h-[430px] w-full cursor-grab touch-pan-y overflow-hidden active:cursor-grabbing sm:h-[620px] lg:h-[min(68vh,700px)]"
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
+      onPointerDown={handlePointerDown}
       role="group"
-      aria-label="Interactive globe. Drag to rotate, use the zoom controls or pinch to zoom, and select a map marker to explore photographs."
+      aria-label="Interactive globe. Drag to rotate, scroll the mouse wheel, use the zoom controls, or pinch to zoom, and select a map marker to explore photographs."
     >
       {!isGlobeReady && (
         <div
@@ -1516,12 +1561,16 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
     setIsAutoRotateFrozen(false);
   };
 
-  const activePath =
-    displayZoomTier === 'world'
-      ? selectedCountry.label
-      : displayZoomTier === 'region'
-        ? `${selectedCountry.label} / ${selectedLocation.label}`
-        : `${selectedLocation.label} / ${activePost.city}`;
+  const navigateToAtlasLevel = (level: Exclude<ZoomTier, 'place'>) => {
+    const targetId =
+      level === 'world' ? selectedCountry.id : selectedLocation.id;
+
+    setCameraTargetId(targetId);
+    setCameraFocusKey((current) => current + 1);
+    setDisplayZoomTier(level);
+    setZoomScale(ZOOM_SCALE[level]);
+    setIsAutoRotateFrozen(true);
+  };
 
   return (
     <>
@@ -1534,13 +1583,30 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
         aria-labelledby="atlas-title"
       >
         <div className="relative mx-auto w-full max-w-[1240px]">
-          <header className="border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:pb-9 sm:pt-7">
+          <header className="flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:gap-8 sm:pb-9 sm:pt-7">
             <h2
               id="atlas-title"
               className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
             >
               Places.
             </h2>
+            <p
+              className="pb-0.5 text-right text-[10px] font-semibold uppercase tabular-nums leading-5 tracking-[0.16em] text-[var(--atlas-muted)] sm:pb-1 sm:text-xs sm:tracking-[0.18em]"
+              aria-label={`${countryNodes.length} countries, ${locationNodes.length} places`}
+            >
+              <span>
+                {String(countryNodes.length).padStart(2, '0')} countries
+              </span>
+              <span
+                className="mx-1.5 text-[var(--atlas-rule)]"
+                aria-hidden="true"
+              >
+                ·
+              </span>
+              <span>
+                {String(locationNodes.length).padStart(2, '0')} places
+              </span>
+            </p>
           </header>
 
           <div className="space-y-5">
@@ -1571,19 +1637,93 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                 }
                 onZoomScaleChange={handleZoomScaleChange}
                 onCenteredMarkerChange={handleCenteredMarkerChange}
-                onGlobeLeave={() => {
-                  setIsAutoRotateFrozen(false);
-                }}
+                onUserInteraction={() => setIsAutoRotateFrozen(true)}
                 theme={atlasTheme}
                 reduceMotion={shouldReduceMotion}
               />
 
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 p-3 sm:p-5">
-                <div className="bg-[var(--atlas-card)]/90 max-w-[62%] rounded-xl border border-[var(--atlas-rule)] px-3 py-2.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-none sm:px-4 sm:py-3">
-                  <p className="truncate text-sm font-semibold text-[var(--atlas-ink)] sm:text-base">
-                    {activePath}
-                  </p>
-                </div>
+                <nav
+                  aria-label="Atlas location"
+                  className="bg-[var(--atlas-card)]/90 pointer-events-auto max-w-[62%] overflow-hidden rounded-xl border border-[var(--atlas-rule)] px-1.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-[70%]"
+                >
+                  <ol className="flex min-h-11 min-w-0 items-center text-sm font-semibold text-[var(--atlas-ink)] sm:text-base">
+                    <li
+                      className={cn(
+                        'min-w-0',
+                        displayZoomTier === 'place' && 'hidden sm:block',
+                      )}
+                    >
+                      {displayZoomTier === 'world' ? (
+                        <span
+                          aria-current="page"
+                          className="block truncate px-1.5 py-2 sm:px-2.5"
+                        >
+                          World
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="block min-h-11 truncate rounded-lg px-1.5 py-2 text-[var(--atlas-muted)] outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-2.5"
+                          onClick={() => navigateToAtlasLevel('world')}
+                        >
+                          World
+                        </button>
+                      )}
+                    </li>
+
+                    {displayZoomTier !== 'world' && (
+                      <>
+                        <li
+                          aria-hidden="true"
+                          className={cn(
+                            'shrink-0 text-[var(--atlas-muted)]',
+                            displayZoomTier === 'place' && 'hidden sm:block',
+                          )}
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </li>
+                        <li className="min-w-0">
+                          {displayZoomTier === 'region' ? (
+                            <span
+                              aria-current="page"
+                              className="block truncate px-1.5 py-2 sm:px-2.5"
+                            >
+                              {selectedCountry.label}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="block min-h-11 truncate rounded-lg px-1.5 py-2 text-[var(--atlas-muted)] outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-2.5"
+                              onClick={() => navigateToAtlasLevel('region')}
+                            >
+                              {selectedCountry.label}
+                            </button>
+                          )}
+                        </li>
+                      </>
+                    )}
+
+                    {displayZoomTier === 'place' && (
+                      <>
+                        <li
+                          aria-hidden="true"
+                          className="shrink-0 text-[var(--atlas-muted)]"
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </li>
+                        <li className="min-w-0">
+                          <span
+                            aria-current="page"
+                            className="block truncate px-1.5 py-2 sm:px-2.5"
+                          >
+                            {selectedLocation.label}
+                          </span>
+                        </li>
+                      </>
+                    )}
+                  </ol>
+                </nav>
 
                 <div className="bg-[var(--atlas-card)]/90 pointer-events-auto flex shrink-0 overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
                   <button
@@ -1592,9 +1732,10 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                       ATLAS_CONTROL_CLASSNAME,
                       'border-r border-[var(--atlas-rule)]',
                     )}
-                    onClick={() =>
-                      handleZoomScaleChange((current) => current * 0.82)
-                    }
+                    onClick={() => {
+                      setIsAutoRotateFrozen(true);
+                      handleZoomScaleChange((current) => current * 0.82);
+                    }}
                     aria-label="Zoom out"
                     title="Zoom out"
                   >
@@ -1606,9 +1747,10 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                       ATLAS_CONTROL_CLASSNAME,
                       'border-r border-[var(--atlas-rule)]',
                     )}
-                    onClick={() =>
-                      handleZoomScaleChange((current) => current * 1.22)
-                    }
+                    onClick={() => {
+                      setIsAutoRotateFrozen(true);
+                      handleZoomScaleChange((current) => current * 1.22);
+                    }}
                     aria-label="Zoom in"
                     title="Zoom in"
                   >
@@ -1636,7 +1778,7 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
               layout={!shouldReduceMotion}
               className="overflow-visible border-t border-[var(--atlas-rule)] pt-4 lg:mx-auto lg:w-full"
             >
-              <div className="-mx-1 flex gap-3 overflow-x-auto overflow-y-visible px-1 pb-4 pt-2 [scrollbar-width:none] sm:gap-4 [&::-webkit-scrollbar]:hidden">
+              <div className="-mx-1 flex snap-x snap-proximity gap-3 overflow-x-auto overflow-y-visible px-1 pb-4 pt-2 [scrollbar-width:none] sm:gap-4 [&::-webkit-scrollbar]:hidden">
                 {displayZoomTier === 'world' &&
                   (dockItems as CountryNode[]).map((country) => {
                     const isActive = country.id === selectedCountry.id;

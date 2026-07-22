@@ -2,8 +2,9 @@
 
 import {
   type CSSProperties,
-  type ComponentType,
   type MutableRefObject,
+  Suspense,
+  lazy,
   useEffect,
   useMemo,
   useRef,
@@ -12,14 +13,17 @@ import {
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronRight, Minus, Plus, RotateCcw } from 'lucide-react';
-import type { GlobeMethods, GlobeProps } from 'react-globe.gl';
+import type { GlobeMethods } from 'react-globe.gl';
 import { MeshLambertMaterial } from 'three';
 
 import { type CityPost } from '@/lib/collections';
 import { cn } from '@/lib/utils';
 
-import { ExpandedPost, type CardRect } from './images';
 import { AtlasDockCard } from './atlas/atlas-dock-card';
+import {
+  type GlobeComponentType,
+  loadGlobeComponent,
+} from './atlas/globe-runtime';
 import {
   MAX_GLOBE_SCALE,
   MIN_GLOBE_SCALE,
@@ -38,7 +42,13 @@ import {
   type PostNode,
   type ZoomTier,
 } from './atlas/model';
-import { ATLAS_TEXTURES, type AtlasTheme, getAtlasTheme } from './atlas/theme';
+import {
+  ATLAS_TEXTURES,
+  type AtlasTheme,
+  getAtlasSurfaceTexture,
+  getAtlasTheme,
+} from './atlas/theme';
+import type { CardRect } from './images';
 import type { SongDefinition } from './songs';
 
 interface GlobeAtlasProps {
@@ -48,9 +58,23 @@ interface GlobeAtlasProps {
 
 const ATLAS_CONTROL_CLASSNAME =
   'grid h-11 w-11 place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-inset';
-type GlobeComponentType = ComponentType<
-  GlobeProps & { ref?: MutableRefObject<GlobeMethods | undefined> }
->;
+
+let expandedPostModulePromise: Promise<typeof import('./images')> | null = null;
+
+function loadExpandedPostModule() {
+  expandedPostModulePromise ??= import('./images').catch((error: unknown) => {
+    expandedPostModulePromise = null;
+    throw error;
+  });
+
+  return expandedPostModulePromise;
+}
+
+const ExpandedPost = lazy(() =>
+  loadExpandedPostModule().then((module) => ({
+    default: module.ExpandedPost,
+  })),
+);
 
 const DEFAULT_GLOBE_LAT = 28;
 const DEFAULT_GLOBE_LNG = 18;
@@ -262,10 +286,11 @@ function GlobeStage({
       }),
     [theme.globe],
   );
-  const surfaceTexture =
-    viewport.width >= 720
-      ? theme.globe.textures.detailed
-      : theme.globe.textures.compact;
+  const surfaceTexture = getAtlasSurfaceTexture(
+    theme,
+    viewport.width,
+    typeof window === 'undefined' ? 1 : window.devicePixelRatio,
+  );
 
   useEffect(() => {
     return () => {
@@ -276,9 +301,9 @@ function GlobeStage({
   useEffect(() => {
     let isCancelled = false;
 
-    void import('react-globe.gl').then((module) => {
+    void loadGlobeComponent().then((component) => {
       if (!isCancelled) {
-        setGlobeComponent(() => module.default as GlobeComponentType);
+        setGlobeComponent(() => component);
       }
     });
 
@@ -1016,6 +1041,13 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
       window.clearTimeout(timerId);
     };
   }, [displayZoomTier, zoomTier]);
+
+  useEffect(() => {
+    if (displayZoomTier === 'place') {
+      void loadExpandedPostModule().catch(() => undefined);
+    }
+  }, [displayZoomTier]);
+
   useEffect(() => {
     if (!countryNodes.length || !locationNodes.length || !atlasPosts.length) {
       return;
@@ -1153,6 +1185,7 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
   }
 
   const openViewer = (postId: string, element?: HTMLElement | null) => {
+    void loadExpandedPostModule().catch(() => undefined);
     const rect = element?.getBoundingClientRect();
 
     setViewerState({
@@ -1639,15 +1672,17 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
         </div>
       </section>
 
-      <AnimatePresence mode="wait">
-        {viewerPost && viewerState && (
-          <ExpandedPost
-            post={viewerPost}
-            originRect={viewerState.originRect}
-            onClose={() => setViewerState(null)}
-          />
-        )}
-      </AnimatePresence>
+      <Suspense fallback={null}>
+        <AnimatePresence mode="wait">
+          {viewerPost && viewerState && (
+            <ExpandedPost
+              post={viewerPost}
+              originRect={viewerState.originRect}
+              onClose={() => setViewerState(null)}
+            />
+          )}
+        </AnimatePresence>
+      </Suspense>
     </>
   );
 }

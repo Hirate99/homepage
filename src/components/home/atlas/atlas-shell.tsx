@@ -88,53 +88,63 @@ export function AtlasShell({
           </p>
         </header>
 
-        <div className="relative min-h-[520px] overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] p-5 sm:rounded-[28px] sm:p-8">
+        <div
+          data-slot="atlas-placeholder"
+          data-state={status ?? 'idle'}
+          className="relative mx-auto h-[min(72svh,570px)] min-h-[430px] w-full overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] shadow-[0_32px_90px_-58px_var(--atlas-shadow)] sm:h-[620px] sm:rounded-[28px] lg:h-[min(68vh,700px)]"
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--atlas-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--atlas-grid)_1px,transparent_1px)] bg-[size:48px_48px] opacity-45"
           />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 [background:radial-gradient(circle_at_50%_46%,var(--atlas-glow),transparent_54%)]"
+          />
 
-          {hasSummary ? (
-            <ul className="relative z-10 grid gap-3 sm:grid-cols-2">
-              {summary.countries.map((country) => (
-                <li
-                  key={country.name}
-                  className="bg-[var(--atlas-card)]/90 rounded-2xl border border-[var(--atlas-rule)] p-5 backdrop-blur-sm"
-                >
-                  <p className="font-serif text-3xl">{country.name}</p>
-                  <p className="mt-2 text-sm leading-6 text-[var(--atlas-muted)]">
-                    {[...country.places].sort().join(' · ')}
-                  </p>
-                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--atlas-accent)]">
-                    {country.posts} {country.posts === 1 ? 'post' : 'posts'}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="relative z-10 grid min-h-[470px] place-items-center text-center">
-              {status === 'error' ? (
-                <div>
-                  <p className="text-sm font-medium">
-                    The atlas could not load.
-                  </p>
-                  {onRetry && (
-                    <button
-                      type="button"
-                      className="mt-4 min-h-11 rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] px-5 text-sm font-semibold outline-none transition hover:border-[var(--atlas-accent)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
-                      onClick={onRetry}
-                    >
-                      Try again
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-[var(--atlas-muted)]" role="status">
-                  Loading places…
-                </p>
-              )}
+          <div className="absolute inset-0 grid place-items-center">
+            <div
+              aria-hidden="true"
+              className="relative aspect-square w-[min(70vw,310px)] overflow-hidden rounded-full border border-[var(--atlas-rule)] opacity-55 shadow-[0_24px_80px_-36px_var(--atlas-shadow)] sm:w-[min(44vw,390px)]"
+              style={{
+                backgroundImage: `url(${theme.globe.textures.compact})`,
+                backgroundPosition: 'center',
+                backgroundSize: 'cover',
+              }}
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_32%_28%,transparent_0%,transparent_28%,var(--atlas-shadow)_88%)]" />
+              <div className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/10" />
             </div>
-          )}
+          </div>
+
+          <div className="absolute inset-x-0 bottom-5 z-10 flex justify-center px-5 sm:bottom-7">
+            {status === 'error' ? (
+              <div className="bg-[var(--atlas-card)]/90 rounded-full border border-[var(--atlas-rule)] px-5 py-3 text-center shadow-lg backdrop-blur-md">
+                <p className="text-sm font-medium">The atlas could not load.</p>
+                {onRetry && (
+                  <button
+                    type="button"
+                    className="mt-2 min-h-11 rounded-full border border-[var(--atlas-rule)] px-5 text-sm font-semibold outline-none transition hover:border-[var(--atlas-accent)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
+                    onClick={onRetry}
+                  >
+                    Try again
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p
+                className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--atlas-muted)]"
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--atlas-accent)] motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+                Preparing atlas
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </section>

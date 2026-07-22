@@ -51,6 +51,20 @@ export const ATLAS_TEXTURES = {
   elevation: '/images/atlas/earth-elevation-2k.webp',
 } as const;
 
+const DETAILED_TEXTURE_MIN_RENDER_WIDTH = 720;
+
+export function getAtlasSurfaceTexture(
+  theme: AtlasTheme,
+  viewportWidth: number,
+  pixelRatio = 1,
+) {
+  const renderWidth = viewportWidth * Math.max(pixelRatio, 1);
+
+  return renderWidth >= DETAILED_TEXTURE_MIN_RENDER_WIDTH
+    ? theme.globe.textures.detailed
+    : theme.globe.textures.compact;
+}
+
 export function getAtlasTheme(song: SongDefinition): AtlasTheme {
   const preset = ATLAS_THEME_PRESETS[song.theme];
 

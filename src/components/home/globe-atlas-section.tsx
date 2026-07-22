@@ -5,6 +5,12 @@ import { type ComponentType, useEffect, useState } from 'react';
 import type { CityPost } from '@/lib/collections';
 
 import { AtlasShell } from './atlas/atlas-shell';
+import { loadGlobeComponent } from './atlas/globe-runtime';
+import {
+  ATLAS_TEXTURES,
+  getAtlasSurfaceTexture,
+  getAtlasTheme,
+} from './atlas/theme';
 import type { SongDefinition } from './songs';
 
 interface GlobeAtlasSectionProps {
@@ -13,6 +19,7 @@ interface GlobeAtlasSectionProps {
 }
 
 let atlasModulePromise: Promise<typeof import('./globe-atlas')> | null = null;
+const texturePreloadPromises = new Map<string, Promise<void>>();
 
 function loadAtlasModule() {
   atlasModulePromise ??= import('./globe-atlas').catch((error: unknown) => {
@@ -22,59 +29,62 @@ function loadAtlasModule() {
   return atlasModulePromise;
 }
 
+function preloadImage(url: string) {
+  return new Promise<void>((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve();
+    image.onerror = () => resolve();
+    image.src = url;
+  });
+}
+
+function preloadAtlasTextures(song: SongDefinition) {
+  const theme = getAtlasTheme(song);
+  const surfaceTexture = getAtlasSurfaceTexture(
+    theme,
+    window.innerWidth,
+    window.devicePixelRatio,
+  );
+  const cacheKey = `${surfaceTexture}:${ATLAS_TEXTURES.elevation}`;
+  const cachedPromise = texturePreloadPromises.get(cacheKey);
+
+  if (cachedPromise) {
+    return cachedPromise;
+  }
+
+  const promise = Promise.all([
+    preloadImage(surfaceTexture),
+    preloadImage(ATLAS_TEXTURES.elevation),
+  ]).then(() => undefined);
+  texturePreloadPromises.set(cacheKey, promise);
+  return promise;
+}
+
+async function prepareAtlas(song: SongDefinition) {
+  const [module] = await Promise.all([
+    loadAtlasModule(),
+    loadGlobeComponent(),
+    preloadAtlasTextures(song),
+  ]);
+
+  return module;
+}
+
 export function GlobeAtlasSection({ posts, song }: GlobeAtlasSectionProps) {
-  const [shouldLoad, setShouldLoad] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [AtlasComponent, setAtlasComponent] =
     useState<ComponentType<GlobeAtlasSectionProps> | null>(null);
 
   useEffect(() => {
-    const section = document.getElementById('atlas');
-    if (!section) {
-      return;
-    }
-
-    const loadFromHash = () => {
-      if (window.location.hash === '#atlas') {
-        setShouldLoad(true);
-      }
-    };
-
-    loadFromHash();
-    window.addEventListener('hashchange', loadFromHash);
-
-    if (!('IntersectionObserver' in window)) {
-      setShouldLoad(true);
-      return () => window.removeEventListener('hashchange', loadFromHash);
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && entry.intersectionRatio > 0) {
-          setShouldLoad(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '0px 0px -10% 0px', threshold: 0.01 },
-    );
-    observer.observe(section);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('hashchange', loadFromHash);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!shouldLoad || AtlasComponent) {
+    if (AtlasComponent) {
       return;
     }
 
     let cancelled = false;
     setStatus('loading');
 
-    void loadAtlasModule()
+    void prepareAtlas(song)
       .then((module) => {
         if (!cancelled) {
           setAtlasComponent(() => module.GlobeAtlas);
@@ -89,7 +99,7 @@ export function GlobeAtlasSection({ posts, song }: GlobeAtlasSectionProps) {
     return () => {
       cancelled = true;
     };
-  }, [AtlasComponent, attempt, shouldLoad]);
+  }, [AtlasComponent, attempt, song]);
 
   if (AtlasComponent) {
     return <AtlasComponent posts={posts} song={song} />;
@@ -99,7 +109,7 @@ export function GlobeAtlasSection({ posts, song }: GlobeAtlasSectionProps) {
     <AtlasShell
       posts={posts}
       song={song}
-      status={status === 'error' ? 'error' : undefined}
+      status={status === 'idle' ? undefined : status}
       onRetry={
         status === 'error'
           ? () => {

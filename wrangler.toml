@@ -7,6 +7,24 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 preview_urls = true
 workers_dev = true
 
+# Persist all Worker logs in Cloudflare; tracing and external exports stay disabled.
+[observability]
+enabled = true
+
+  [observability.logs]
+  enabled = true
+  head_sampling_rate = 1
+  invocation_logs = true
+  persist = true
+  destinations = []
+
+  [observability.traces]
+  enabled = false
+
+# Respect standard Cache-Control headers for fetch handler responses.
+[cache]
+enabled = true
+
 # The named environments deliberately keep production on the existing
 # homepage Worker while preview deploys to an isolated Worker.
 [env.production]

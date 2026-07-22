@@ -213,7 +213,7 @@ function GlobeStage({
   reduceMotion: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const globeRef = useRef<GlobeMethods>();
+  const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const labelRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const [GlobeComponent, setGlobeComponent] =

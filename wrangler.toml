@@ -1,6 +1,45 @@
 # Top-level configuration for Wrangler
+"$schema" = "./node_modules/wrangler/config-schema.json"
 name = "homepage"
-compatibility_date = "2024-05-01"
+main = ".open-next/worker.js"
+compatibility_date = "2026-07-21"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+preview_urls = true
+workers_dev = true
+
+# The named environments deliberately keep production on the existing
+# homepage Worker while preview deploys to an isolated Worker.
+[env.production]
+name = "homepage"
+preview_urls = true
+workers_dev = true
+
+  [env.production.assets]
+  directory = ".open-next/assets"
+  binding = "ASSETS"
+
+  [[env.production.d1_databases]]
+  binding = "homepage"
+  database_name = "homepage-db"
+  database_id = "22351b35-c780-4984-a829-bdfc31ca846b"
+
+[env.preview]
+name = "homepage-preview"
+preview_urls = true
+workers_dev = true
+
+  [env.preview.assets]
+  directory = ".open-next/assets"
+  binding = "ASSETS"
+
+  [[env.preview.d1_databases]]
+  binding = "homepage"
+  database_name = "homepage-db"
+  database_id = "22351b35-c780-4984-a829-bdfc31ca846b"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
 
 # D1 database binding
 [[d1_databases]]

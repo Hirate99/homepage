@@ -1,16 +1,17 @@
 import type { SongThemeId } from '../../songs/types';
 
-import { CaliforniaAfterimageTheme } from './california-afterimage';
-import { RainNightTheme } from './rain-night';
 import type { SongSceneTheme } from './types';
 
-const SongSceneThemes: Record<SongThemeId, SongSceneTheme> = {
-  'california-afterimage': CaliforniaAfterimageTheme,
-  'rain-night': RainNightTheme,
-};
-
-export function getSongSceneTheme(themeId: SongThemeId) {
-  return SongSceneThemes[themeId];
+export async function loadSongSceneTheme(
+  themeId: SongThemeId,
+): Promise<SongSceneTheme> {
+  switch (themeId) {
+    case 'california-afterimage':
+      return (await import('./california-afterimage'))
+        .CaliforniaAfterimageTheme;
+    case 'rain-night':
+      return (await import('./rain-night')).RainNightTheme;
+  }
 }
 
 export type { SongSceneTheme } from './types';

@@ -23,7 +23,7 @@ import { notoSerif } from '@/fonts';
 import { createMobileLayout, getLyricCues } from './lyrics-scene/layout';
 import { createLyricMesh } from './lyrics-scene/lyric-mesh';
 import { createAtmosphere } from './lyrics-scene/scene-objects';
-import { getSongSceneTheme } from './lyrics-scene/themes';
+import { loadSongSceneTheme } from './lyrics-scene/themes';
 import type { LyricMesh } from './lyrics-scene/types';
 import type { SongDefinition } from './songs';
 
@@ -53,7 +53,10 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
         ? window.getComputedStyle(fontProbeRef.current).fontFamily
         : 'serif';
       const lyricCues = getLyricCues(song);
-      const theme = getSongSceneTheme(song.theme);
+      const theme = await loadSongSceneTheme(song.theme);
+      if (disposed || !containerRef.current) {
+        return;
+      }
       const lyricLayout = theme.createLayout(song, lyricCues);
       const { positions: mobileLyricPositions, order: mobileLyricOrder } =
         createMobileLayout(song, lyricCues);
@@ -218,6 +221,8 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       let hasStartedAnimation = false;
       let entranceStartedAt = 0;
       let frameId = 0;
+      let sceneIsVisible = true;
+      let documentIsVisible = document.visibilityState === 'visible';
 
       const hitTest = (event: PointerEvent) => {
         if (!containerRef.current) {
@@ -491,6 +496,7 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       );
 
       const animate = (time: number) => {
+        frameId = 0;
         const reducedMotion = prefersReducedMotion.matches;
         pointer.lerp(pointerTarget, reducedMotion ? 1 : 0.065);
         atmosphere.material.uniforms.uTime.value = reducedMotion
@@ -955,8 +961,36 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
             : 'transition';
 
         renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(animate);
+        if (sceneIsVisible && documentIsVisible) {
+          frameId = window.requestAnimationFrame(animate);
+        }
       };
+
+      const syncAnimation = () => {
+        if (sceneIsVisible && documentIsVisible) {
+          if (frameId === 0) {
+            frameId = window.requestAnimationFrame(animate);
+          }
+          return;
+        }
+
+        if (frameId !== 0) {
+          window.cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+      };
+
+      const visibilityObserver = new IntersectionObserver(([entry]) => {
+        sceneIsVisible = entry.isIntersecting;
+        syncAnimation();
+      });
+      visibilityObserver.observe(container);
+
+      const handleVisibilityChange = () => {
+        documentIsVisible = document.visibilityState === 'visible';
+        syncAnimation();
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       const resizeObserver = new ResizeObserver(resize);
       resizeObserver.observe(containerRef.current);
@@ -988,10 +1022,17 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       });
       entranceStartedAt = performance.now();
       hasStartedAnimation = true;
-      frameId = window.requestAnimationFrame(animate);
+      syncAnimation();
 
       cleanup = () => {
-        window.cancelAnimationFrame(frameId);
+        if (frameId !== 0) {
+          window.cancelAnimationFrame(frameId);
+        }
+        visibilityObserver.disconnect();
+        document.removeEventListener(
+          'visibilitychange',
+          handleVisibilityChange,
+        );
         resizeObserver.disconnect();
         if (
           theme.interaction.activation !== 'none' ||

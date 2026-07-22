@@ -1,5 +1,9 @@
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['@prisma/client', '.prisma/client'],
+
   images: {
     remotePatterns: [
       {
@@ -7,6 +11,15 @@ const nextConfig = {
         hostname: '**.mskyurina.top',
       },
     ],
+  },
+
+  turbopack: {
+    rules: {
+      '*.md': {
+        loaders: ['raw-loader'],
+        as: '*.js',
+      },
+    },
   },
 
   webpack: (config) => {
@@ -20,3 +33,5 @@ const nextConfig = {
 };
 
 export default nextConfig;
+
+initOpenNextCloudflareForDev();

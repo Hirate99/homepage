@@ -15,6 +15,9 @@
 /admin/.next/
 /packages/admin/.next/
 /out/
+/.open-next/
+/.cf-worker-deploy/
+/.preview/
 
 # production
 /build
@@ -30,7 +33,10 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env*.local
+.env*
+!.env.example
+.dev.vars*
+!.dev.vars.example
 
 # vercel
 .vercel
@@ -39,8 +45,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.env
 /admin/.env.local
 /packages/admin/.env.local
-.wrangler/
+/.wrangler/
 dev.db

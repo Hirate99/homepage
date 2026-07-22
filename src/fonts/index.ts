@@ -8,7 +8,7 @@ export const notoSerif = Noto_Serif_SC({
 });
 
 export const bodoni72OldstyleBook = localFont({
-  src: './bodoni/Bodoni72OldStyle-Book.ttf',
+  src: './bodoni/Bodoni72OldStyle-Book.woff2',
   display: 'swap',
 });
 

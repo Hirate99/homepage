@@ -3,6 +3,7 @@
 import { type ComponentType, useEffect, useState } from 'react';
 
 import type { CityPost } from '@/lib/collections';
+import { useSongStore } from '@/providers/song-store-provider';
 
 import { AtlasShell } from './atlas/atlas-shell';
 import { loadGlobeComponent } from './atlas/globe-runtime';
@@ -15,7 +16,6 @@ import type { SongDefinition } from './songs';
 
 interface GlobeAtlasSectionProps {
   posts: CityPost[];
-  song: SongDefinition;
 }
 
 let atlasModulePromise: Promise<typeof import('./globe-atlas')> | null = null;
@@ -70,7 +70,8 @@ async function prepareAtlas(song: SongDefinition) {
   return module;
 }
 
-export function GlobeAtlasSection({ posts, song }: GlobeAtlasSectionProps) {
+export function GlobeAtlasSection({ posts }: GlobeAtlasSectionProps) {
+  const song = useSongStore((state) => state.song);
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [AtlasComponent, setAtlasComponent] =
@@ -102,13 +103,12 @@ export function GlobeAtlasSection({ posts, song }: GlobeAtlasSectionProps) {
   }, [AtlasComponent, attempt, song]);
 
   if (AtlasComponent) {
-    return <AtlasComponent posts={posts} song={song} />;
+    return <AtlasComponent posts={posts} />;
   }
 
   return (
     <AtlasShell
       posts={posts}
-      song={song}
       status={status === 'idle' ? undefined : status}
       onRetry={
         status === 'error'

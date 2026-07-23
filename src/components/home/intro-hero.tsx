@@ -1,3 +1,5 @@
+'use client';
+
 import type { CSSProperties } from 'react';
 
 import Link from 'next/link';
@@ -7,6 +9,7 @@ import { useTranslations } from 'next-intl';
 
 import { bodoni72OldstyleBook, notoSerif } from '@/fonts';
 import { cdn, cn } from '@/lib/utils';
+import { useSongStore } from '@/providers/song-store-provider';
 import { TooltipProvider } from '../ui/tooltip';
 import { AboutDrawer } from './about-drawer';
 import { ActionTooltip } from './action-tooltip';
@@ -14,16 +17,10 @@ import { heroActionClass } from './hero-styles';
 import { LyricsSceneLoader } from './lyrics-scene-loader';
 import { LanguageSwitcher } from './language-switcher';
 import { RoleTicker } from './role-ticker';
-import type { SongDefinition } from './songs';
 
-export function IntroHero({
-  intro,
-  song,
-}: {
-  intro: string;
-  song: SongDefinition;
-}) {
+export function IntroHero({ intro }: { intro: string }) {
   const t = useTranslations('Hero');
+  const song = useSongStore((state) => state.song);
   const themeStyle = {
     '--hero-bg': song.colors.background,
     '--hero-ink': song.colors.ink,
@@ -40,7 +37,7 @@ export function IntroHero({
       data-song={song.id}
       style={themeStyle}
     >
-      <LyricsSceneLoader song={song} />
+      <LyricsSceneLoader />
 
       <div className="pointer-events-none relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] sm:px-8 lg:px-12">
         <header className="pointer-events-auto flex h-20 shrink-0 items-center">
@@ -79,8 +76,8 @@ export function IntroHero({
                   <span className="hidden sm:inline">{t('email')}</span>
                 </Link>
               </ActionTooltip>
-              <LanguageSwitcher songId={song.id} />
-              <AboutDrawer intro={intro} song={song} />
+              <LanguageSwitcher />
+              <AboutDrawer intro={intro} />
             </nav>
           </TooltipProvider>
         </header>

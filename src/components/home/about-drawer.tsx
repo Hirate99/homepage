@@ -13,6 +13,7 @@ import { SiLinkedin } from 'react-icons/si';
 
 import { bodoni72OldstyleBook } from '@/fonts';
 import { cn } from '@/lib/utils';
+import { useSongStore } from '@/providers/song-store-provider';
 import {
   Drawer,
   DrawerClose,
@@ -24,19 +25,13 @@ import {
 import { TooltipProvider } from '../ui/tooltip';
 import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
-import type { SongDefinition } from './songs';
 
 const socialActionClass =
   'grid h-10 w-10 place-items-center border border-[var(--about-rule)] text-[var(--about-ink)] transition-colors hover:border-[var(--about-accent)] hover:bg-[var(--about-accent)] hover:text-[var(--about-accent-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--about-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--about-bg)]';
 
-export function AboutDrawer({
-  intro,
-  song,
-}: {
-  intro: string;
-  song: SongDefinition;
-}) {
+export function AboutDrawer({ intro }: { intro: string }) {
   const t = useTranslations('About');
+  const song = useSongStore((state) => state.song);
   const themeStyle = {
     '--about-bg': song.colors.background,
     '--about-ink': song.colors.ink,

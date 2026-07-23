@@ -1,11 +1,12 @@
+'use client';
+
 import type { CityPost } from '@/lib/collections';
 import { useTranslations } from 'next-intl';
 
+import { useSongStore } from '@/providers/song-store-provider';
 import { getAtlasTheme } from './theme';
-import type { SongDefinition } from '../songs';
 
 interface AtlasShellProps {
-  song: SongDefinition;
   posts?: CityPost[];
   status?: 'loading' | 'error';
   onRetry?: () => void;
@@ -43,13 +44,9 @@ function getAtlasSummary(posts: CityPost[]) {
   };
 }
 
-export function AtlasShell({
-  song,
-  posts = [],
-  status,
-  onRetry,
-}: AtlasShellProps) {
+export function AtlasShell({ posts = [], status, onRetry }: AtlasShellProps) {
   const t = useTranslations('Atlas');
+  const song = useSongStore((state) => state.song);
   const theme = getAtlasTheme(song);
   const summary = getAtlasSummary(posts);
   const hasSummary = summary.countries.length > 0;

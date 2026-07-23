@@ -19,6 +19,7 @@ import { MeshLambertMaterial } from 'three';
 
 import { type CityPost } from '@/lib/collections';
 import { cn } from '@/lib/utils';
+import { useSongStore } from '@/providers/song-store-provider';
 
 import { AtlasDockCard } from './atlas/atlas-dock-card';
 import {
@@ -50,11 +51,9 @@ import {
   getAtlasTheme,
 } from './atlas/theme';
 import type { CardRect } from './images';
-import type { SongDefinition } from './songs';
 
 interface GlobeAtlasProps {
   posts: CityPost[];
-  song: SongDefinition;
 }
 
 const ATLAS_CONTROL_CLASSNAME =
@@ -966,8 +965,9 @@ function GlobeStage({
   );
 }
 
-export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
+export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const t = useTranslations('Atlas');
+  const song = useSongStore((state) => state.song);
   const shouldReduceMotion = Boolean(useReducedMotion());
   const atlasTheme = useMemo(() => getAtlasTheme(song), [song]);
   const focusSeedPost = useMemo(

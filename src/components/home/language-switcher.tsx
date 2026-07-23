@@ -8,18 +8,16 @@ import { useLocale, useTranslations } from 'next-intl';
 import { type Locale, localeDetails, locales } from '@/i18n/locales';
 import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
+import { useSongStore } from '@/providers/song-store-provider';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import { heroActionClass } from './hero-styles';
 
-export type LanguageSwitcherProps = {
-  songId: string;
-};
-
-export function LanguageSwitcher({ songId }: LanguageSwitcherProps) {
+export function LanguageSwitcher() {
   const locale = useLocale();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const songId = useSongStore((state) => state.song.id);
   const t = useTranslations('LanguageSwitcher');
   const nextSearchParams = new URLSearchParams(searchParams.toString());
   nextSearchParams.set('song', songId);

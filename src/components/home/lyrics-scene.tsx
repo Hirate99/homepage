@@ -19,15 +19,16 @@ import {
 } from 'three';
 
 import { notoSerif } from '@/fonts';
+import { useSongStore } from '@/providers/song-store-provider';
 
 import { createMobileLayout, getLyricCues } from './lyrics-scene/layout';
 import { createLyricMesh } from './lyrics-scene/lyric-mesh';
 import { createAtmosphere } from './lyrics-scene/scene-objects';
 import { loadSongSceneTheme } from './lyrics-scene/themes';
 import type { LyricMesh } from './lyrics-scene/types';
-import type { SongDefinition } from './songs';
 
-export function LyricsScene({ song }: { song: SongDefinition }) {
+export function LyricsScene() {
+  const song = useSongStore((state) => state.song);
   const containerRef = useRef<HTMLDivElement>(null);
   const fontProbeRef = useRef<HTMLSpanElement>(null);
 

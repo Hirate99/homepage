@@ -1,18 +1,15 @@
 import type { MetadataRoute } from 'next';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const languages = {
-    en: 'https://mskyurina.top/en',
-    zh: 'https://mskyurina.top/zh',
-  };
+import { getLanguageAlternates, getLocalizedUrl } from '@/i18n/metadata';
+import { locales } from '@/i18n/locales';
 
-  return Object.values(languages).map((url) => ({
-    url,
+export default function sitemap(): MetadataRoute.Sitemap {
+  const languages = getLanguageAlternates(true);
+
+  return locales.map((locale) => ({
+    url: getLocalizedUrl(locale),
     alternates: {
-      languages: {
-        ...languages,
-        'x-default': languages.en,
-      },
+      languages,
     },
   }));
 }

@@ -5,14 +5,20 @@ import { notFound } from 'next/navigation';
 import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
+import {
+  getAlternateOpenGraphLocales,
+  getLanguageAlternates,
+  getLocalizedUrl,
+  localeMetadata,
+  ogImage,
+  siteUrl,
+} from '@/i18n/metadata';
 import { routing } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
 
 import '../globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
-const siteUrl = 'https://mskyurina.top';
-const ogImage = 'https://r2.mskyurina.top/fumikiri-mo.webp';
 
 type LocaleLayoutProps = Readonly<{
   children: React.ReactNode;
@@ -34,6 +40,7 @@ export async function generateMetadata({
 
   const t = await getTranslations({ locale, namespace: 'Metadata' });
   const canonical = `/${locale}`;
+  const metadata = localeMetadata[locale];
 
   return {
     metadataBase: new URL(siteUrl),
@@ -41,24 +48,10 @@ export async function generateMetadata({
     description: t('description'),
     authors: [{ name: 'Haonan Su', url: siteUrl }],
     creator: 'Haonan Su',
-    keywords:
-      locale === 'zh'
-        ? ['苏浩南', '软件工程师', '摄影师', '洛杉矶', '个人主页', '摄影图集']
-        : [
-            'Haonan Su',
-            'software engineer',
-            'photographer',
-            'Los Angeles',
-            'homepage',
-            'photo atlas',
-          ],
+    keywords: metadata.keywords,
     alternates: {
       canonical,
-      languages: {
-        en: '/en',
-        zh: '/zh',
-        'x-default': '/en',
-      },
+      languages: getLanguageAlternates(),
     },
     robots: {
       index: true,
@@ -68,8 +61,8 @@ export async function generateMetadata({
       type: 'website',
       url: canonical,
       siteName: 'Haonan Su',
-      locale: locale === 'zh' ? 'zh_CN' : 'en_US',
-      alternateLocale: locale === 'zh' ? ['en_US'] : ['zh_CN'],
+      locale: metadata.openGraphLocale,
+      alternateLocale: getAlternateOpenGraphLocales(locale),
       title: t('title'),
       description: t('description'),
       images: [
@@ -103,7 +96,7 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   const t = await getTranslations({ locale, namespace: 'Metadata' });
-  const localizedUrl = `${siteUrl}/${locale}`;
+  const localizedUrl = getLocalizedUrl(locale);
   const structuredData = [
     {
       '@context': 'https://schema.org',

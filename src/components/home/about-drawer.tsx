@@ -12,6 +12,7 @@ import { RiInstagramFill } from 'react-icons/ri';
 import { SiLinkedin } from 'react-icons/si';
 
 import { bodoni72OldstyleBook } from '@/fonts';
+import type { Locale } from '@/i18n/locales';
 import { cn } from '@/lib/utils';
 import {
   Drawer,
@@ -25,8 +26,15 @@ import { TooltipProvider } from '../ui/tooltip';
 import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
 import introEn from './intro.en.md';
+import introJa from './intro.ja.md';
 import introZh from './intro.zh.md';
 import type { SongDefinition } from './songs';
+
+const intros = {
+  en: introEn,
+  zh: introZh,
+  ja: introJa,
+} satisfies Record<Locale, string>;
 
 const socialActionClass =
   'grid h-10 w-10 place-items-center border border-[var(--about-rule)] text-[var(--about-ink)] transition-colors hover:border-[var(--about-accent)] hover:bg-[var(--about-accent)] hover:text-[var(--about-accent-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--about-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--about-bg)]';
@@ -34,7 +42,7 @@ const socialActionClass =
 export function AboutDrawer({ song }: { song: SongDefinition }) {
   const locale = useLocale();
   const t = useTranslations('About');
-  const intro = locale === 'zh' ? introZh : introEn;
+  const intro = intros[locale];
   const themeStyle = {
     '--about-bg': song.colors.background,
     '--about-ink': song.colors.ink,

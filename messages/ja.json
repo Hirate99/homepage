@@ -1,0 +1,70 @@
+{
+  "Metadata": {
+    "title": "蘇浩南のホームページ",
+    "description": "ロサンゼルスを拠点に活動するソフトウェアエンジニア兼フォトグラファー、蘇浩南のポートフォリオ。厳選したプロジェクトと、場所を軸にした写真アトラスを紹介します。",
+    "imageAlt": "蘇浩南の写真作品",
+    "jobTitle": "ソフトウェアエンジニア",
+    "softwareEngineering": "ソフトウェアエンジニアリング",
+    "photography": "写真"
+  },
+  "Hero": {
+    "primaryNavigation": "メインナビゲーション",
+    "resume": "履歴書",
+    "openResume": "履歴書を新しいタブで開く",
+    "email": "メール",
+    "emailHaonan": "蘇浩南にメールを送る",
+    "greeting": "こんにちは、私は",
+    "atlas": "アトラス"
+  },
+  "LanguageSwitcher": {
+    "label": "言語",
+    "switchTo": "{language}に切り替える",
+    "currentLanguage": "現在の言語：{language}"
+  },
+  "Roles": {
+    "prefix": "私は",
+    "softwareEngineer": "ソフトウェアエンジニア",
+    "photographer": "フォトグラファー"
+  },
+  "About": {
+    "button": "プロフィール",
+    "open": "蘇浩南のプロフィールを開く",
+    "title": "蘇浩南について",
+    "description": "蘇浩南のプロフィール、経歴、プロジェクト、趣味。",
+    "close": "プロフィールを閉じる",
+    "eyebrow": "プロフィール / 2026",
+    "summary": "ロサンゼルスを拠点に活動するソフトウェアエンジニア兼ビジュアルクリエイター。",
+    "github": "蘇浩南のGitHub",
+    "linkedin": "蘇浩南のLinkedIn",
+    "instagram": "蘇浩南のInstagram"
+  },
+  "Atlas": {
+    "eyebrow": "アトラス / 2026",
+    "title": "足跡。",
+    "countries": "か国",
+    "places": "か所",
+    "posts": "件",
+    "summary": "{countryCount}か国、{placeCount}か所",
+    "loading": "アトラスを準備しています",
+    "loadingLabel": "アトラスを読み込んでいます",
+    "loadError": "アトラスを読み込めませんでした。",
+    "retry": "再試行",
+    "interactiveGlobe": "インタラクティブな地球儀。ドラッグで回転し、マウスホイール、ズームコントロール、またはピンチ操作で拡大・縮小できます。地図上のマーカーを選択すると写真作品を閲覧できます。",
+    "locationNavigation": "アトラスの場所",
+    "world": "世界",
+    "zoomOut": "縮小",
+    "zoomIn": "拡大",
+    "resetView": "アトラスの表示をリセット",
+    "dockMeta": "{placeCount}か所 · {postCount}件"
+  },
+  "Gallery": {
+    "openPost": "{city}の写真作品を開く",
+    "coverAlt": "{city}のカバー写真",
+    "closeExpandedPost": "展開した写真作品を閉じる",
+    "photoPost": "{city}の写真作品",
+    "closePost": "写真作品を閉じる",
+    "photoAlt": "{city}の写真 {number}",
+    "previousPhoto": "前の写真",
+    "nextPhoto": "次の写真"
+  }
+}

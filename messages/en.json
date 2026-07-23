@@ -18,11 +18,8 @@
   },
   "LanguageSwitcher": {
     "label": "Language",
-    "english": "English",
-    "chinese": "中文",
-    "englishShort": "EN",
-    "chineseShort": "中",
-    "switchTo": "Switch language to {language}"
+    "switchTo": "Switch language to {language}",
+    "currentLanguage": "Current language: {language}"
   },
   "Roles": {
     "prefix": "a",

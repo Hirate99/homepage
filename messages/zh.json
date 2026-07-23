@@ -18,11 +18,8 @@
   },
   "LanguageSwitcher": {
     "label": "语言",
-    "english": "English",
-    "chinese": "中文",
-    "englishShort": "EN",
-    "chineseShort": "中",
-    "switchTo": "切换语言至 {language}"
+    "switchTo": "切换语言至 {language}",
+    "currentLanguage": "当前语言：{language}"
   },
   "Roles": {
     "prefix": "一名",

@@ -70,7 +70,7 @@ export function IntroHero({ song }: { song: SongDefinition }) {
                   <span className="hidden sm:inline">Email</span>
                 </Link>
               </ActionTooltip>
-              <AboutDrawer />
+              <AboutDrawer song={song} />
             </nav>
           </TooltipProvider>
         </header>

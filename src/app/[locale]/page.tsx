@@ -5,6 +5,7 @@ import { hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 
 import { Home } from '@/components/home';
+import { getLocalizedIntro } from '@/components/home/get-localized-intro';
 import { findSong, getRandomSong } from '@/components/home/songs';
 import { routing } from '@/i18n/routing';
 
@@ -31,9 +32,12 @@ export default async function Page({
 
   setRequestLocale(locale);
 
-  const query = await searchParams;
+  const [query, intro] = await Promise.all([
+    searchParams,
+    getLocalizedIntro(locale),
+  ]);
   const requestedSong = Array.isArray(query.song) ? query.song[0] : query.song;
   const song = findSong(requestedSong ?? null) ?? getRandomSong();
 
-  return <Home song={song} />;
+  return <Home intro={intro} song={song} />;
 }

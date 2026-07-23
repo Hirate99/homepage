@@ -12,13 +12,13 @@ async function AtlasContent({ song }: { song: SongDefinition }) {
   return <GlobeAtlasSection posts={posts} song={song} />;
 }
 
-export function Home({ song }: { song: SongDefinition }) {
+export function Home({ intro, song }: { intro: string; song: SongDefinition }) {
   return (
     <main
       className="min-w-[280px] overflow-hidden"
       style={{ backgroundColor: song.colors.background }}
     >
-      <IntroHero song={song} />
+      <IntroHero intro={intro} song={song} />
       <Suspense fallback={<AtlasShell song={song} status="loading" />}>
         <AtlasContent song={song} />
       </Suspense>

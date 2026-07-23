@@ -16,7 +16,13 @@ import { LanguageSwitcher } from './language-switcher';
 import { RoleTicker } from './role-ticker';
 import type { SongDefinition } from './songs';
 
-export function IntroHero({ song }: { song: SongDefinition }) {
+export function IntroHero({
+  intro,
+  song,
+}: {
+  intro: string;
+  song: SongDefinition;
+}) {
   const t = useTranslations('Hero');
   const themeStyle = {
     '--hero-bg': song.colors.background,
@@ -74,7 +80,7 @@ export function IntroHero({ song }: { song: SongDefinition }) {
                 </Link>
               </ActionTooltip>
               <LanguageSwitcher songId={song.id} />
-              <AboutDrawer song={song} />
+              <AboutDrawer intro={intro} song={song} />
             </nav>
           </TooltipProvider>
         </header>

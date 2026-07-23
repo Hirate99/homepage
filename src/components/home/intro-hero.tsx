@@ -73,7 +73,7 @@ export function IntroHero({ song }: { song: SongDefinition }) {
                   <span className="hidden sm:inline">{t('email')}</span>
                 </Link>
               </ActionTooltip>
-              <LanguageSwitcher />
+              <LanguageSwitcher songId={song.id} />
               <AboutDrawer song={song} />
             </nav>
           </TooltipProvider>

@@ -10,7 +10,7 @@ import { Link, usePathname } from '@/i18n/navigation';
 import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
 
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ songId }: { songId: string }) {
   const locale = useLocale();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -19,8 +19,9 @@ export function LanguageSwitcher() {
   const targetLanguage = targetLocale === 'zh' ? t('chinese') : t('english');
   const targetLabel =
     targetLocale === 'zh' ? t('chineseShort') : t('englishShort');
-  const query = searchParams.toString();
-  const href = query ? `${pathname}?${query}` : pathname;
+  const nextSearchParams = new URLSearchParams(searchParams.toString());
+  nextSearchParams.set('song', songId);
+  const href = `${pathname}?${nextSearchParams.toString()}`;
   const accessibleLabel = t('switchTo', { language: targetLanguage });
 
   return (

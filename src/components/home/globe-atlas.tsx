@@ -13,6 +13,7 @@ import {
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronRight, Minus, Plus, RotateCcw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GlobeMethods } from 'react-globe.gl';
 import { MeshLambertMaterial } from 'three';
 
@@ -236,6 +237,7 @@ function GlobeStage({
   theme: AtlasTheme;
   reduceMotion: boolean;
 }) {
+  const t = useTranslations('Atlas');
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -814,13 +816,13 @@ function GlobeStage({
       onPointerLeave={handlePointerLeave}
       onPointerDown={handlePointerDown}
       role="group"
-      aria-label="Interactive globe. Drag to rotate, scroll the mouse wheel, use the zoom controls, or pinch to zoom, and select a map marker to explore photographs."
+      aria-label={t('interactiveGlobe')}
     >
       {!isGlobeReady && (
         <div
           className="absolute inset-0 z-10 grid place-items-center"
           role="status"
-          aria-label="Loading atlas"
+          aria-label={t('loadingLabel')}
         >
           <div className="h-11 w-11 animate-spin rounded-full border-2 border-[var(--atlas-rule)] border-t-[var(--atlas-accent)] motion-reduce:animate-none" />
         </div>
@@ -965,6 +967,7 @@ function GlobeStage({
 }
 
 export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
+  const t = useTranslations('Atlas');
   const shouldReduceMotion = Boolean(useReducedMotion());
   const atlasTheme = useMemo(() => getAtlasTheme(song), [song]);
   const focusSeedPost = useMemo(
@@ -1397,14 +1400,18 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
               id="atlas-title"
               className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
             >
-              Places.
+              {t('title')}
             </h2>
             <p
               className="pb-0.5 text-right text-[10px] font-semibold uppercase tabular-nums leading-5 tracking-[0.16em] text-[var(--atlas-muted)] sm:pb-1 sm:text-xs sm:tracking-[0.18em]"
-              aria-label={`${countryNodes.length} countries, ${locationNodes.length} places`}
+              aria-label={t('summary', {
+                countryCount: countryNodes.length,
+                placeCount: locationNodes.length,
+              })}
             >
               <span>
-                {String(countryNodes.length).padStart(2, '0')} countries
+                {String(countryNodes.length).padStart(2, '0')}{' '}
+                {t('countries', { count: countryNodes.length })}
               </span>
               <span
                 className="mx-1.5 text-[var(--atlas-rule)]"
@@ -1413,7 +1420,8 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                 ·
               </span>
               <span>
-                {String(locationNodes.length).padStart(2, '0')} places
+                {String(locationNodes.length).padStart(2, '0')}{' '}
+                {t('places', { count: locationNodes.length })}
               </span>
             </p>
           </header>
@@ -1453,7 +1461,7 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
 
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 p-3 sm:p-5">
                 <nav
-                  aria-label="Atlas location"
+                  aria-label={t('locationNavigation')}
                   className="bg-[var(--atlas-card)]/90 pointer-events-auto max-w-[62%] overflow-hidden rounded-xl border border-[var(--atlas-rule)] px-1.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-[70%]"
                 >
                   <ol className="flex min-h-11 min-w-0 items-center text-sm font-semibold text-[var(--atlas-ink)] sm:text-base">
@@ -1468,7 +1476,7 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                           aria-current="page"
                           className="block truncate px-1.5 py-2 sm:px-2.5"
                         >
-                          World
+                          {t('world')}
                         </span>
                       ) : (
                         <button
@@ -1476,7 +1484,7 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                           className="block min-h-11 truncate rounded-lg px-1.5 py-2 text-[var(--atlas-muted)] outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-2.5"
                           onClick={() => navigateToAtlasLevel('world')}
                         >
-                          World
+                          {t('world')}
                         </button>
                       )}
                     </li>
@@ -1545,8 +1553,8 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                       setIsAutoRotateFrozen(true);
                       handleZoomScaleChange((current) => current * 0.82);
                     }}
-                    aria-label="Zoom out"
-                    title="Zoom out"
+                    aria-label={t('zoomOut')}
+                    title={t('zoomOut')}
                   >
                     <Minus className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -1560,8 +1568,8 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                       setIsAutoRotateFrozen(true);
                       handleZoomScaleChange((current) => current * 1.22);
                     }}
-                    aria-label="Zoom in"
-                    title="Zoom in"
+                    aria-label={t('zoomIn')}
+                    title={t('zoomIn')}
                   >
                     <Plus className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -1569,8 +1577,8 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                     type="button"
                     className={ATLAS_CONTROL_CLASSNAME}
                     onClick={resetAtlasView}
-                    aria-label="Reset atlas view"
-                    title="Reset atlas view"
+                    aria-label={t('resetView')}
+                    title={t('resetView')}
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -1598,7 +1606,10 @@ export function GlobeAtlas({ posts, song }: GlobeAtlasProps) {
                         active={isActive}
                         image={country.cover}
                         title={country.label}
-                        meta={`${country.count} places · ${country.postCount} posts`}
+                        meta={t('dockMeta', {
+                          placeCount: country.count,
+                          postCount: country.postCount,
+                        })}
                         onClick={() => {
                           handleMarkerSelection(country.id, {
                             freezeRotation: true,

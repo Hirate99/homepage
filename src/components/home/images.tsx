@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import useEmblaCarousel from 'embla-carousel-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 import { type CityPost } from '@/lib/collections';
 import { clipCDNImage, cn } from '@/lib/utils';
@@ -88,6 +89,7 @@ function PostCard({
   onOpen: (id: string, rect: CardRect) => void;
   isActive: boolean;
 }) {
+  const t = useTranslations('Gallery');
   const coverAspectRatio = getCoverAspectRatio(
     post.coverWidth,
     post.coverHeight,
@@ -127,7 +129,7 @@ function PostCard({
         'cursor-pointer duration-300',
         isActive ? 'pointer-events-none opacity-0' : 'opacity-100',
       )}
-      aria-label={`Open post for ${post.city}`}
+      aria-label={t('openPost', { city: post.city })}
     >
       <div
         className="relative w-full overflow-hidden [aspect-ratio:var(--cover-aspect-ratio)]"
@@ -155,7 +157,7 @@ function PostCard({
                 ),
           )}
           src={clipCDNImage(post.cover, { width: 720, quality: 78 })}
-          alt={`${post.city} cover`}
+          alt={t('coverAlt', { city: post.city })}
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
@@ -186,6 +188,7 @@ export function ExpandedPost({
   onClose: () => void;
   originRect: CardRect;
 }) {
+  const t = useTranslations('Gallery');
   const initialSlideIndex = useMemo(() => {
     const idx = post.images.indexOf(post.cover);
     return idx >= 0 ? idx : 0;
@@ -328,7 +331,7 @@ export function ExpandedPost({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        aria-label="Close expanded post"
+        aria-label={t('closeExpandedPost')}
         onClick={onClose}
       />
       <motion.div
@@ -370,7 +373,7 @@ export function ExpandedPost({
           className="relative flex h-full flex-col overflow-hidden bg-[#0f1013]"
           role="dialog"
           aria-modal="true"
-          aria-label={`${post.city} photo post`}
+          aria-label={t('photoPost', { city: post.city })}
         >
           <div
             className="relative min-h-0 flex-1 bg-black/35"
@@ -381,7 +384,7 @@ export function ExpandedPost({
               type="button"
               onClick={onClose}
               className="absolute right-3 top-3 z-20 grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-white/20 bg-black/45 text-white transition hover:bg-black/65 sm:right-4 sm:top-4"
-              aria-label="Close post"
+              aria-label={t('closePost')}
             >
               <X className="h-5 w-5" />
             </button>
@@ -417,7 +420,10 @@ export function ExpandedPost({
                       />
                       <img
                         src={clipCDNImage(src, { width: 1280, quality: 82 })}
-                        alt={`${post.city} photo ${index + 1}`}
+                        alt={t('photoAlt', {
+                          city: post.city,
+                          number: index + 1,
+                        })}
                         className={cn(
                           'block h-full w-full object-contain transition-opacity',
                           index === initialSlideIndex
@@ -457,7 +463,7 @@ export function ExpandedPost({
                   ? 'sm:opacity-100'
                   : 'sm:pointer-events-none sm:opacity-0',
               )}
-              aria-label="Previous photo"
+              aria-label={t('previousPhoto')}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -474,7 +480,7 @@ export function ExpandedPost({
                   ? 'sm:opacity-100'
                   : 'sm:pointer-events-none sm:opacity-0',
               )}
-              aria-label="Next photo"
+              aria-label={t('nextPhoto')}
             >
               <ChevronRight className="h-4 w-4" />
             </button>

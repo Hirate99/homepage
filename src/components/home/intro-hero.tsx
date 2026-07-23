@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 
 import { ArrowDown, FileText, Mail } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 import { bodoni72OldstyleBook, notoSerif } from '@/fonts';
 import { cdn, cn } from '@/lib/utils';
@@ -11,10 +12,12 @@ import { AboutDrawer } from './about-drawer';
 import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
 import { LyricsSceneLoader } from './lyrics-scene-loader';
+import { LanguageSwitcher } from './language-switcher';
 import { RoleTicker } from './role-ticker';
 import type { SongDefinition } from './songs';
 
 export function IntroHero({ song }: { song: SongDefinition }) {
+  const t = useTranslations('Hero');
   const themeStyle = {
     '--hero-bg': song.colors.background,
     '--hero-ink': song.colors.ink,
@@ -46,30 +49,31 @@ export function IntroHero({ song }: { song: SongDefinition }) {
           </p>
           <TooltipProvider delayDuration={150}>
             <nav
-              className="ml-auto flex items-center gap-4"
-              aria-label="Primary"
+              className="ml-auto flex items-center gap-3 sm:gap-4"
+              aria-label={t('primaryNavigation')}
             >
-              <ActionTooltip label="Resume">
+              <ActionTooltip label={t('resume')}>
                 <Link
                   className={heroActionClass}
                   href={cdn('bXNreXVyaW5hLWN2.pdf')}
                   target="_blank"
-                  aria-label="Open resume in a new tab"
+                  aria-label={t('openResume')}
                 >
                   <FileText className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Resume</span>
+                  <span className="hidden sm:inline">{t('resume')}</span>
                 </Link>
               </ActionTooltip>
-              <ActionTooltip label="Email">
+              <ActionTooltip label={t('email')}>
                 <Link
                   className={heroActionClass}
                   href="mailto:haonan.su@outlook.com"
-                  aria-label="Email Haonan Su"
+                  aria-label={t('emailHaonan')}
                 >
                   <Mail className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Email</span>
+                  <span className="hidden sm:inline">{t('email')}</span>
                 </Link>
               </ActionTooltip>
+              <LanguageSwitcher />
               <AboutDrawer song={song} />
             </nav>
           </TooltipProvider>
@@ -77,7 +81,7 @@ export function IntroHero({ song }: { song: SongDefinition }) {
 
         <div className="pointer-events-none absolute inset-0">
           <p className="absolute left-5 top-[15%] text-xs font-semibold uppercase text-[var(--hero-accent)] opacity-80 sm:left-8 sm:top-[17%] sm:text-sm lg:left-12">
-            Hi, I&apos;m
+            {t('greeting')}
           </p>
           <h1
             id="hero-title"
@@ -131,7 +135,7 @@ export function IntroHero({ song }: { song: SongDefinition }) {
             href="#atlas"
             className="pointer-events-auto mb-2 hidden items-center gap-2 border-b border-[var(--hero-rule)] pb-1 text-sm font-medium text-[var(--hero-ink)] transition-colors hover:border-[var(--hero-accent)] hover:text-[var(--hero-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hero-accent)] sm:flex"
           >
-            Atlas
+            {t('atlas')}
             <ArrowDown className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>

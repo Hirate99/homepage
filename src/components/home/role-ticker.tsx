@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react';
 
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 
-const Roles = ['Software Engineer', 'Photographer'];
+const ROLE_COUNT = 2;
 
 export function RoleTicker() {
+  const t = useTranslations('Roles');
   const [roleIndex, setRoleIndex] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const roles = [t('softwareEngineer'), t('photographer')];
 
   useEffect(() => {
     let timeoutId: number | undefined;
@@ -20,7 +23,7 @@ export function RoleTicker() {
       }
 
       timeoutId = window.setTimeout(() => {
-        setRoleIndex((current) => (current + 1) % Roles.length);
+        setRoleIndex((current) => (current + 1) % ROLE_COUNT);
         scheduleNextRole();
       }, 4200);
     };
@@ -43,8 +46,7 @@ export function RoleTicker() {
     return () => media.removeEventListener('change', updateMotionPreference);
   }, []);
 
-  const role = Roles[roleIndex];
-  const article = /^[aeiou]/i.test(role) ? 'an' : 'a';
+  const role = roles[roleIndex];
 
   return (
     <div className="w-full min-w-0 max-w-[620px] text-[var(--hero-ink)]">
@@ -52,7 +54,7 @@ export function RoleTicker() {
         className="text-[1.35rem] leading-none text-transparent sm:text-[2rem]"
         style={{ WebkitTextStroke: '1px var(--hero-accent)' }}
       >
-        {article}
+        {t('prefix')}
       </p>
       <div
         className="relative mt-1 h-[3.4rem] overflow-visible sm:h-[4.3rem]"

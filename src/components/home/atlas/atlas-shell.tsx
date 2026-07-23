@@ -1,4 +1,5 @@
 import type { CityPost } from '@/lib/collections';
+import { useTranslations } from 'next-intl';
 
 import { getAtlasTheme } from './theme';
 import type { SongDefinition } from '../songs';
@@ -48,6 +49,7 @@ export function AtlasShell({
   status,
   onRetry,
 }: AtlasShellProps) {
+  const t = useTranslations('Atlas');
   const theme = getAtlasTheme(song);
   const summary = getAtlasSummary(posts);
   const hasSummary = summary.countries.length > 0;
@@ -68,22 +70,24 @@ export function AtlasShell({
             id="atlas-title"
             className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
           >
-            Places.
+            {t('title')}
           </h2>
           <p className="pb-0.5 text-right text-[10px] font-semibold uppercase tabular-nums leading-5 tracking-[0.16em] text-[var(--atlas-muted)] sm:pb-1 sm:text-xs sm:tracking-[0.18em]">
             {hasSummary ? (
               <>
-                {String(summary.countryCount).padStart(2, '0')} countries
+                {String(summary.countryCount).padStart(2, '0')}{' '}
+                {t('countries', { count: summary.countryCount })}
                 <span
                   className="mx-1.5 text-[var(--atlas-rule)]"
                   aria-hidden="true"
                 >
                   ·
                 </span>
-                {String(summary.placeCount).padStart(2, '0')} places
+                {String(summary.placeCount).padStart(2, '0')}{' '}
+                {t('places', { count: summary.placeCount })}
               </>
             ) : (
-              'Atlas / 2026'
+              t('eyebrow')
             )}
           </p>
         </header>
@@ -120,14 +124,14 @@ export function AtlasShell({
           <div className="absolute inset-x-0 bottom-5 z-10 flex justify-center px-5 sm:bottom-7">
             {status === 'error' ? (
               <div className="bg-[var(--atlas-card)]/90 rounded-full border border-[var(--atlas-rule)] px-5 py-3 text-center shadow-lg backdrop-blur-md">
-                <p className="text-sm font-medium">The atlas could not load.</p>
+                <p className="text-sm font-medium">{t('loadError')}</p>
                 {onRetry && (
                   <button
                     type="button"
                     className="mt-2 min-h-11 rounded-full border border-[var(--atlas-rule)] px-5 text-sm font-semibold outline-none transition hover:border-[var(--atlas-accent)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
                     onClick={onRetry}
                   >
-                    Try again
+                    {t('retry')}
                   </button>
                 )}
               </div>
@@ -141,7 +145,7 @@ export function AtlasShell({
                   className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--atlas-accent)] motion-reduce:animate-none"
                   aria-hidden="true"
                 />
-                Preparing atlas
+                {t('loading')}
               </p>
             )}
           </div>

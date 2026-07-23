@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { SiGithub } from '@icons-pack/react-simple-icons';
 import { Info, X } from 'lucide-react';
 import Markdown from 'marked-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { RiInstagramFill } from 'react-icons/ri';
 import { SiLinkedin } from 'react-icons/si';
 
@@ -23,13 +24,17 @@ import {
 import { TooltipProvider } from '../ui/tooltip';
 import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
-import intro from './intro.md';
+import introEn from './intro.en.md';
+import introZh from './intro.zh.md';
 import type { SongDefinition } from './songs';
 
 const socialActionClass =
   'grid h-10 w-10 place-items-center border border-[var(--about-rule)] text-[var(--about-ink)] transition-colors hover:border-[var(--about-accent)] hover:bg-[var(--about-accent)] hover:text-[var(--about-accent-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--about-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--about-bg)]';
 
 export function AboutDrawer({ song }: { song: SongDefinition }) {
+  const locale = useLocale();
+  const t = useTranslations('About');
+  const intro = locale === 'zh' ? introZh : introEn;
   const themeStyle = {
     '--about-bg': song.colors.background,
     '--about-ink': song.colors.ink,
@@ -43,9 +48,9 @@ export function AboutDrawer({ song }: { song: SongDefinition }) {
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <button className={heroActionClass} aria-label="Open about Haonan Su">
+        <button className={heroActionClass} aria-label={t('open')}>
           <Info className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden sm:inline">About</span>
+          <span className="hidden sm:inline">{t('button')}</span>
         </button>
       </DrawerTrigger>
       <DrawerContent
@@ -58,15 +63,15 @@ export function AboutDrawer({ song }: { song: SongDefinition }) {
           'sm:h-[calc(100%-40px)] sm:border-x sm:border-t sm:border-[var(--about-rule)]',
         )}
       >
-        <DrawerTitle className="sr-only">About Haonan Su</DrawerTitle>
+        <DrawerTitle className="sr-only">{t('title')}</DrawerTitle>
         <DrawerDescription className="sr-only">
-          Profile, experience, projects, and personal interests for Haonan Su.
+          {t('description')}
         </DrawerDescription>
         <DrawerClose asChild>
           <button
             type="button"
             className="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center border border-[var(--about-rule)] bg-[var(--about-bg)] text-[var(--about-ink)] transition-colors hover:border-[var(--about-accent)] hover:bg-[var(--about-accent)] hover:text-[var(--about-accent-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--about-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--about-bg)] sm:right-6 sm:top-6"
-            aria-label="Close about panel"
+            aria-label={t('close')}
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -75,7 +80,7 @@ export function AboutDrawer({ song }: { song: SongDefinition }) {
           <div className="flex items-end justify-between border-b border-[var(--about-rule)] px-4 pb-5 sm:px-8">
             <div>
               <p className="text-xs font-semibold uppercase text-[var(--about-link)]">
-                Profile / 2026
+                {t('eyebrow')}
               </p>
               <p
                 className={cn(
@@ -87,10 +92,10 @@ export function AboutDrawer({ song }: { song: SongDefinition }) {
               </p>
             </div>
             <p className="hidden max-w-[260px] text-right text-sm leading-6 text-[var(--about-ink)] opacity-70 sm:block">
-              Software engineer and visual maker based in Los Angeles.
+              {t('summary')}
             </p>
           </div>
-          <AboutMe />
+          <AboutMe intro={intro} />
           <AboutFooter />
         </div>
       </DrawerContent>
@@ -98,7 +103,7 @@ export function AboutDrawer({ song }: { song: SongDefinition }) {
   );
 }
 
-function AboutMe() {
+function AboutMe({ intro }: { intro: string }) {
   return (
     <article
       className={cn(
@@ -124,6 +129,8 @@ function AboutMe() {
 }
 
 function AboutFooter() {
+  const t = useTranslations('About');
+
   return (
     <footer className="mx-4 mb-8 mt-3 flex items-center gap-3 border-t border-[var(--about-rule)] px-1 pt-5 sm:mx-8 sm:mb-10">
       <TooltipProvider delayDuration={150}>
@@ -132,7 +139,7 @@ function AboutFooter() {
             className={socialActionClass}
             href="https://github.com/Hirate99"
             target="_blank"
-            aria-label="Haonan Su on GitHub"
+            aria-label={t('github')}
           >
             <SiGithub className="h-5 w-5" />
           </Link>
@@ -142,7 +149,7 @@ function AboutFooter() {
             className={socialActionClass}
             href="https://www.linkedin.com/in/haonansu/"
             target="_blank"
-            aria-label="Haonan Su on LinkedIn"
+            aria-label={t('linkedin')}
           >
             <SiLinkedin className="h-5 w-5" />
           </Link>
@@ -152,7 +159,7 @@ function AboutFooter() {
             className={socialActionClass}
             href="https://www.instagram.com/mskyurina/"
             target="_blank"
-            aria-label="Haonan Su on Instagram"
+            aria-label={t('instagram')}
           >
             <RiInstagramFill className="h-6 w-6" />
           </Link>

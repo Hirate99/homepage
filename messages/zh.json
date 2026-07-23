@@ -1,0 +1,73 @@
+{
+  "Metadata": {
+    "title": "苏浩南的主页",
+    "description": "苏浩南的个人作品集：一位常居洛杉矶的软件工程师与摄影师，展示精选项目与以地点为线索的摄影图集。",
+    "imageAlt": "苏浩南的摄影作品",
+    "jobTitle": "软件工程师",
+    "softwareEngineering": "软件工程",
+    "photography": "摄影"
+  },
+  "Hero": {
+    "primaryNavigation": "主导航",
+    "resume": "简历",
+    "openResume": "在新标签页打开简历",
+    "email": "邮件",
+    "emailHaonan": "给苏浩南发送邮件",
+    "greeting": "你好，我是",
+    "atlas": "图集"
+  },
+  "LanguageSwitcher": {
+    "label": "语言",
+    "english": "English",
+    "chinese": "中文",
+    "englishShort": "EN",
+    "chineseShort": "中",
+    "switchTo": "切换语言至 {language}"
+  },
+  "Roles": {
+    "prefix": "一名",
+    "softwareEngineer": "软件工程师",
+    "photographer": "摄影师"
+  },
+  "About": {
+    "button": "关于",
+    "open": "打开苏浩南的个人介绍",
+    "title": "关于苏浩南",
+    "description": "苏浩南的个人简介、经历、项目与兴趣。",
+    "close": "关闭个人介绍",
+    "eyebrow": "个人档案 / 2026",
+    "summary": "常居洛杉矶的软件工程师与视觉创作者。",
+    "github": "苏浩南的 GitHub",
+    "linkedin": "苏浩南的 LinkedIn",
+    "instagram": "苏浩南的 Instagram"
+  },
+  "Atlas": {
+    "eyebrow": "图集 / 2026",
+    "title": "足迹。",
+    "countries": "个国家",
+    "places": "个地点",
+    "posts": "组作品",
+    "summary": "{countryCount} 个国家，{placeCount} 个地点",
+    "loading": "正在准备图集",
+    "loadingLabel": "正在加载图集",
+    "loadError": "图集加载失败。",
+    "retry": "重试",
+    "interactiveGlobe": "交互式地球仪。拖动可旋转，滚动鼠标滚轮、使用缩放控件或双指缩放；选择地图标记可浏览摄影作品。",
+    "locationNavigation": "图集位置",
+    "world": "世界",
+    "zoomOut": "缩小",
+    "zoomIn": "放大",
+    "resetView": "重置图集视角",
+    "dockMeta": "{placeCount} 个地点 · {postCount} 组作品"
+  },
+  "Gallery": {
+    "openPost": "打开{city}摄影作品",
+    "coverAlt": "{city}封面",
+    "closeExpandedPost": "关闭展开的摄影作品",
+    "photoPost": "{city}摄影作品",
+    "closePost": "关闭摄影作品",
+    "photoAlt": "{city}照片 {number}",
+    "previousPhoto": "上一张照片",
+    "nextPhoto": "下一张照片"
+  }
+}

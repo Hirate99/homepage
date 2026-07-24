@@ -12,7 +12,7 @@ import type {
 import { prisma } from './prisma';
 import { redis } from './redis';
 
-const HOME_COLLECTIONS_CACHE_KEY = 'home:city-collections:v3';
+const HOME_COLLECTIONS_CACHE_KEY = 'home:city-collections:v4';
 
 function normalizeText(value: string | undefined) {
   const trimmed = value?.trim();
@@ -66,6 +66,7 @@ function serializeCollection(collection: {
     src: string;
     width: number | null;
     height: number | null;
+    sortOrder: number | null;
   }>;
 }): AdminCollectionRecord {
   return {
@@ -106,8 +107,9 @@ const adminCollectionSelect = {
       src: true,
       width: true,
       height: true,
+      sortOrder: true,
     },
-    orderBy: { id: 'asc' as const },
+    orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }],
   },
 };
 
@@ -154,6 +156,29 @@ export async function updateCollection(
   const client = prisma();
 
   try {
+    if (input.imageOrder) {
+      const imageIds = await client.image.findMany({
+        where: { collectionId: input.collectionId },
+        select: { id: true },
+      });
+      const requestedIds = new Set(input.imageOrder);
+      const hasExactImageSet =
+        requestedIds.size === input.imageOrder.length &&
+        imageIds.length === input.imageOrder.length &&
+        imageIds.every(({ id }) => requestedIds.has(id));
+
+      if (!hasExactImageSet) {
+        throw new Error('Image order does not match this collection.');
+      }
+
+      for (const [sortOrder, imageId] of input.imageOrder.entries()) {
+        await client.image.update({
+          where: { id: imageId },
+          data: { sortOrder },
+        });
+      }
+    }
+
     const updated = await client.collection.update({
       where: { id: input.collectionId },
       data: {
@@ -201,6 +226,9 @@ export async function appendImagesToCollection(
         title: true,
         locationName: true,
         coverImageId: true,
+        images: {
+          select: { sortOrder: true },
+        },
       },
     });
 
@@ -210,6 +238,11 @@ export async function appendImagesToCollection(
 
     const uploaded = [];
     const folderInput = collection.locationName ?? collection.title;
+    const nextSortOrder =
+      collection.images.reduce(
+        (maximum, image) => Math.max(maximum, image.sortOrder ?? -1),
+        -1,
+      ) + 1;
 
     for (const image of images) {
       const converted = await convertImageToWebp(image);
@@ -223,12 +256,13 @@ export async function appendImagesToCollection(
     }
 
     const createdImages = [];
-    for (const image of uploaded) {
+    for (const [index, image] of uploaded.entries()) {
       const createdImage = await client.image.create({
         data: {
           src: image.src,
           width: image.width,
           height: image.height,
+          sortOrder: nextSortOrder + index,
           collectionId,
         },
       });
@@ -287,7 +321,7 @@ export async function deleteImageFromCollection(
         coverImageId: true,
         images: {
           select: { id: true },
-          orderBy: { id: 'asc' },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
         },
       },
     });

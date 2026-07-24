@@ -8,7 +8,7 @@ import {
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 
-const CITY_COLLECTIONS_CACHE_KEY = 'home:city-collections:v3';
+const CITY_COLLECTIONS_CACHE_KEY = 'home:city-collections:v4';
 const CACHE_TTL_SECONDS = 3600;
 
 const collectionSelect = {
@@ -28,8 +28,9 @@ const collectionSelect = {
       src: true,
       width: true,
       height: true,
+      sortOrder: true,
     },
-    orderBy: { id: 'asc' },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
   },
 } satisfies Prisma.CollectionSelect;
 

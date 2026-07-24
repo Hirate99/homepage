@@ -21,6 +21,22 @@ function parseOptionalString(value: unknown) {
   return typeof value === 'string' ? value : undefined;
 }
 
+function parseImageOrder(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const ids = value.filter(
+    (item): item is number =>
+      typeof item === 'number' && Number.isInteger(item) && item > 0,
+  );
+  if (ids.length !== value.length) {
+    throw new Error('Invalid image order.');
+  }
+
+  return ids;
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -36,6 +52,7 @@ export async function PATCH(
       content: parseOptionalString(body.content),
       sortOrder: parseOptionalNumber(body.sortOrder),
       coverImageId: parseOptionalNumber(body.coverImageId),
+      imageOrder: parseImageOrder(body.imageOrder),
       location: {
         latitude: parseOptionalNumber(body.latitude),
         longitude: parseOptionalNumber(body.longitude),

@@ -36,6 +36,7 @@ export interface AdminCollectionImage {
   src: string;
   width: number | null;
   height: number | null;
+  sortOrder: number | null;
 }
 
 export interface AdminCollectionRecord {
@@ -61,5 +62,6 @@ export interface UpdateCollectionInput {
   content?: string;
   sortOrder?: number | null;
   coverImageId?: number | null;
+  imageOrder?: number[];
   location?: Partial<LocationDraft>;
 }

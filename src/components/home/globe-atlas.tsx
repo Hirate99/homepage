@@ -1215,7 +1215,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     scheduleTransitionStep(() => {
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
-    }, 1400);
+    }, 1500);
   };
 
   const returnToWorld = (resetSelection = false) => {
@@ -1477,23 +1477,37 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                     key="atlas-world-layer"
                     initial={
                       transitionDirection === 'exit'
-                        ? { opacity: 0, scale: 1.13 }
-                        : { opacity: 1, scale: 1 }
+                        ? {
+                            opacity: 0,
+                            scale: 1.28,
+                            filter: 'blur(14px)',
+                          }
+                        : { opacity: 1, scale: 1, filter: 'blur(0px)' }
                     }
                     animate={
                       displayZoomTier === 'world'
-                        ? transitionDirection === 'enter'
-                          ? { opacity: 1, scale: 1.02 }
-                          : { opacity: 1, scale: 1 }
-                        : { opacity: 0, scale: 1.12 }
+                        ? {
+                            opacity: 1,
+                            scale: transitionDirection === 'enter' ? 1.04 : 1,
+                            filter: 'blur(0px)',
+                          }
+                        : {
+                            opacity: 0,
+                            scale: 1.28,
+                            filter: 'blur(14px)',
+                          }
                     }
-                    exit={{ opacity: 0, scale: 1.12 }}
+                    exit={{
+                      opacity: 0,
+                      scale: 1.28,
+                      filter: 'blur(14px)',
+                    }}
                     transition={{
-                      duration: shouldReduceMotion ? 0 : 0.56,
+                      duration: shouldReduceMotion ? 0 : 0.62,
                       ease: [0.22, 1, 0.36, 1],
                     }}
                     className={cn(
-                      'absolute inset-0 z-10 origin-center',
+                      'absolute inset-0 z-10 origin-center will-change-[opacity,transform,filter]',
                       (displayZoomTier !== 'world' || isLevelTransitioning) &&
                         'pointer-events-none',
                     )}
@@ -1529,19 +1543,39 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                 {showCountryLayer && (
                   <motion.div
                     key={`atlas-country-layer-${selectedCountry.id}`}
-                    initial={{ opacity: 0, scale: 0.94 }}
+                    initial={{
+                      opacity: 0,
+                      scale: 1.16,
+                      filter: 'blur(12px)',
+                      clipPath: 'circle(16% at 50% 46%)',
+                    }}
                     animate={
                       displayZoomTier === 'world'
-                        ? { opacity: 0, scale: 0.94 }
-                        : { opacity: 1, scale: 1 }
+                        ? {
+                            opacity: 0,
+                            scale: 0.88,
+                            filter: 'blur(10px)',
+                            clipPath: 'circle(16% at 50% 46%)',
+                          }
+                        : {
+                            opacity: 1,
+                            scale: 1,
+                            filter: 'blur(0px)',
+                            clipPath: 'circle(150% at 50% 46%)',
+                          }
                     }
-                    exit={{ opacity: 0, scale: 0.94 }}
+                    exit={{
+                      opacity: 0,
+                      scale: 0.88,
+                      filter: 'blur(10px)',
+                      clipPath: 'circle(16% at 50% 46%)',
+                    }}
                     transition={{
-                      duration: shouldReduceMotion ? 0 : 0.56,
+                      duration: shouldReduceMotion ? 0 : 0.62,
                       ease: [0.22, 1, 0.36, 1],
                     }}
                     className={cn(
-                      'absolute inset-0 z-20 origin-center',
+                      'absolute inset-0 z-20 origin-center will-change-[clip-path,filter,opacity,transform]',
                       (displayZoomTier === 'world' || isLevelTransitioning) &&
                         'pointer-events-none',
                     )}

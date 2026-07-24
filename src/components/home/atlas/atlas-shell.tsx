@@ -1,6 +1,6 @@
 'use client';
 
-import type { CityPost } from '@/lib/collections';
+import type { CityPost } from '@/features/collections/model/city-post';
 import { useTranslations } from 'next-intl';
 
 import { useSongStore } from '@/providers/song-store-provider';

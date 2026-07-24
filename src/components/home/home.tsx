@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 
-import { getCityPosts } from '@/lib/collections';
+import { getCityPosts } from '@/features/collections/server/get-city-posts';
 import { SongStoreProvider } from '@/providers/song-store-provider';
 
 import { AtlasShell } from './atlas/atlas-shell';

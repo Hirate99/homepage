@@ -1,7 +1,5 @@
 'use client';
 
-import 'maplibre-gl/dist/maplibre-gl.css';
-
 import { useEffect, useRef, useState } from 'react';
 
 import { ExternalLink, MapPinned } from 'lucide-react';
@@ -32,10 +30,96 @@ interface MarkerGroup {
 
 type MapLibreModule = typeof import('maplibre-gl');
 
+declare global {
+  interface Window {
+    __ATLAS_MAPLIBRE__?: MapLibreModule;
+  }
+}
+
 const TILE_URL =
   process.env.NEXT_PUBLIC_ATLAS_TILE_URL ??
   'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MAPLIBRE_MODULE_URL = '/vendor/maplibre/maplibre-loader.mjs';
+const MAPLIBRE_STYLESHEET_URL = '/vendor/maplibre/maplibre-gl.css';
 const CLUSTER_CELL_SIZE = 54;
+
+let mapLibrePromise: Promise<MapLibreModule> | null = null;
+
+function loadStylesheet() {
+  const existing = document.querySelector<HTMLLinkElement>(
+    'link[data-atlas-maplibre-styles]',
+  );
+
+  if (existing?.dataset.loaded === 'true' || existing?.sheet) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const link = existing ?? document.createElement('link');
+    const handleLoad = () => {
+      link.dataset.loaded = 'true';
+      resolve();
+    };
+    const handleError = () =>
+      reject(new Error('Unable to load the self-hosted MapLibre stylesheet.'));
+
+    link.addEventListener('load', handleLoad, { once: true });
+    link.addEventListener('error', handleError, { once: true });
+
+    if (!existing) {
+      link.rel = 'stylesheet';
+      link.href = MAPLIBRE_STYLESHEET_URL;
+      link.dataset.atlasMaplibreStyles = 'true';
+      document.head.appendChild(link);
+    }
+  });
+}
+
+function loadMapLibre() {
+  if (window.__ATLAS_MAPLIBRE__) {
+    return Promise.resolve(window.__ATLAS_MAPLIBRE__);
+  }
+
+  if (mapLibrePromise) {
+    return mapLibrePromise;
+  }
+
+  mapLibrePromise = Promise.all([
+    loadStylesheet(),
+    new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector<HTMLScriptElement>(
+        'script[data-atlas-maplibre-module]',
+      );
+      const script = existing ?? document.createElement('script');
+      const handleLoad = () => resolve();
+      const handleError = () =>
+        reject(new Error('Unable to load the self-hosted MapLibre module.'));
+
+      script.addEventListener('load', handleLoad, { once: true });
+      script.addEventListener('error', handleError, { once: true });
+
+      if (!existing) {
+        script.type = 'module';
+        script.src = MAPLIBRE_MODULE_URL;
+        script.dataset.atlasMaplibreModule = 'true';
+        document.head.appendChild(script);
+      }
+    }),
+  ])
+    .then(() => {
+      if (!window.__ATLAS_MAPLIBRE__) {
+        throw new Error('The self-hosted MapLibre module did not initialize.');
+      }
+
+      return window.__ATLAS_MAPLIBRE__;
+    })
+    .catch((error: unknown) => {
+      mapLibrePromise = null;
+      throw error;
+    });
+
+  return mapLibrePromise;
+}
 
 function fitCountry(
   map: MapLibreMap,
@@ -308,126 +392,136 @@ export function CountryMapStage({
     let isCancelled = false;
     let resizeFrame = 0;
 
-    void import('maplibre-gl').then((maplibre: MapLibreModule) => {
-      if (isCancelled || !containerRef.current) {
-        return;
-      }
+    setIsLoaded(false);
+    setHasTileError(false);
 
-      const firstNode = nodesRef.current[0];
-      const map = new maplibre.Map({
-        container: containerRef.current,
-        style: {
-          version: 8,
-          sources: {
-            osm: {
-              type: 'raster',
-              tiles: [TILE_URL],
-              tileSize: 256,
-              attribution:
-                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            },
-          },
-          layers: [
-            {
-              id: 'osm',
-              type: 'raster',
-              source: 'osm',
-              paint: {
-                'raster-fade-duration': 180,
-                'raster-saturation': -0.08,
+    void loadMapLibre()
+      .then((maplibre) => {
+        if (isCancelled || !containerRef.current) {
+          return;
+        }
+
+        const firstNode = nodesRef.current[0];
+        const map = new maplibre.Map({
+          container: containerRef.current,
+          style: {
+            version: 8,
+            sources: {
+              osm: {
+                type: 'raster',
+                tiles: [TILE_URL],
+                tileSize: 256,
+                attribution:
+                  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
               },
             },
-          ],
-        },
-        center: firstNode ? [firstNode.lng, firstNode.lat] : [0, 24],
-        zoom: firstNode ? 5 : 1.5,
-        maxZoom: 17,
-        minZoom: 1,
-        attributionControl: {
-          compact: true,
-        },
-        dragRotate: false,
-        pitchWithRotate: false,
-        touchPitch: false,
-        scrollZoom: true,
-        cooperativeGestures:
-          navigator.maxTouchPoints > 0 ||
-          window.matchMedia('(pointer: coarse)').matches,
-      });
-
-      mapRef.current = map;
-      map.addControl(
-        new maplibre.NavigationControl({
-          showCompass: false,
-          visualizePitch: false,
-        }),
-        'bottom-right',
-      );
-
-      const clearMarkers = () => {
-        for (const marker of markersRef.current) {
-          marker.remove();
-        }
-        markersRef.current = [];
-      };
-
-      const refreshMarkers = () => {
-        if (!map.isStyleLoaded()) {
-          return;
-        }
-
-        clearMarkers();
-        const groups = groupVisibleNodes(map, nodesRef.current);
-        markersRef.current = groups.map((group) => {
-          const element = createLocationMarkerElement({
-            group,
-            map,
-            activeMarkerId: activeMarkerIdRef.current,
-            onHoverMarker: (id) => hoverMarkerRef.current(id),
-            onSelectMarker: (id) => selectMarkerRef.current(id),
-            reduceMotion: reduceMotionRef.current,
-            clusterLabel: (count) => clusterLabelRef.current(count),
-          });
-
-          return new maplibre.Marker({
-            element,
-            anchor: 'center',
-          })
-            .setLngLat([group.lng, group.lat])
-            .addTo(map);
+            layers: [
+              {
+                id: 'osm',
+                type: 'raster',
+                source: 'osm',
+                paint: {
+                  'raster-fade-duration': 180,
+                  'raster-saturation': -0.08,
+                },
+              },
+            ],
+          },
+          center: firstNode ? [firstNode.lng, firstNode.lat] : [0, 24],
+          zoom: firstNode ? 5 : 1.5,
+          maxZoom: 17,
+          minZoom: 1,
+          attributionControl: {
+            compact: true,
+          },
+          dragRotate: false,
+          pitchWithRotate: false,
+          touchPitch: false,
+          scrollZoom: true,
+          cooperativeGestures:
+            navigator.maxTouchPoints > 0 ||
+            window.matchMedia('(pointer: coarse)').matches,
         });
-      };
 
-      refreshMarkersRef.current = refreshMarkers;
-      map.on('load', () => {
-        if (isCancelled) {
-          return;
-        }
+        mapRef.current = map;
+        map.addControl(
+          new maplibre.NavigationControl({
+            showCompass: false,
+            visualizePitch: false,
+          }),
+          'bottom-right',
+        );
 
-        fitCountry(map, nodesRef.current, reduceMotionRef.current);
-        refreshMarkers();
-        setIsLoaded(true);
-      });
-      map.on('moveend', refreshMarkers);
-      map.on('resize', refreshMarkers);
+        const clearMarkers = () => {
+          for (const marker of markersRef.current) {
+            marker.remove();
+          }
+          markersRef.current = [];
+        };
 
-      const resizeObserver = new ResizeObserver(() => {
-        window.cancelAnimationFrame(resizeFrame);
-        resizeFrame = window.requestAnimationFrame(() => map.resize());
-      });
-      resizeObserver.observe(container);
+        const refreshMarkers = () => {
+          if (!map.isStyleLoaded()) {
+            return;
+          }
 
-      map.on('error', (event) => {
-        if (
-          typeof event.error?.message === 'string' &&
-          /tile|raster|network|fetch/i.test(event.error.message)
-        ) {
+          clearMarkers();
+          const groups = groupVisibleNodes(map, nodesRef.current);
+          markersRef.current = groups.map((group) => {
+            const element = createLocationMarkerElement({
+              group,
+              map,
+              activeMarkerId: activeMarkerIdRef.current,
+              onHoverMarker: (id) => hoverMarkerRef.current(id),
+              onSelectMarker: (id) => selectMarkerRef.current(id),
+              reduceMotion: reduceMotionRef.current,
+              clusterLabel: (count) => clusterLabelRef.current(count),
+            });
+
+            return new maplibre.Marker({
+              element,
+              anchor: 'center',
+            })
+              .setLngLat([group.lng, group.lat])
+              .addTo(map);
+          });
+        };
+
+        refreshMarkersRef.current = refreshMarkers;
+        map.on('load', () => {
+          if (isCancelled) {
+            return;
+          }
+
+          fitCountry(map, nodesRef.current, reduceMotionRef.current);
+          refreshMarkers();
+          setIsLoaded(true);
+        });
+        map.on('moveend', refreshMarkers);
+        map.on('resize', refreshMarkers);
+
+        const resizeObserver = new ResizeObserver(() => {
+          window.cancelAnimationFrame(resizeFrame);
+          resizeFrame = window.requestAnimationFrame(() => map.resize());
+        });
+        resizeObserver.observe(container);
+
+        map.on('error', (event) => {
+          if (
+            typeof event.error?.message === 'string' &&
+            /tile|raster|network|fetch/i.test(event.error.message)
+          ) {
+            setHasTileError(true);
+          }
+        });
+
+        map.once('remove', () => resizeObserver.disconnect());
+      })
+      .catch(() => {
+        if (!isCancelled) {
           setHasTileError(true);
+          setIsLoaded(true);
         }
       });
-
-      map.once('remove', () => resizeObserver.disconnect());
-    });
 
     return () => {
       isCancelled = true;

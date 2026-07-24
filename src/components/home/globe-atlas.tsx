@@ -18,14 +18,12 @@ import type { GlobeMethods } from 'react-globe.gl';
 import { MeshLambertMaterial } from 'three';
 
 import { type CityPost } from '@/features/collections/model/city-post';
-import { cn } from '@/lib/utils';
-import { useSongStore } from '@/providers/song-store-provider';
-
-import { AtlasDockCard } from './atlas/atlas-dock-card';
 import {
-  type GlobeComponentType,
-  loadGlobeComponent,
-} from './atlas/globe-runtime';
+  getGlobeView,
+  getMarkerLabelTransform,
+  globeScaleToAltitude,
+  isNodeVisibleFromView,
+} from '@/features/atlas/model/globe-view';
 import {
   MAX_GLOBE_SCALE,
   MIN_GLOBE_SCALE,
@@ -36,14 +34,21 @@ import {
   clamp,
   getCenteredNodeId,
   getZoomTier,
-  latLngToXYZ,
   sortPosts,
   type CountryNode,
   type LocationNode,
   type MarkerNode,
   type PostNode,
   type ZoomTier,
-} from './atlas/model';
+} from '@/features/atlas/model/atlas';
+import { cn } from '@/lib/utils';
+import { useSongStore } from '@/providers/song-store-provider';
+
+import { AtlasDockCard } from './atlas/atlas-dock-card';
+import {
+  type GlobeComponentType,
+  loadGlobeComponent,
+} from './atlas/globe-runtime';
 import {
   ATLAS_TEXTURES,
   type AtlasTheme,
@@ -107,22 +112,6 @@ function getDefaultOriginRect(): CardRect {
   };
 }
 
-function globeScaleToAltitude(scale: number) {
-  const progress =
-    (clamp(scale, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE) - MIN_GLOBE_SCALE) /
-    (MAX_GLOBE_SCALE - MIN_GLOBE_SCALE);
-
-  return clamp(2.2 - progress * 1.6, 0.6, 2.2);
-}
-
-function getGlobeView(lat: number, lng: number, scale: number) {
-  return {
-    lat,
-    lng,
-    altitude: globeScaleToAltitude(scale),
-  };
-}
-
 function applyInitialGlobeView({
   globeRef,
   initialViewAppliedRef,
@@ -156,16 +145,6 @@ function applyInitialGlobeView({
   return true;
 }
 
-function isNodeVisibleFromView(
-  node: { lat: number; lng: number },
-  view: { lat: number; lng: number },
-) {
-  const [nodeX, nodeY, nodeZ] = latLngToXYZ(node.lat, node.lng);
-  const [viewX, viewY, viewZ] = latLngToXYZ(view.lat, view.lng);
-
-  return nodeX * viewX + nodeY * viewY + nodeZ * viewZ > 0;
-}
-
 function getMarkerButtonStyle(position: {
   x: number;
   y: number;
@@ -181,26 +160,6 @@ function getMarkerButtonStyle(position: {
     transform: `translate(-50%, -50%) scale(${position.visible ? 1 : 0.85})`,
     transition: 'opacity 220ms ease, transform 220ms ease',
   };
-}
-
-function getMarkerLabelTransform(position: {
-  x: number;
-  y: number;
-  visible: boolean;
-}) {
-  if (position.x > 0.74) {
-    return 'translate(calc(-100% - 18px), -50%)';
-  }
-
-  if (position.x < 0.26) {
-    return 'translate(18px, -50%)';
-  }
-
-  if (position.y > 0.76) {
-    return 'translate(-50%, calc(-100% - 18px))';
-  }
-
-  return 'translate(-50%, 18px)';
 }
 
 function GlobeStage({

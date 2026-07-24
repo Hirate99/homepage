@@ -134,13 +134,13 @@ export function IntroHero({ intro }: { intro: string }) {
           )}
         >
           <RoleTicker />
-          <Link
+          <a
             href="#atlas"
             className="pointer-events-auto mb-2 hidden items-center gap-2 border-b border-[var(--hero-rule)] pb-1 text-sm font-medium text-[var(--hero-ink)] transition-colors hover:border-[var(--hero-accent)] hover:text-[var(--hero-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hero-accent)] sm:flex"
           >
             {t('atlas')}
             <ArrowDown className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          </a>
         </div>
       </div>
     </section>

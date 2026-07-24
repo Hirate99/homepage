@@ -55,7 +55,21 @@
     "zoomOut": "缩小",
     "zoomIn": "放大",
     "resetView": "重置图集视角",
-    "dockMeta": "{placeCount} 个地点 · {postCount} 组作品"
+    "dockMeta": "{placeCount} 个地点 · {postCount} 组作品",
+    "interactiveCountryMap": "{country}详细地图。选择地图标记继续浏览地点。",
+    "interactivePlaceMap": "{country}地点详细地图。选择地图标记打开摄影作品。",
+    "countryMap": "国家详情",
+    "placeMap": "地点详情",
+    "browseCountries": "浏览国家",
+    "browseCountryPlaces": "{country}的地点",
+    "browsePlacePosts": "{place}的作品",
+    "searchLabel": "搜索图集",
+    "searchCountries": "搜索国家",
+    "searchCountryPlaces": "搜索{country}的地点",
+    "searchPlacePosts": "搜索{place}的作品",
+    "resultCount": "{count} 个结果",
+    "showMore": "再显示 {count} 项",
+    "noResults": "没有匹配的地点。"
   },
   "Gallery": {
     "openPost": "打开{city}摄影作品",

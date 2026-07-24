@@ -55,7 +55,21 @@
     "zoomOut": "Zoom out",
     "zoomIn": "Zoom in",
     "resetView": "Reset atlas view",
-    "dockMeta": "{placeCount, plural, one {# place} other {# places}} · {postCount, plural, one {# post} other {# posts}}"
+    "dockMeta": "{placeCount, plural, one {# place} other {# places}} · {postCount, plural, one {# post} other {# posts}}",
+    "interactiveCountryMap": "{country} detail map. Select a marker to explore its places.",
+    "interactivePlaceMap": "{country} place detail map. Select a marker to open its photographs.",
+    "countryMap": "Country detail",
+    "placeMap": "Place detail",
+    "browseCountries": "Browse countries",
+    "browseCountryPlaces": "Places in {country}",
+    "browsePlacePosts": "Stories from {place}",
+    "searchLabel": "Search atlas",
+    "searchCountries": "Search countries",
+    "searchCountryPlaces": "Search places in {country}",
+    "searchPlacePosts": "Search stories from {place}",
+    "resultCount": "{count, plural, one {# result} other {# results}}",
+    "showMore": "Show {count} more",
+    "noResults": "No matching places."
   },
   "Gallery": {
     "openPost": "Open photo post for {city}",

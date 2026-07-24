@@ -15,6 +15,9 @@ interface AtlasThemePreset {
     bumpScale: number;
     atmosphereAltitude: number;
   };
+  map: {
+    filter: string;
+  };
 }
 
 export interface AtlasTheme extends AtlasThemePreset {
@@ -33,6 +36,10 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
       bumpScale: 0.018,
       atmosphereAltitude: 0.12,
     },
+    map: {
+      filter:
+        'sepia(.24) saturate(.72) hue-rotate(338deg) brightness(.98) contrast(.9)',
+    },
   },
   'rain-night': {
     globe: {
@@ -43,6 +50,10 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
       emissive: '#06121a',
       bumpScale: 0.022,
       atmosphereAltitude: 0.14,
+    },
+    map: {
+      filter:
+        'invert(1) hue-rotate(180deg) saturate(.28) brightness(.68) contrast(1.12)',
     },
   },
 };
@@ -93,6 +104,7 @@ export function getAtlasTheme(song: SongDefinition): AtlasTheme {
         'color-mix(in srgb, var(--atlas-signal) 22%, transparent)',
       '--atlas-shadow': 'color-mix(in srgb, var(--atlas-ink) 18%, transparent)',
       '--atlas-on-accent': 'color-mix(in srgb, var(--atlas-bg) 12%, white)',
+      '--atlas-map-filter': preset.map.filter,
     },
   };
 }

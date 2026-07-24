@@ -7,6 +7,7 @@ import {
   lazy,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -24,6 +25,10 @@ import {
   globeScaleToAltitude,
   isNodeVisibleFromView,
 } from '@/features/atlas/model/globe-view';
+import {
+  atlasNavigationReducer,
+  createAtlasNavigationState,
+} from '@/features/atlas/model/navigation';
 import {
   MAX_GLOBE_SCALE,
   MIN_GLOBE_SCALE,
@@ -970,24 +975,30 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         : (locationNodes[0]?.id ?? ''),
     [initialPost, locationNodes],
   );
-  const [zoomScale, setZoomScale] = useState(ZOOM_SCALE.world);
-  const [selectedCountryId, setSelectedCountryId] = useState(initialCountryId);
-  const [selectedLocationId, setSelectedLocationId] =
-    useState(initialLocationId);
-  const [activePostId, setActivePostId] = useState(initialPost?.id ?? '');
-  const [cameraTargetId, setCameraTargetId] = useState<string | null>(
-    initialCountryId || null,
+  const [navigation, dispatchNavigation] = useReducer(
+    atlasNavigationReducer,
+    {
+      countryId: initialCountryId,
+      locationId: initialLocationId,
+      postId: initialPost?.id ?? '',
+    },
+    createAtlasNavigationState,
   );
-  const [cameraFocusKey, setCameraFocusKey] = useState(0);
-  const [isAutoRotateFrozen, setIsAutoRotateFrozen] = useState(false);
+  const {
+    zoomScale,
+    selectedCountryId,
+    selectedLocationId,
+    activePostId,
+    cameraTargetId,
+    cameraFocusKey,
+    isAutoRotateFrozen,
+    displayZoomTier,
+  } = navigation;
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{
     id: string;
     originRect: CardRect;
   } | null>(null);
-  const [displayZoomTier, setDisplayZoomTier] = useState<ZoomTier>(() =>
-    getZoomTier(ZOOM_SCALE.world),
-  );
   const zoomTier = getZoomTier(zoomScale);
 
   useEffect(() => {
@@ -996,7 +1007,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     }
 
     const timerId = window.setTimeout(() => {
-      setDisplayZoomTier(zoomTier);
+      dispatchNavigation({
+        type: 'set_display_tier',
+        tier: zoomTier,
+      });
     }, 150);
 
     return () => {
@@ -1015,20 +1029,17 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       return;
     }
 
-    setSelectedCountryId((prev) =>
-      countryNodes.some((node) => node.id === prev) ? prev : initialCountryId,
-    );
-    setSelectedLocationId((prev) =>
-      locationNodes.some((node) => node.id === prev) ? prev : initialLocationId,
-    );
-    setActivePostId((prev) =>
-      atlasPosts.some((post) => post.id === prev) ? prev : atlasPosts[0].id,
-    );
-    setCameraTargetId((prev) =>
-      prev && countryNodes.some((node) => node.id === prev)
-        ? prev
-        : initialCountryId,
-    );
+    dispatchNavigation({
+      type: 'sync',
+      countryIds: countryNodes.map((node) => node.id),
+      locationIds: locationNodes.map((node) => node.id),
+      postIds: atlasPosts.map((post) => post.id),
+      fallback: {
+        countryId: initialCountryId,
+        locationId: initialLocationId,
+        postId: atlasPosts[0].id,
+      },
+    });
   }, [
     atlasPosts,
     countryNodes,
@@ -1134,7 +1145,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       return;
     }
 
-    setSelectedCountryId(parentCountryId);
+    dispatchNavigation({
+      type: 'center_selection',
+      countryId: parentCountryId,
+    });
   }, [countryNodes, selectedCountryId, selectedLocation]);
 
   if (
@@ -1166,36 +1180,25 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const handleZoomScaleChange = (
     value: number | ((prev: number) => number),
   ) => {
-    setZoomScale((current) => {
-      const nextValue = typeof value === 'function' ? value(current) : value;
-      return clamp(nextValue, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE);
+    dispatchNavigation({
+      type: 'set_zoom',
+      value,
     });
-  };
-
-  const focusCamera = (
-    targetId: string,
-    options?: { freezeRotation?: boolean },
-  ) => {
-    setCameraTargetId(targetId);
-    setIsAutoRotateFrozen(Boolean(options?.freezeRotation));
-    setCameraFocusKey((current) => current + 1);
   };
 
   const handleMarkerSelection = (
     markerId: string,
     options?: { freezeRotation?: boolean },
   ) => {
-    setIsAutoRotateFrozen(Boolean(options?.freezeRotation));
     const countryNode = countryNodes.find((node) => node.id === markerId);
     if (countryNode) {
-      setSelectedCountryId(countryNode.id);
-      setSelectedLocationId(
-        countryNode.locations[0]?.id ?? selectedLocation.id,
-      );
-      setActivePostId(countryNode.locations[0]?.posts[0]?.id ?? activePost.id);
-      focusCamera(countryNode.id, options);
-      setDisplayZoomTier('region');
-      setZoomScale((current) => Math.max(current, ZOOM_SCALE.region));
+      dispatchNavigation({
+        type: 'select_country',
+        countryId: countryNode.id,
+        locationId: countryNode.locations[0]?.id ?? selectedLocation.id,
+        postId: countryNode.locations[0]?.posts[0]?.id ?? activePost.id,
+        freezeRotation: Boolean(options?.freezeRotation),
+      });
       return;
     }
 
@@ -1211,14 +1214,15 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         countryNodes.find((node) => node.label === postNode.country)?.id ??
         null;
 
-      if (parentCountryId) {
-        setSelectedCountryId(parentCountryId);
-      }
-      if (parentLocationId) {
-        setSelectedLocationId(parentLocationId);
-      }
-      setActivePostId(postNode.post.id);
-      focusCamera(postNode.id, options);
+      dispatchNavigation({
+        type: 'select_post',
+        countryId: parentCountryId ?? undefined,
+        locationId: parentLocationId ?? undefined,
+        postId: postNode.post.id,
+        markerId: postNode.id,
+        freezeRotation: Boolean(options?.freezeRotation),
+        incrementFocus: true,
+      });
       openViewer(postNode.post.id);
       return;
     }
@@ -1228,15 +1232,15 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       return;
     }
 
-    setSelectedCountryId(
-      countryNodes.find((node) => node.label === locationNode.country)?.id ??
+    dispatchNavigation({
+      type: 'select_location',
+      countryId:
+        countryNodes.find((node) => node.label === locationNode.country)?.id ??
         selectedCountry.id,
-    );
-    setSelectedLocationId(locationNode.id);
-    setActivePostId(locationNode.posts[0]?.id ?? activePost.id);
-    focusCamera(locationNode.id, options);
-    setDisplayZoomTier('place');
-    setZoomScale((current) => Math.max(current, ZOOM_SCALE.place));
+      locationId: locationNode.id,
+      postId: locationNode.posts[0]?.id ?? activePost.id,
+      freezeRotation: Boolean(options?.freezeRotation),
+    });
   };
 
   const handleCenteredMarkerChange = (markerId: string | null) => {
@@ -1246,23 +1250,12 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
 
     const countryNode = countryNodes.find((node) => node.id === markerId);
     if (countryNode) {
-      setSelectedCountryId((current) =>
-        current === countryNode.id ? current : countryNode.id,
-      );
-
-      const firstLocationId = countryNode.locations[0]?.id;
-      if (firstLocationId) {
-        setSelectedLocationId((current) =>
-          current === firstLocationId ? current : firstLocationId,
-        );
-      }
-
-      const firstPostId = countryNode.locations[0]?.posts[0]?.id;
-      if (firstPostId) {
-        setActivePostId((current) =>
-          current === firstPostId ? current : firstPostId,
-        );
-      }
+      dispatchNavigation({
+        type: 'center_selection',
+        countryId: countryNode.id,
+        locationId: countryNode.locations[0]?.id,
+        postId: countryNode.locations[0]?.posts[0]?.id,
+      });
       return;
     }
 
@@ -1278,20 +1271,12 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         countryNodes.find((node) => node.label === postNode.country)?.id ??
         null;
 
-      if (locationId) {
-        setSelectedLocationId((current) =>
-          current === locationId ? current : locationId,
-        );
-      }
-      if (parentCountryId) {
-        setSelectedCountryId((current) =>
-          current === parentCountryId ? current : parentCountryId,
-        );
-      }
-
-      setActivePostId((current) =>
-        current === postNode.post.id ? current : postNode.post.id,
-      );
+      dispatchNavigation({
+        type: 'center_selection',
+        countryId: parentCountryId ?? undefined,
+        locationId: locationId ?? undefined,
+        postId: postNode.post.id,
+      });
       return;
     }
 
@@ -1300,47 +1285,37 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       return;
     }
 
-    setSelectedLocationId((current) =>
-      current === locationNode.id ? current : locationNode.id,
-    );
-
     const parentCountryId =
       countryNodes.find((node) => node.label === locationNode.country)?.id ??
       null;
-    if (parentCountryId) {
-      setSelectedCountryId((current) =>
-        current === parentCountryId ? current : parentCountryId,
-      );
-    }
-
-    const firstPostId = locationNode.posts[0]?.id;
-    if (firstPostId) {
-      setActivePostId((current) =>
-        current === firstPostId ? current : firstPostId,
-      );
-    }
+    dispatchNavigation({
+      type: 'center_selection',
+      countryId: parentCountryId ?? undefined,
+      locationId: locationNode.id,
+      postId: locationNode.posts[0]?.id,
+    });
   };
 
   const resetAtlasView = () => {
-    setSelectedCountryId(initialCountryId);
-    setSelectedLocationId(initialLocationId);
-    setActivePostId(initialPost?.id ?? atlasPosts[0].id);
-    setCameraTargetId(initialCountryId || null);
-    setCameraFocusKey((current) => current + 1);
-    setDisplayZoomTier('world');
-    setZoomScale(ZOOM_SCALE.world);
-    setIsAutoRotateFrozen(false);
+    dispatchNavigation({
+      type: 'reset',
+      selection: {
+        countryId: initialCountryId,
+        locationId: initialLocationId,
+        postId: initialPost?.id ?? atlasPosts[0].id,
+      },
+    });
   };
 
   const navigateToAtlasLevel = (level: Exclude<ZoomTier, 'place'>) => {
     const targetId =
       level === 'world' ? selectedCountry.id : selectedLocation.id;
 
-    setCameraTargetId(targetId);
-    setCameraFocusKey((current) => current + 1);
-    setDisplayZoomTier(level);
-    setZoomScale(ZOOM_SCALE[level]);
-    setIsAutoRotateFrozen(true);
+    dispatchNavigation({
+      type: 'navigate',
+      tier: level,
+      targetId,
+    });
   };
 
   return (
@@ -1413,7 +1388,12 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                 }
                 onZoomScaleChange={handleZoomScaleChange}
                 onCenteredMarkerChange={handleCenteredMarkerChange}
-                onUserInteraction={() => setIsAutoRotateFrozen(true)}
+                onUserInteraction={() =>
+                  dispatchNavigation({
+                    type: 'set_rotation_frozen',
+                    frozen: true,
+                  })
+                }
                 theme={atlasTheme}
                 reduceMotion={shouldReduceMotion}
               />
@@ -1509,7 +1489,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       'border-r border-[var(--atlas-rule)]',
                     )}
                     onClick={() => {
-                      setIsAutoRotateFrozen(true);
+                      dispatchNavigation({
+                        type: 'set_rotation_frozen',
+                        frozen: true,
+                      });
                       handleZoomScaleChange((current) => current * 0.82);
                     }}
                     aria-label={t('zoomOut')}
@@ -1524,7 +1507,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       'border-r border-[var(--atlas-rule)]',
                     )}
                     onClick={() => {
-                      setIsAutoRotateFrozen(true);
+                      dispatchNavigation({
+                        type: 'set_rotation_frozen',
+                        frozen: true,
+                      });
                       handleZoomScaleChange((current) => current * 1.22);
                     }}
                     aria-label={t('zoomIn')}
@@ -1622,15 +1608,15 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                               (node) => node.label === post.location?.country,
                             )?.id ?? null;
 
-                          if (parentCountryId) {
-                            setSelectedCountryId(parentCountryId);
-                          }
-                          if (parentLocationId) {
-                            setSelectedLocationId(parentLocationId);
-                          }
-                          setActivePostId(post.id);
-                          setCameraTargetId(`post-${post.id}`);
-                          setIsAutoRotateFrozen(true);
+                          dispatchNavigation({
+                            type: 'select_post',
+                            countryId: parentCountryId ?? undefined,
+                            locationId: parentLocationId ?? undefined,
+                            postId: post.id,
+                            markerId: `post-${post.id}`,
+                            freezeRotation: true,
+                            incrementFocus: false,
+                          });
                           openViewer(post.id, element);
                         }}
                       />

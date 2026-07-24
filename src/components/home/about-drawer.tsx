@@ -43,7 +43,7 @@ export function AboutDrawer({ intro }: { intro: string }) {
   } as CSSProperties;
 
   return (
-    <Drawer>
+    <Drawer shouldScaleBackground={false}>
       <DrawerTrigger asChild>
         <button className={heroActionClass} aria-label={t('open')}>
           <Info className="h-4 w-4" aria-hidden="true" />

@@ -224,6 +224,8 @@ export function LyricsScene() {
       let frameId = 0;
       let sceneIsVisible = true;
       let documentIsVisible = document.visibilityState === 'visible';
+      let lastIsCompact: boolean | null = null;
+      let lastLyricScale: number | null = null;
 
       const hitTest = (event: PointerEvent) => {
         if (!containerRef.current) {
@@ -304,7 +306,16 @@ export function LyricsScene() {
           : aspect < 1
             ? 0.84
             : 1;
-        lyricGroup.scale.set(compactScale, compactScale, compactScale);
+        if (lastLyricScale !== compactScale) {
+          lyricGroup.scale.set(compactScale, compactScale, compactScale);
+          lastLyricScale = compactScale;
+        }
+
+        if (lastIsCompact === isCompact) {
+          return;
+        }
+        lastIsCompact = isCompact;
+
         environment.resize(isCompact);
 
         meshes.forEach((mesh, index) => {

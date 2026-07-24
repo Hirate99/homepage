@@ -58,6 +58,12 @@
     "dockMeta": "{placeCount}か所 · {postCount}件",
     "interactiveCountryMap": "{country}の詳細地図です。マーカーを選んで場所を表示できます。",
     "interactivePlaceMap": "{country}の場所の詳細地図です。マーカーを選んで写真を表示できます。",
+    "loadingCountryMap": "{country}の地図を読み込んでいます",
+    "mapClusterLabel": "近くに{count}か所あります。拡大して個別に表示します。",
+    "reportMapIssue": "地図の問題を報告",
+    "mapTilesUnavailable": "地図の背景を一時的に読み込めません。場所の一覧は引き続き閲覧できます。",
+    "enteringCountry": "{country}を表示しています",
+    "returningToWorld": "世界表示に戻っています",
     "countryMap": "国の詳細",
     "placeMap": "場所の詳細",
     "browseCountries": "国から探す",
@@ -69,7 +75,9 @@
     "searchPlacePosts": "{place}の作品を検索",
     "resultCount": "{count}件",
     "showMore": "さらに{count}件表示",
-    "noResults": "一致する場所はありません。"
+    "noResults": "一致する場所はありません。",
+    "exploreSelection": "この場所を見る",
+    "openStory": "この作品を開く"
   },
   "Gallery": {
     "openPost": "{city}の写真作品を開く",

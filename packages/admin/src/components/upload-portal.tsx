@@ -6,7 +6,6 @@ import {
   startTransition,
   useEffect,
   useRef,
-  useState,
 } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -25,63 +24,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import {
+  type CollectionRecord,
+  type LocationFields,
+  type LocationSuggestion,
+  useCollectionEditorStore,
+} from '@/features/collections/model/collection-editor-store';
 
-interface LocationHint {
-  latitude: number | null;
-  longitude: number | null;
-  locationName: string;
-  country: string;
-  region: string;
-  description: string;
-}
-
-interface LocationSuggestion {
-  placeId: string;
-  text: string;
-  primaryText: string;
-  secondaryText: string;
-}
-
-interface CollectionImage {
-  id: number;
-  src: string;
-  width: number | null;
-  height: number | null;
-}
-
-interface CollectionRecord {
-  id: number;
-  title: string;
-  content: string | null;
-  sortOrder: number | null;
-  locationName: string | null;
-  country: string | null;
-  region: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  description: string | null;
-  coverImageId: number | null;
-  images: CollectionImage[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface PreviewItem {
-  id: string;
-  file: File;
-  url: string;
-}
-
-const emptyLocation: LocationHint = {
-  latitude: null,
-  longitude: null,
-  locationName: '',
-  country: '',
-  region: '',
-  description: '',
-};
-
-type Mode = 'create' | 'edit';
 const PAGE_SIZE = 3;
 
 function formatUpdatedAt(value: string) {
@@ -98,37 +47,54 @@ function formatUpdatedAt(value: string) {
 }
 
 export function UploadPortal() {
-  const [mode, setMode] = useState<Mode>('create');
-  const [collections, setCollections] = useState<CollectionRecord[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<
-    number | null
-  >(null);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [sortOrder, setSortOrder] = useState('');
-  const [previews, setPreviews] = useState<PreviewItem[]>([]);
-  const [coverIndex, setCoverIndex] = useState(0);
-  const [location, setLocation] = useState<LocationHint>(emptyLocation);
-  const [locationQuery, setLocationQuery] = useState('');
-  const [locationSuggestions, setLocationSuggestions] = useState<
-    LocationSuggestion[]
-  >([]);
-  const [editingCoverImageId, setEditingCoverImageId] = useState<number | null>(
-    null,
+  const mode = useCollectionEditorStore((state) => state.mode);
+  const collections = useCollectionEditorStore((state) => state.collections);
+  const selectedCollectionId = useCollectionEditorStore(
+    (state) => state.selectedCollectionId,
   );
-  const [status, setStatus] = useState('选择图片开始。');
-  const [isScanningLocation, setIsScanningLocation] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isLoadingCollections, setIsLoadingCollections] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
-  const [isApplyingLocation, setIsApplyingLocation] = useState(false);
-  const [hasSearchedLocation, setHasSearchedLocation] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isDeletePostDialogOpen, setIsDeletePostDialogOpen] = useState(false);
-  const [imagePendingDelete, setImagePendingDelete] =
-    useState<CollectionImage | null>(null);
+  const draft = useCollectionEditorStore((state) => state.draft);
+  const locationSearch = useCollectionEditorStore(
+    (state) => state.locationSearch,
+  );
+  const tasks = useCollectionEditorStore((state) => state.tasks);
+  const ui = useCollectionEditorStore((state) => state.ui);
+  const {
+    setCollections,
+    patchDraft,
+    updateLocation,
+    setPreviews,
+    setCoverIndex,
+    patchLocationSearch,
+    setTask,
+    setStatus,
+    patchUi,
+    setCurrentPage,
+    resetForCreate: resetEditorForCreate,
+    loadCollection,
+  } = useCollectionEditorStore((state) => state.actions);
+  const {
+    title,
+    content,
+    sortOrder,
+    previews,
+    coverIndex,
+    location,
+    editingCoverImageId,
+  } = draft;
+  const {
+    query: locationQuery,
+    suggestions: locationSuggestions,
+    hasSearched: hasSearchedLocation,
+  } = locationSearch;
+  const { status, currentPage, isDeletePostDialogOpen, imagePendingDelete } =
+    ui;
+  const isScanningLocation = tasks.scanLocation === 'pending';
+  const isPublishing = tasks.publish === 'pending';
+  const isLoadingCollections = tasks.loadCollections === 'pending';
+  const isDeleting = tasks.delete === 'pending';
+  const isUploadingImages = tasks.uploadImages === 'pending';
+  const isSearchingLocation = tasks.searchLocation === 'pending';
+  const isApplyingLocation = tasks.applyLocation === 'pending';
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextLocationLookupRef = useRef(false);
@@ -148,8 +114,10 @@ export function UploadPortal() {
     }
 
     if (normalizedQuery.length < 2) {
-      setLocationSuggestions([]);
-      setHasSearchedLocation(false);
+      patchLocationSearch({
+        suggestions: [],
+        hasSearched: false,
+      });
       return;
     }
 
@@ -158,10 +126,12 @@ export function UploadPortal() {
     }, 220);
 
     return () => window.clearTimeout(timeoutId);
-  }, [locationQuery]);
+    // fetchLocationSuggestions only reads stable store actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationQuery, patchLocationSearch]);
 
   async function refreshCollections(nextSelectedId?: number | null) {
-    setIsLoadingCollections(true);
+    setTask('loadCollections', 'pending');
 
     try {
       const response = await fetch('/api/posts');
@@ -194,16 +164,14 @@ export function UploadPortal() {
 
       const match = nextCollections.find((item) => item.id === targetId);
       if (match) {
-        setCurrentPage(getPageForCollection(nextCollections, match.id));
-        loadCollectionIntoForm(match);
+        loadCollectionIntoForm(match, nextCollections);
       } else {
-        setCurrentPage(1);
         resetForCreate();
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : '加载已有帖子失败。');
     } finally {
-      setIsLoadingCollections(false);
+      setTask('loadCollections', 'idle');
     }
   }
 
@@ -236,50 +204,24 @@ export function UploadPortal() {
   }
 
   function resetForCreate() {
+    resetPreviews();
     startTransition(() => {
-      setMode('create');
-      setSelectedCollectionId(null);
-      setTitle('');
-      setContent('');
-      setSortOrder('');
-      setLocation(emptyLocation);
-      setLocationQuery('');
-      setLocationSuggestions([]);
-      setHasSearchedLocation(false);
-      setEditingCoverImageId(null);
-      setCoverIndex(0);
-      setCurrentPage(1);
-      resetPreviews();
+      resetEditorForCreate();
       formRef.current?.reset();
-      setStatus('选择图片开始。');
     });
   }
 
-  function loadCollectionIntoForm(collection: CollectionRecord) {
+  function loadCollectionIntoForm(
+    collection: CollectionRecord,
+    availableCollections = collections,
+  ) {
+    resetPreviews();
     startTransition(() => {
-      setMode('edit');
-      setSelectedCollectionId(collection.id);
-      setTitle(collection.title);
-      setContent(collection.content ?? '');
-      setSortOrder(
-        collection.sortOrder === null ? '' : String(collection.sortOrder),
+      loadCollection(
+        collection,
+        getPageForCollection(availableCollections, collection.id),
       );
-      setLocation({
-        latitude: collection.latitude,
-        longitude: collection.longitude,
-        locationName: collection.locationName ?? '',
-        country: collection.country ?? '',
-        region: collection.region ?? '',
-        description: collection.description ?? '',
-      });
-      setLocationQuery('');
-      setLocationSuggestions([]);
-      setHasSearchedLocation(false);
-      setEditingCoverImageId(collection.coverImageId);
-      setCurrentPage(getPageForCollection(collections, collection.id));
-      resetPreviews();
       formRef.current?.reset();
-      setStatus(`Editing #${collection.id}.`);
     });
   }
 
@@ -291,7 +233,7 @@ export function UploadPortal() {
     const payload = new FormData();
     files.forEach((file) => payload.append('images', file));
 
-    setIsScanningLocation(true);
+    setTask('scanLocation', 'pending');
     setStatus('Reading EXIF and looking up location...');
 
     try {
@@ -300,7 +242,7 @@ export function UploadPortal() {
         body: payload,
       });
       const data = (await response.json()) as {
-        hint?: LocationHint | null;
+        hint?: LocationFields | null;
         error?: string;
       };
 
@@ -313,7 +255,7 @@ export function UploadPortal() {
         return;
       }
 
-      setLocation((current) => ({
+      updateLocation((current) => ({
         ...current,
         ...data.hint,
         description: current.description,
@@ -324,7 +266,7 @@ export function UploadPortal() {
         error instanceof Error ? error.message : 'Location lookup failed.',
       );
     } finally {
-      setIsScanningLocation(false);
+      setTask('scanLocation', 'idle');
     }
   }
 
@@ -334,12 +276,14 @@ export function UploadPortal() {
   ) {
     const normalizedQuery = queryText.trim();
     if (normalizedQuery.length < 2) {
-      setLocationSuggestions([]);
-      setHasSearchedLocation(false);
+      patchLocationSearch({
+        suggestions: [],
+        hasSearched: false,
+      });
       return;
     }
 
-    setIsSearchingLocation(true);
+    setTask('searchLocation', 'pending');
     if (announce) {
       setStatus(`Looking up "${normalizedQuery}"...`);
     }
@@ -362,8 +306,10 @@ export function UploadPortal() {
       }
 
       const suggestions = data.suggestions ?? [];
-      setLocationSuggestions(suggestions);
-      setHasSearchedLocation(true);
+      patchLocationSearch({
+        suggestions,
+        hasSearched: true,
+      });
 
       if (announce) {
         setStatus(
@@ -376,20 +322,24 @@ export function UploadPortal() {
       const message =
         error instanceof Error ? error.message : 'Location search failed.';
 
-      setLocationSuggestions([]);
-      setHasSearchedLocation(false);
+      patchLocationSearch({
+        suggestions: [],
+        hasSearched: false,
+      });
       if (announce) {
         setStatus(message);
       }
     } finally {
-      setIsSearchingLocation(false);
+      setTask('searchLocation', 'idle');
     }
   }
 
   async function handleLocationSearch() {
     if (!locationQuery.trim()) {
-      setLocationSuggestions([]);
-      setHasSearchedLocation(false);
+      patchLocationSearch({
+        suggestions: [],
+        hasSearched: false,
+      });
       setStatus('Enter a place to search.');
       return;
     }
@@ -398,7 +348,7 @@ export function UploadPortal() {
   }
 
   async function handleLocationSelect(suggestion: LocationSuggestion) {
-    setIsApplyingLocation(true);
+    setTask('applyLocation', 'pending');
     setStatus(`Using "${suggestion.text}"...`);
 
     try {
@@ -410,7 +360,7 @@ export function UploadPortal() {
         body: JSON.stringify({ placeId: suggestion.placeId }),
       });
       const data = (await response.json()) as {
-        hint?: LocationHint | null;
+        hint?: LocationFields | null;
         error?: string;
       };
 
@@ -424,10 +374,12 @@ export function UploadPortal() {
       }
 
       skipNextLocationLookupRef.current = true;
-      setLocationQuery(suggestion.text);
-      setLocationSuggestions([]);
-      setHasSearchedLocation(false);
-      setLocation((current) => ({
+      patchLocationSearch({
+        query: suggestion.text,
+        suggestions: [],
+        hasSearched: false,
+      });
+      updateLocation((current) => ({
         ...current,
         ...data.hint,
         description: current.description,
@@ -438,7 +390,7 @@ export function UploadPortal() {
         error instanceof Error ? error.message : 'Place lookup failed.',
       );
     } finally {
-      setIsApplyingLocation(false);
+      setTask('applyLocation', 'idle');
     }
   }
 
@@ -538,7 +490,7 @@ export function UploadPortal() {
     payload.set('description', location.description);
     files.forEach((file) => payload.append('images', file));
 
-    setIsPublishing(true);
+    setTask('publish', 'pending');
     setStatus('Uploading originals and publishing...');
 
     try {
@@ -563,7 +515,7 @@ export function UploadPortal() {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Publish failed.');
     } finally {
-      setIsPublishing(false);
+      setTask('publish', 'idle');
     }
   }
 
@@ -573,7 +525,7 @@ export function UploadPortal() {
       return;
     }
 
-    setIsPublishing(true);
+    setTask('publish', 'pending');
     setStatus('Saving changes...');
 
     try {
@@ -609,7 +561,7 @@ export function UploadPortal() {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Update failed.');
     } finally {
-      setIsPublishing(false);
+      setTask('publish', 'idle');
     }
   }
 
@@ -618,7 +570,7 @@ export function UploadPortal() {
       return;
     }
 
-    setIsDeleting(true);
+    setTask('delete', 'pending');
     setStatus('Deleting collection...');
 
     try {
@@ -634,14 +586,14 @@ export function UploadPortal() {
         throw new Error(data.error ?? 'Delete failed.');
       }
 
-      setIsDeletePostDialogOpen(false);
+      patchUi({ isDeletePostDialogOpen: false });
       resetForCreate();
       setStatus('Collection deleted.');
       await refreshCollections(null);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Delete failed.');
     } finally {
-      setIsDeleting(false);
+      setTask('delete', 'idle');
     }
   }
 
@@ -659,7 +611,7 @@ export function UploadPortal() {
     const payload = new FormData();
     files.forEach((file) => payload.append('images', file));
 
-    setIsUploadingImages(true);
+    setTask('uploadImages', 'pending');
     setStatus(`Uploading ${files.length} new image(s)...`);
 
     try {
@@ -687,7 +639,7 @@ export function UploadPortal() {
         error instanceof Error ? error.message : 'Image upload failed.',
       );
     } finally {
-      setIsUploadingImages(false);
+      setTask('uploadImages', 'idle');
       resetPreviews();
       formRef.current?.reset();
     }
@@ -698,7 +650,7 @@ export function UploadPortal() {
       return;
     }
 
-    setIsDeleting(true);
+    setTask('delete', 'pending');
     setStatus(`Deleting image #${imagePendingDelete.id}...`);
 
     try {
@@ -719,14 +671,14 @@ export function UploadPortal() {
 
       loadCollectionIntoForm(data.collection);
       await refreshCollections(data.collection.id);
-      setImagePendingDelete(null);
+      patchUi({ imagePendingDelete: null });
       setStatus(`Deleted image #${imagePendingDelete.id}.`);
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : 'Image delete failed.',
       );
     } finally {
-      setIsDeleting(false);
+      setTask('delete', 'idle');
     }
   }
 
@@ -905,7 +857,7 @@ export function UploadPortal() {
               {mode === 'edit' ? (
                 <Button
                   variant="destructive"
-                  onClick={() => setIsDeletePostDialogOpen(true)}
+                  onClick={() => patchUi({ isDeletePostDialogOpen: true })}
                   disabled={isBusy}
                 >
                   Delete
@@ -923,7 +875,9 @@ export function UploadPortal() {
                     <input
                       className="w-full rounded-2xl border border-orange-500/15 bg-white px-4 py-3 text-[--orange-9] outline-none transition focus:border-orange-500/45"
                       value={title}
-                      onChange={(event) => setTitle(event.target.value)}
+                      onChange={(event) =>
+                        patchDraft({ title: event.target.value })
+                      }
                       required
                     />
                   </label>
@@ -935,7 +889,9 @@ export function UploadPortal() {
                     <textarea
                       className="min-h-32 w-full rounded-2xl border border-orange-500/15 bg-white px-4 py-3 text-[--orange-9] outline-none transition focus:border-orange-500/45"
                       value={content}
-                      onChange={(event) => setContent(event.target.value)}
+                      onChange={(event) =>
+                        patchDraft({ content: event.target.value })
+                      }
                     />
                   </label>
 
@@ -947,7 +903,9 @@ export function UploadPortal() {
                       type="number"
                       className="w-full rounded-2xl border border-orange-500/15 bg-white px-4 py-3 text-[--orange-9] outline-none transition focus:border-orange-500/45"
                       value={sortOrder}
-                      onChange={(event) => setSortOrder(event.target.value)}
+                      onChange={(event) =>
+                        patchDraft({ sortOrder: event.target.value })
+                      }
                     />
                   </label>
                 </div>
@@ -1125,7 +1083,9 @@ export function UploadPortal() {
                                       : 'min-w-0 flex-1 bg-white px-3 text-[--orange-9] hover:bg-white'
                                   }
                                   onClick={() =>
-                                    setEditingCoverImageId(image.id)
+                                    patchDraft({
+                                      editingCoverImageId: image.id,
+                                    })
                                   }
                                   disabled={isBusy}
                                 >
@@ -1137,7 +1097,9 @@ export function UploadPortal() {
                                   variant="ghost"
                                   size="sm"
                                   className="min-w-0 flex-1 bg-white/15 px-3 text-white backdrop-blur-sm hover:bg-red-500 hover:text-white"
-                                  onClick={() => setImagePendingDelete(image)}
+                                  onClick={() =>
+                                    patchUi({ imagePendingDelete: image })
+                                  }
                                   disabled={isBusy}
                                 >
                                   Delete
@@ -1212,7 +1174,9 @@ export function UploadPortal() {
                             placeholder="Tokyo, Japan"
                             value={locationQuery}
                             onChange={(event) =>
-                              setLocationQuery(event.target.value)
+                              patchLocationSearch({
+                                query: event.target.value,
+                              })
                             }
                           />
                           <Button
@@ -1276,7 +1240,7 @@ export function UploadPortal() {
                         className="w-full rounded-2xl border border-orange-500/15 bg-orange-50/70 px-4 py-3 outline-none transition focus:border-orange-500/45"
                         value={location.latitude ?? ''}
                         onChange={(event) =>
-                          setLocation((current) => ({
+                          updateLocation((current) => ({
                             ...current,
                             latitude: event.target.value
                               ? Number(event.target.value)
@@ -1296,7 +1260,7 @@ export function UploadPortal() {
                         className="w-full rounded-2xl border border-orange-500/15 bg-orange-50/70 px-4 py-3 outline-none transition focus:border-orange-500/45"
                         value={location.longitude ?? ''}
                         onChange={(event) =>
-                          setLocation((current) => ({
+                          updateLocation((current) => ({
                             ...current,
                             longitude: event.target.value
                               ? Number(event.target.value)
@@ -1314,7 +1278,7 @@ export function UploadPortal() {
                         className="w-full rounded-2xl border border-orange-500/15 bg-orange-50/70 px-4 py-3 outline-none transition focus:border-orange-500/45"
                         value={location.locationName}
                         onChange={(event) =>
-                          setLocation((current) => ({
+                          updateLocation((current) => ({
                             ...current,
                             locationName: event.target.value,
                           }))
@@ -1330,7 +1294,7 @@ export function UploadPortal() {
                         className="w-full rounded-2xl border border-orange-500/15 bg-orange-50/70 px-4 py-3 outline-none transition focus:border-orange-500/45"
                         value={location.region}
                         onChange={(event) =>
-                          setLocation((current) => ({
+                          updateLocation((current) => ({
                             ...current,
                             region: event.target.value,
                           }))
@@ -1346,7 +1310,7 @@ export function UploadPortal() {
                         className="w-full rounded-2xl border border-orange-500/15 bg-orange-50/70 px-4 py-3 outline-none transition focus:border-orange-500/45"
                         value={location.country}
                         onChange={(event) =>
-                          setLocation((current) => ({
+                          updateLocation((current) => ({
                             ...current,
                             country: event.target.value,
                           }))
@@ -1362,7 +1326,7 @@ export function UploadPortal() {
                         className="min-h-24 w-full rounded-2xl border border-orange-500/15 bg-orange-50/70 px-4 py-3 outline-none transition focus:border-orange-500/45"
                         value={location.description}
                         onChange={(event) =>
-                          setLocation((current) => ({
+                          updateLocation((current) => ({
                             ...current,
                             description: event.target.value,
                           }))
@@ -1402,7 +1366,7 @@ export function UploadPortal() {
 
       <Dialog
         open={isDeletePostDialogOpen}
-        onOpenChange={setIsDeletePostDialogOpen}
+        onOpenChange={(open) => patchUi({ isDeletePostDialogOpen: open })}
       >
         <DialogContent>
           <DialogHeader>
@@ -1415,7 +1379,7 @@ export function UploadPortal() {
           <DialogFooter>
             <Button
               variant="secondary"
-              onClick={() => setIsDeletePostDialogOpen(false)}
+              onClick={() => patchUi({ isDeletePostDialogOpen: false })}
             >
               Cancel
             </Button>
@@ -1434,7 +1398,7 @@ export function UploadPortal() {
         open={Boolean(imagePendingDelete)}
         onOpenChange={(open: boolean) => {
           if (!open) {
-            setImagePendingDelete(null);
+            patchUi({ imagePendingDelete: null });
           }
         }}
       >
@@ -1450,7 +1414,7 @@ export function UploadPortal() {
           <DialogFooter>
             <Button
               variant="secondary"
-              onClick={() => setImagePendingDelete(null)}
+              onClick={() => patchUi({ imagePendingDelete: null })}
             >
               Cancel
             </Button>

@@ -1,10 +1,16 @@
 'use client';
 
+import { type CSSProperties, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { Check, Languages } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
+import {
+  getHrefWithoutTransientSong,
+  getLocaleSwitchHref,
+  TRANSIENT_LOCALE_SWITCH_PARAM,
+} from '@/i18n/language-navigation';
 import { type Locale, localeDetails, locales } from '@/i18n/locales';
 import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
@@ -17,11 +23,30 @@ export function LanguageSwitcher() {
   const locale = useLocale();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const songId = useSongStore((state) => state.song.id);
+  const song = useSongStore((state) => state.song);
   const t = useTranslations('LanguageSwitcher');
-  const nextSearchParams = new URLSearchParams(searchParams.toString());
-  nextSearchParams.set('song', songId);
-  const href = `${pathname}?${nextSearchParams.toString()}`;
+  const href = getLocaleSwitchHref(pathname, searchParams, song.id);
+  const shouldClearTransientSong =
+    searchParams.get(TRANSIENT_LOCALE_SWITCH_PARAM) === '1';
+  const languageMenuStyle = {
+    '--language-bg': song.colors.background,
+    '--language-ink': song.colors.ink,
+    '--language-accent': song.colors.accent,
+    '--language-rule': song.colors.rule,
+    '--language-hover': `color-mix(in srgb, ${song.colors.accent} 18%, ${song.colors.background})`,
+  } as CSSProperties;
+
+  useEffect(() => {
+    if (!shouldClearTransientSong) {
+      return;
+    }
+
+    const cleanHref = getHrefWithoutTransientSong(window.location.href);
+
+    if (cleanHref) {
+      window.history.replaceState(window.history.state, '', cleanHref);
+    }
+  }, [shouldClearTransientSong]);
 
   return (
     <Popover>
@@ -41,7 +66,8 @@ export function LanguageSwitcher() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-40 rounded-none border border-[var(--hero-rule)] bg-[var(--hero-bg)] p-1 text-[var(--hero-ink)] shadow-lg"
+        style={languageMenuStyle}
+        className="w-40 rounded-none border border-[var(--language-rule)] bg-[var(--language-bg)] p-1 text-[var(--language-ink)] shadow-lg"
       >
         <nav aria-label={t('label')}>
           <ul>
@@ -90,8 +116,8 @@ function LanguageOption({
     <li>
       <Link
         className={cn(
-          'flex min-h-10 items-center gap-3 px-3 py-2 text-sm transition-colors hover:bg-[var(--hero-accent)] hover:text-[var(--hero-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hero-accent)]',
-          current && 'font-semibold',
+          'flex min-h-10 items-center gap-3 px-3 py-2 text-sm text-[var(--language-ink)] transition-colors hover:bg-[var(--language-hover)] focus-visible:bg-[var(--language-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--language-accent)]',
+          current && 'bg-[var(--language-hover)] font-semibold',
         )}
         href={href}
         locale={locale}

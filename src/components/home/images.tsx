@@ -156,7 +156,7 @@ function PostCard({
                   isCoverLoaded ? 'opacity-100' : 'opacity-0',
                 ),
           )}
-          src={clipCDNImage(post.cover, { width: 720, quality: 78 })}
+          src={clipCDNImage(post.cover, { width: 900, quality: 78 })}
           alt={t('coverAlt', { city: post.city })}
           loading="lazy"
           decoding="async"
@@ -419,7 +419,7 @@ export function ExpandedPost({
                         )}
                       />
                       <img
-                        src={clipCDNImage(src, { width: 1280, quality: 82 })}
+                        src={clipCDNImage(src, { width: 2560, quality: 82 })}
                         alt={t('photoAlt', {
                           city: post.city,
                           number: index + 1,

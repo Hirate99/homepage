@@ -88,7 +88,7 @@ export function AboutDrawer({ intro }: { intro: string }) {
                 Haonan Su
               </p>
             </div>
-            <p className="hidden max-w-[260px] text-right text-sm leading-6 text-[var(--about-ink)] opacity-70 sm:block">
+            <p className="hidden max-w-[260px] text-right text-sm leading-6 text-[var(--about-ink)] opacity-70 [line-break:strict] [text-wrap:balance] sm:block">
               {t('summary')}
             </p>
           </div>

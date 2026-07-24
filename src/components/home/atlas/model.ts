@@ -1,4 +1,4 @@
-import type { CityPost } from '@/lib/collections';
+import type { CityPost } from '@/features/collections/model/city-post';
 
 export type ZoomTier = 'world' | 'region' | 'place';
 

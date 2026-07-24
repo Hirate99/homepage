@@ -17,7 +17,7 @@ import { useTranslations } from 'next-intl';
 import type { GlobeMethods } from 'react-globe.gl';
 import { MeshLambertMaterial } from 'three';
 
-import { type CityPost } from '@/lib/collections';
+import { type CityPost } from '@/features/collections/model/city-post';
 import { cn } from '@/lib/utils';
 import { useSongStore } from '@/providers/song-store-provider';
 

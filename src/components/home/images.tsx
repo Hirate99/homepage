@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-import { type CityPost } from '@/lib/collections';
+import { type CityPost } from '@/features/collections/model/city-post';
 import { clipCDNImage, cn } from '@/lib/utils';
 import {
   type TBreakingPointSizeConfig,

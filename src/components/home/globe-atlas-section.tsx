@@ -2,7 +2,7 @@
 
 import { type ComponentType, useEffect, useState } from 'react';
 
-import type { CityPost } from '@/lib/collections';
+import type { CityPost } from '@/features/collections/model/city-post';
 import { useSongStore } from '@/providers/song-store-provider';
 
 import { AtlasShell } from './atlas/atlas-shell';

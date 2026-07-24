@@ -55,7 +55,21 @@
     "zoomOut": "縮小",
     "zoomIn": "拡大",
     "resetView": "アトラスの表示をリセット",
-    "dockMeta": "{placeCount}か所 · {postCount}件"
+    "dockMeta": "{placeCount}か所 · {postCount}件",
+    "interactiveCountryMap": "{country}の詳細地図です。マーカーを選んで場所を表示できます。",
+    "interactivePlaceMap": "{country}の場所の詳細地図です。マーカーを選んで写真を表示できます。",
+    "countryMap": "国の詳細",
+    "placeMap": "場所の詳細",
+    "browseCountries": "国から探す",
+    "browseCountryPlaces": "{country}の場所",
+    "browsePlacePosts": "{place}の作品",
+    "searchLabel": "アトラスを検索",
+    "searchCountries": "国を検索",
+    "searchCountryPlaces": "{country}の場所を検索",
+    "searchPlacePosts": "{place}の作品を検索",
+    "resultCount": "{count}件",
+    "showMore": "さらに{count}件表示",
+    "noResults": "一致する場所はありません。"
   },
   "Gallery": {
     "openPost": "{city}の写真作品を開く",

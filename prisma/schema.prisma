@@ -5,39 +5,42 @@ datasource db {
 }
 
 generator client {
-    provider        = "prisma-client-js"
-    previewFeatures = ["driverAdapters"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 model Collection {
-    id      Int     @id @default(autoincrement())
-    title   String?
-    content String?
-    sortOrder Int?
-    locationName String?
-    country String?
-    region String?
-    latitude Float?
-    longitude Float?
-    description String?
+  id           Int     @id @default(autoincrement())
+  title        String?
+  content      String?
+  sortOrder    Int?
+  locationName String?
+  country      String?
+  region       String?
+  latitude     Float?
+  longitude    Float?
+  description  String?
 
-    /// Stores the `Image.id` used as cover for this collection.
-    coverImageId Int? @map("cover")
-    images Image[]
+  /// Stores the `Image.id` used as cover for this collection.
+  coverImageId Int?    @map("cover")
+  images       Image[]
 
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Image {
-    id  Int    @id @default(autoincrement())
-    src String
-    width  Int?
-    height Int?
+  id        Int    @id @default(autoincrement())
+  src       String
+  width     Int?
+  height    Int?
+  sortOrder Int?
 
-    collection   Collection? @relation(fields: [collectionId], references: [id])
-    collectionId Int?
+  collection   Collection? @relation(fields: [collectionId], references: [id])
+  collectionId Int?
 
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([collectionId, sortOrder])
 }

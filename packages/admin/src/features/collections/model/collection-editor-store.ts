@@ -27,6 +27,7 @@ export type EditorTask =
   | 'publish'
   | 'delete'
   | 'uploadImages'
+  | 'prepareImages'
   | 'searchLocation'
   | 'applyLocation';
 
@@ -36,7 +37,8 @@ interface EditorDraft {
   sortOrder: string;
   location: LocationFields;
   previews: PreviewItem[];
-  coverIndex: number;
+  coverPreviewId: string | null;
+  editingImages: CollectionImage[];
   editingCoverImageId: number | null;
 }
 
@@ -52,6 +54,7 @@ interface EditorTasks {
   publish: TaskStatus;
   delete: TaskStatus;
   uploadImages: TaskStatus;
+  prepareImages: TaskStatus;
   searchLocation: TaskStatus;
   applyLocation: TaskStatus;
 }
@@ -70,7 +73,8 @@ export interface CollectionEditorActions {
   patchDraft: (patch: Partial<EditorDraft>) => void;
   updateLocation: (updater: StateUpdater<LocationFields>) => void;
   setPreviews: (updater: StateUpdater<PreviewItem[]>) => void;
-  setCoverIndex: (updater: StateUpdater<number>) => void;
+  setCoverPreviewId: (updater: StateUpdater<string | null>) => void;
+  setEditingImages: (updater: StateUpdater<CollectionImage[]>) => void;
   patchLocationSearch: (patch: Partial<LocationSearchState>) => void;
   setTask: (task: EditorTask, status: TaskStatus) => void;
   setStatus: (status: string) => void;
@@ -106,7 +110,8 @@ const initialDraft: EditorDraft = {
   sortOrder: '',
   location: EMPTY_LOCATION,
   previews: [],
-  coverIndex: 0,
+  coverPreviewId: null,
+  editingImages: [],
   editingCoverImageId: null,
 };
 
@@ -122,6 +127,7 @@ const initialTasks: EditorTasks = {
   publish: 'idle',
   delete: 'idle',
   uploadImages: 'idle',
+  prepareImages: 'idle',
   searchLocation: 'idle',
   applyLocation: 'idle',
 };
@@ -171,11 +177,18 @@ export const useCollectionEditorStore = create<CollectionEditorState>()(
             previews: resolveUpdater(updater, state.draft.previews),
           },
         })),
-      setCoverIndex: (updater) =>
+      setCoverPreviewId: (updater) =>
         set((state) => ({
           draft: {
             ...state.draft,
-            coverIndex: resolveUpdater(updater, state.draft.coverIndex),
+            coverPreviewId: resolveUpdater(updater, state.draft.coverPreviewId),
+          },
+        })),
+      setEditingImages: (updater) =>
+        set((state) => ({
+          draft: {
+            ...state.draft,
+            editingImages: resolveUpdater(updater, state.draft.editingImages),
           },
         })),
       patchLocationSearch: (patch) =>
@@ -242,7 +255,8 @@ export const useCollectionEditorStore = create<CollectionEditorState>()(
               description: collection.description ?? '',
             },
             previews: [],
-            coverIndex: 0,
+            coverPreviewId: null,
+            editingImages: collection.images,
             editingCoverImageId: collection.coverImageId,
           },
           locationSearch: initialLocationSearch,

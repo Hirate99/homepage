@@ -12,7 +12,7 @@ import { prisma } from './prisma';
 import { redis } from './redis';
 import { uploadWebpToR2 } from './r2';
 
-const HOME_COLLECTIONS_CACHE_KEY = 'home:city-collections:v3';
+const HOME_COLLECTIONS_CACHE_KEY = 'home:city-collections:v4';
 
 function normalizeText(value: string | undefined) {
   const trimmed = value?.trim();
@@ -161,12 +161,13 @@ export async function publishCollection(
     });
 
     const createdImages = [];
-    for (const image of processedImages) {
+    for (const [index, image] of processedImages.entries()) {
       const createdImage = await client.image.create({
         data: {
           src: image.src,
           width: image.width,
           height: image.height,
+          sortOrder: index,
           collectionId: collection.id,
         },
       });

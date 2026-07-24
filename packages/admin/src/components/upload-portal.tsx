@@ -28,10 +28,73 @@ import {
   type CollectionRecord,
   type LocationFields,
   type LocationSuggestion,
+  type PreviewItem,
   useCollectionEditorStore,
 } from '@/features/collections/model/collection-editor-store';
 
-const PAGE_SIZE = 3;
+const PAGE_SIZE = 6;
+const PREVIEW_MAX_EDGE = 720;
+
+async function createPreviewItem(file: File): Promise<PreviewItem> {
+  const id = `${file.name}-${file.lastModified}-${crypto.randomUUID()}`;
+
+  if (typeof createImageBitmap !== 'function') {
+    return { id, file, url: URL.createObjectURL(file) };
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(
+      1,
+      PREVIEW_MAX_EDGE / Math.max(bitmap.width, bitmap.height),
+    );
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      bitmap.close();
+      return { id, file, url: URL.createObjectURL(file) };
+    }
+
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const thumbnail = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/webp', 0.82);
+    });
+
+    return {
+      id,
+      file,
+      url: URL.createObjectURL(thumbnail ?? file),
+    };
+  } catch {
+    return { id, file, url: URL.createObjectURL(file) };
+  }
+}
+
+function moveItem<T extends { id: string | number }>(
+  items: T[],
+  itemId: T['id'],
+  targetIndex: number,
+) {
+  const currentIndex = items.findIndex((item) => item.id === itemId);
+  if (
+    currentIndex === -1 ||
+    targetIndex < 0 ||
+    targetIndex >= items.length ||
+    currentIndex === targetIndex
+  ) {
+    return items;
+  }
+
+  const next = [...items];
+  const [moved] = next.splice(currentIndex, 1);
+  next.splice(targetIndex, 0, moved);
+  return next;
+}
 
 function formatUpdatedAt(value: string) {
   try {
@@ -63,7 +126,8 @@ export function UploadPortal() {
     patchDraft,
     updateLocation,
     setPreviews,
-    setCoverIndex,
+    setCoverPreviewId,
+    setEditingImages,
     patchLocationSearch,
     setTask,
     setStatus,
@@ -77,7 +141,8 @@ export function UploadPortal() {
     content,
     sortOrder,
     previews,
-    coverIndex,
+    coverPreviewId,
+    editingImages,
     location,
     editingCoverImageId,
   } = draft;
@@ -93,17 +158,25 @@ export function UploadPortal() {
   const isLoadingCollections = tasks.loadCollections === 'pending';
   const isDeleting = tasks.delete === 'pending';
   const isUploadingImages = tasks.uploadImages === 'pending';
+  const isPreparingImages = tasks.prepareImages === 'pending';
   const isSearchingLocation = tasks.searchLocation === 'pending';
   const isApplyingLocation = tasks.applyLocation === 'pending';
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextLocationLookupRef = useRef(false);
+  const draggedItemIdRef = useRef<string | number | null>(null);
+  const previewsRef = useRef(previews);
 
   useEffect(() => {
-    return () => {
-      previews.forEach((item) => URL.revokeObjectURL(item.url));
-    };
+    previewsRef.current = previews;
   }, [previews]);
+
+  useEffect(
+    () => () => {
+      previewsRef.current.forEach((item) => URL.revokeObjectURL(item.url));
+    },
+    [],
+  );
 
   useEffect(() => {
     const normalizedQuery = locationQuery.trim();
@@ -405,22 +478,17 @@ export function UploadPortal() {
       return;
     }
 
-    setPreviews((current) => {
-      const nextItems = files.map((file) => ({
-        id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
-        file,
-        url: URL.createObjectURL(file),
-      }));
+    setTask('prepareImages', 'pending');
+    setStatus(`Preparing ${files.length} lightweight preview(s)...`);
+    const nextItems: PreviewItem[] = [];
+    for (const file of files) {
+      nextItems.push(await createPreviewItem(file));
+    }
+    setTask('prepareImages', 'idle');
+    setPreviews((current) => [...current, ...nextItems]);
 
-      if (mode === 'edit') {
-        return nextItems;
-      }
-
-      return [...current, ...nextItems];
-    });
-
-    if (mode !== 'edit' && previews.length === 0) {
-      setCoverIndex(0);
+    if (mode !== 'edit' && !coverPreviewId) {
+      setCoverPreviewId(nextItems[0]?.id ?? null);
     }
 
     if (mode === 'edit') {
@@ -432,32 +500,28 @@ export function UploadPortal() {
       return;
     }
 
-    await readLocationHint(files);
+    setStatus(
+      `${files.length} image(s) added. Drag or use the arrow buttons to reorder.`,
+    );
   }
 
   function removePreview(previewId: string) {
     setPreviews((current) => {
-      const index = current.findIndex((item) => item.id === previewId);
-      if (index === -1) {
+      if (!current.some((item) => item.id === previewId)) {
         return current;
       }
 
-      const target = current[index];
+      const target = current.find((item) => item.id === previewId);
+      if (!target) {
+        return current;
+      }
       URL.revokeObjectURL(target.url);
 
-      setCoverIndex((selected) => {
-        if (selected === index) {
-          return 0;
-        }
-
-        if (selected > index) {
-          return selected - 1;
-        }
-
-        return selected;
-      });
-
-      return current.filter((item) => item.id !== previewId);
+      const next = current.filter((item) => item.id !== previewId);
+      setCoverPreviewId((selected) =>
+        selected === previewId ? (next[0]?.id ?? null) : selected,
+      );
+      return next;
     });
 
     setStatus('Image removed from draft.');
@@ -475,6 +539,10 @@ export function UploadPortal() {
     payload.set('title', title);
     payload.set('content', content);
     payload.set('sortOrder', sortOrder);
+    const coverIndex = Math.max(
+      0,
+      previews.findIndex((item) => item.id === coverPreviewId),
+    );
     payload.set('coverIndex', String(coverIndex));
     payload.set(
       'latitude',
@@ -539,6 +607,7 @@ export function UploadPortal() {
           content,
           sortOrder: sortOrder ? Number(sortOrder) : null,
           coverImageId: editingCoverImageId,
+          imageOrder: editingImages.map((image) => image.id),
           latitude: location.latitude,
           longitude: location.longitude,
           locationName: location.locationName,
@@ -682,6 +751,58 @@ export function UploadPortal() {
     }
   }
 
+  function movePreview(previewId: string, direction: -1 | 1) {
+    setPreviews((current) => {
+      const index = current.findIndex((item) => item.id === previewId);
+      return moveItem(current, previewId, index + direction);
+    });
+    setStatus('Image order changed.');
+  }
+
+  function moveEditingImage(imageId: number, direction: -1 | 1) {
+    setEditingImages((current) => {
+      const index = current.findIndex((item) => item.id === imageId);
+      return moveItem(current, imageId, index + direction);
+    });
+    setStatus('Image order changed. Save changes to publish it.');
+  }
+
+  function dropPreview(targetId: string) {
+    const draggedItemId = draggedItemIdRef.current;
+    if (
+      typeof draggedItemId !== 'string' ||
+      !draggedItemId.startsWith('preview:')
+    ) {
+      return;
+    }
+
+    const previewId = draggedItemId.slice('preview:'.length);
+    setPreviews((current) => {
+      const targetIndex = current.findIndex((item) => item.id === targetId);
+      return moveItem(current, previewId, targetIndex);
+    });
+    draggedItemIdRef.current = null;
+    setStatus('Image order changed.');
+  }
+
+  function dropEditingImage(targetId: number) {
+    const draggedItemId = draggedItemIdRef.current;
+    if (
+      typeof draggedItemId !== 'string' ||
+      !draggedItemId.startsWith('saved:')
+    ) {
+      return;
+    }
+
+    const imageId = Number(draggedItemId.slice('saved:'.length));
+    setEditingImages((current) => {
+      const targetIndex = current.findIndex((item) => item.id === targetId);
+      return moveItem(current, imageId, targetIndex);
+    });
+    draggedItemIdRef.current = null;
+    setStatus('Image order changed. Save changes to publish it.');
+  }
+
   const selectedCollection = collections.find(
     (item) => item.id === selectedCollectionId,
   );
@@ -696,28 +817,23 @@ export function UploadPortal() {
     isPublishing ||
     isDeleting ||
     isUploadingImages ||
+    isPreparingImages ||
     isApplyingLocation;
   const isLocationLookupBusy = isSearchingLocation || isApplyingLocation;
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="animate-heroFloat absolute -left-16 top-6 h-72 w-72 rounded-full bg-orange-300/35 blur-3xl" />
-        <div className="animate-heroFloat absolute -right-16 top-24 h-80 w-80 rounded-full bg-amber-200/35 blur-3xl [animation-delay:2s]" />
-        <div className="absolute bottom-8 left-1/2 h-60 w-[70%] -translate-x-1/2 rounded-full bg-orange-100/60 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto max-w-7xl">
-        <section className="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <main className="min-h-screen bg-[#f7f4ee] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1480px]">
+        <section className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-orange-950/10 pb-5">
           <div className="max-w-2xl">
             <p className="font-sans text-sm uppercase tracking-[0.18em] text-[--orange-7]">
               Local Admin
             </p>
-            <h1 className="font-display mt-3 text-5xl font-medium leading-[0.92] text-[--orange-9] sm:text-6xl">
-              Portal
+            <h1 className="font-display mt-1 text-4xl font-medium leading-none text-[--orange-9]">
+              Collections
             </h1>
-            <p className="mt-4 text-base leading-7 text-[--orange-8] sm:text-lg">
-              Create new posts, then edit or remove anything already published.
+            <p className="mt-2 text-sm leading-6 text-[--orange-8]">
+              Write, arrange images, and publish from one focused workspace.
             </p>
           </div>
 
@@ -734,8 +850,8 @@ export function UploadPortal() {
           </div>
         </section>
 
-        <div className="grid items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="shadow-glow self-start rounded-[32px] border border-orange-500/15 bg-white/70 p-4 backdrop-blur-xl">
+        <div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="self-start rounded-3xl border border-orange-950/10 bg-white p-3 shadow-sm lg:sticky lg:top-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="font-sans text-xs uppercase tracking-[0.18em] text-[--orange-7]">
@@ -768,10 +884,10 @@ export function UploadPortal() {
                       key={collection.id}
                       type="button"
                       onClick={() => loadCollectionIntoForm(collection)}
-                      className={`w-full overflow-hidden rounded-[24px] border text-left transition-[transform,border-color,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 ${
+                      className={`flex w-full items-center overflow-hidden rounded-2xl border text-left transition-colors ${
                         active
-                          ? 'border-orange-500/45 bg-orange-50 shadow-sm shadow-orange-200/40'
-                          : 'border-orange-500/10 bg-white/75 hover:border-orange-500/25 hover:bg-white/90'
+                          ? 'border-orange-500/45 bg-orange-50'
+                          : 'border-orange-500/10 bg-white hover:border-orange-500/25 hover:bg-orange-50/50'
                       }`}
                     >
                       {cover ? (
@@ -779,10 +895,12 @@ export function UploadPortal() {
                         <img
                           src={cover.src}
                           alt={collection.title}
-                          className="aspect-[4/3] w-full object-cover transition-transform duration-300 ease-out"
+                          loading="lazy"
+                          decoding="async"
+                          className="h-20 w-24 shrink-0 object-cover"
                         />
                       ) : null}
-                      <div className="space-y-1 p-4">
+                      <div className="min-w-0 flex-1 space-y-1 p-3">
                         <div className="flex items-center justify-between gap-3">
                           <span className="truncate font-sans text-sm font-semibold text-[--orange-9]">
                             {collection.title || `#${collection.id}`}
@@ -838,7 +956,7 @@ export function UploadPortal() {
           <form
             ref={formRef}
             onSubmit={mode === 'create' ? handleCreate : handleUpdate}
-            className="animate-panelRise shadow-glow rounded-[32px] border border-orange-500/15 bg-white/70 p-5 backdrop-blur-xl transition-[box-shadow,border-color] duration-300 ease-out sm:p-7"
+            className="rounded-3xl border border-orange-950/10 bg-white p-5 shadow-sm sm:p-7"
           >
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -865,7 +983,7 @@ export function UploadPortal() {
               ) : null}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            <div className="grid gap-6">
               <section className="space-y-6">
                 <div className="grid gap-5 md:grid-cols-2">
                   <label className="md:col-span-2">
@@ -925,7 +1043,7 @@ export function UploadPortal() {
                   </div>
                 ) : null}
 
-                <div className="border-orange-500/12 rounded-[28px] border bg-orange-50/65 p-4">
+                <div className="rounded-3xl border border-orange-500/15 bg-orange-50/50 p-4 sm:p-5">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -969,13 +1087,7 @@ export function UploadPortal() {
                     </div>
                   </div>
 
-                  <div
-                    className={`grid gap-4 ${
-                      mode === 'edit'
-                        ? 'sm:grid-cols-2 xl:grid-cols-2'
-                        : 'lg:grid-cols-2'
-                    }`}
-                  >
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {mode === 'create' ? (
                       previews.length === 0 ? (
                         <div className="rounded-3xl border border-dashed border-orange-500/20 bg-white/70 p-6 text-sm text-[--orange-8]">
@@ -985,20 +1097,32 @@ export function UploadPortal() {
                         previews.map((preview, index) => (
                           <div
                             key={preview.id}
-                            className="border-orange-500/12 hover:border-orange-500/28 group overflow-hidden rounded-[26px] border bg-white shadow-[0_14px_36px_rgba(95,44,15,0.08)] transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:shadow-[0_18px_44px_rgba(95,44,15,0.14)]"
+                            draggable={!isBusy}
+                            onDragStart={() => {
+                              draggedItemIdRef.current = `preview:${preview.id}`;
+                            }}
+                            onDragEnd={() => {
+                              draggedItemIdRef.current = null;
+                            }}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => dropPreview(preview.id)}
+                            className="group overflow-hidden rounded-2xl border border-orange-500/15 bg-white"
                           >
                             <div className="relative">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={preview.url}
                                 alt={preview.file.name}
-                                className="aspect-[5/4] w-full object-cover transition duration-300 ease-out group-hover:scale-[1.02]"
+                                loading="lazy"
+                                decoding="async"
+                                draggable={false}
+                                className="aspect-[4/3] w-full object-cover"
                               />
                               <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
                                 <span className="bg-white/88 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[--orange-9] shadow-sm">
                                   New {index + 1}
                                 </span>
-                                {coverIndex === index ? (
+                                {coverPreviewId === preview.id ? (
                                   <span className="rounded-full bg-[--orange-9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white shadow-sm">
                                     Cover
                                   </span>
@@ -1008,20 +1132,22 @@ export function UploadPortal() {
                                 <div className="flex items-center gap-2">
                                   <Button
                                     variant={
-                                      coverIndex === index
+                                      coverPreviewId === preview.id
                                         ? 'secondary'
                                         : 'default'
                                     }
                                     size="sm"
                                     className={
-                                      coverIndex === index
+                                      coverPreviewId === preview.id
                                         ? 'bg-white/92 min-w-0 flex-1 px-3'
                                         : 'min-w-0 flex-1 bg-white px-3 text-[--orange-9] hover:bg-white'
                                     }
-                                    onClick={() => setCoverIndex(index)}
+                                    onClick={() =>
+                                      setCoverPreviewId(preview.id)
+                                    }
                                     disabled={isBusy}
                                   >
-                                    {coverIndex === index
+                                    {coverPreviewId === preview.id
                                       ? 'Cover'
                                       : 'Set Cover'}
                                   </Button>
@@ -1041,26 +1167,60 @@ export function UploadPortal() {
                               <p className="truncate text-sm text-[--orange-8]">
                                 {preview.file.name}
                               </p>
+                              <div className="mt-3 flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => movePreview(preview.id, -1)}
+                                  disabled={isBusy || index === 0}
+                                  className="flex-1"
+                                >
+                                  Earlier
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => movePreview(preview.id, 1)}
+                                  disabled={
+                                    isBusy || index === previews.length - 1
+                                  }
+                                  className="flex-1"
+                                >
+                                  Later
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ))
                       )
-                    ) : selectedCollection?.images.length ? (
-                      selectedCollection.images.map((image) => (
+                    ) : editingImages.length ? (
+                      editingImages.map((image, index) => (
                         <div
                           key={image.id}
-                          className="border-orange-500/12 hover:border-orange-500/28 group overflow-hidden rounded-[26px] border bg-white shadow-[0_14px_36px_rgba(95,44,15,0.08)] transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:shadow-[0_18px_44px_rgba(95,44,15,0.14)]"
+                          draggable={!isBusy}
+                          onDragStart={() => {
+                            draggedItemIdRef.current = `saved:${image.id}`;
+                          }}
+                          onDragEnd={() => {
+                            draggedItemIdRef.current = null;
+                          }}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => dropEditingImage(image.id)}
+                          className="group overflow-hidden rounded-2xl border border-orange-500/15 bg-white"
                         >
                           <div className="relative">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={image.src}
-                              alt={selectedCollection.title}
-                              className="aspect-[4/3] w-full object-cover transition duration-300 ease-out group-hover:scale-[1.02]"
+                              alt={selectedCollection?.title ?? title}
+                              loading="lazy"
+                              decoding="async"
+                              draggable={false}
+                              className="aspect-[4/3] w-full object-cover"
                             />
                             <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
                               <span className="bg-white/88 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[--orange-9] shadow-sm">
-                                #{image.id}
+                                Image {index + 1}
                               </span>
                               {editingCoverImageId === image.id ? (
                                 <span className="rounded-full bg-[--orange-9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white shadow-sm">
@@ -1107,6 +1267,28 @@ export function UploadPortal() {
                               </div>
                             </div>
                           </div>
+                          <div className="flex gap-2 p-3">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => moveEditingImage(image.id, -1)}
+                              disabled={isBusy || index === 0}
+                              className="flex-1"
+                            >
+                              Earlier
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => moveEditingImage(image.id, 1)}
+                              disabled={
+                                isBusy || index === editingImages.length - 1
+                              }
+                              className="flex-1"
+                            >
+                              Later
+                            </Button>
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -1129,6 +1311,8 @@ export function UploadPortal() {
                             <img
                               src={preview.url}
                               alt={preview.file.name}
+                              loading="lazy"
+                              decoding="async"
                               className="aspect-[4/3] w-full object-cover"
                             />
                             <div className="space-y-2 p-4">
@@ -1147,18 +1331,25 @@ export function UploadPortal() {
                 </div>
               </section>
 
-              <aside className="space-y-5">
-                <section className="border-orange-500/12 bg-white/78 rounded-[28px] border p-5 shadow-sm">
-                  <h3 className="font-display text-2xl text-[--orange-9]">
-                    Location
-                  </h3>
+              <div className="space-y-5">
+                <details className="group rounded-3xl border border-orange-500/15 bg-orange-50/40 p-5">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+                    <span className="font-display text-2xl text-[--orange-9]">
+                      Location
+                    </span>
+                    <span className="max-w-[60%] truncate text-sm text-[--orange-7]">
+                      {location.locationName ||
+                        location.country ||
+                        'Optional details'}
+                    </span>
+                  </summary>
                   <p className="mt-2 text-sm leading-6 text-[--orange-8]">
                     EXIF can prefill coordinates. Search and pick a place when
                     needed.
                   </p>
 
-                  <div className="mt-5 grid gap-4">
-                    <div className="border-orange-500/12 rounded-[24px] border bg-orange-50/55 p-4">
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-orange-500/15 bg-white p-4 sm:col-span-2 lg:col-span-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <p className="text-xs uppercase tracking-[0.16em] text-[--orange-7]">
                           Lookup
@@ -1334,20 +1525,24 @@ export function UploadPortal() {
                       />
                     </label>
                   </div>
-                </section>
+                </details>
 
-                <section className="border-orange-500/12 rounded-[28px] border bg-[--orange-9] p-5 text-white shadow-sm">
+                <section
+                  className="sticky bottom-3 z-20 rounded-2xl border border-orange-950/10 bg-[--orange-9] p-4 text-white shadow-xl sm:flex sm:items-center sm:gap-4"
+                  aria-live="polite"
+                  aria-busy={isBusy}
+                >
                   <p className="text-xs uppercase tracking-[0.18em] text-orange-200/80">
                     Status
                   </p>
-                  <p className="mt-3 text-sm leading-7 text-orange-100/90">
+                  <p className="mt-2 min-w-0 flex-1 text-sm leading-6 text-orange-100/90 sm:mt-0">
                     {status}
                   </p>
                   <Button
                     type="submit"
                     variant="secondary"
                     disabled={isBusy}
-                    className="mt-6 w-full bg-white"
+                    className="mt-4 w-full bg-white sm:ml-auto sm:mt-0 sm:w-auto sm:min-w-36"
                   >
                     {mode === 'create'
                       ? isPublishing
@@ -1358,7 +1553,7 @@ export function UploadPortal() {
                         : 'Save Changes'}
                   </Button>
                 </section>
-              </aside>
+              </div>
             </div>
           </form>
         </div>

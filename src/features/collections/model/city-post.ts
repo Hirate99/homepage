@@ -32,6 +32,7 @@ export interface CollectionPostImage {
   src: string;
   width: number | null;
   height: number | null;
+  sortOrder?: number | null;
 }
 
 export interface CollectionPostSource {

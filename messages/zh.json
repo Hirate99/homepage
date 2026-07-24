@@ -58,6 +58,12 @@
     "dockMeta": "{placeCount} 个地点 · {postCount} 组作品",
     "interactiveCountryMap": "{country}详细地图。选择地图标记继续浏览地点。",
     "interactivePlaceMap": "{country}地点详细地图。选择地图标记打开摄影作品。",
+    "loadingCountryMap": "正在加载{country}地图",
+    "mapClusterLabel": "附近有 {count} 个地点，放大查看详情。",
+    "reportMapIssue": "报告地图问题",
+    "mapTilesUnavailable": "地图底图暂时无法加载，你仍可从列表浏览全部地点。",
+    "enteringCountry": "正在进入{country}",
+    "returningToWorld": "正在返回世界视角",
     "countryMap": "国家详情",
     "placeMap": "地点详情",
     "browseCountries": "浏览国家",
@@ -69,7 +75,9 @@
     "searchPlacePosts": "搜索{place}的作品",
     "resultCount": "{count} 个结果",
     "showMore": "再显示 {count} 项",
-    "noResults": "没有匹配的地点。"
+    "noResults": "没有匹配的地点。",
+    "exploreSelection": "进入此地点",
+    "openStory": "打开这组作品"
   },
   "Gallery": {
     "openPost": "打开{city}摄影作品",

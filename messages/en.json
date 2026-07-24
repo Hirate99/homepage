@@ -58,6 +58,12 @@
     "dockMeta": "{placeCount, plural, one {# place} other {# places}} · {postCount, plural, one {# post} other {# posts}}",
     "interactiveCountryMap": "{country} detail map. Select a marker to explore its places.",
     "interactivePlaceMap": "{country} place detail map. Select a marker to open its photographs.",
+    "loadingCountryMap": "Loading the {country} map",
+    "mapClusterLabel": "{count} nearby places. Zoom in to separate them.",
+    "reportMapIssue": "Report a map issue",
+    "mapTilesUnavailable": "The map background is temporarily unavailable. You can still browse every place from the list.",
+    "enteringCountry": "Entering {country}",
+    "returningToWorld": "Returning to the world view",
     "countryMap": "Country detail",
     "placeMap": "Place detail",
     "browseCountries": "Browse countries",
@@ -69,7 +75,9 @@
     "searchPlacePosts": "Search stories from {place}",
     "resultCount": "{count, plural, one {# result} other {# results}}",
     "showMore": "Show {count} more",
-    "noResults": "No matching places."
+    "noResults": "No matching places.",
+    "exploreSelection": "Explore this place",
+    "openStory": "Open this story"
   },
   "Gallery": {
     "openPost": "Open photo post for {city}",

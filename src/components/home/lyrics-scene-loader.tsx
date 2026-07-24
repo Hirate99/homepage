@@ -2,8 +2,6 @@
 
 import dynamic from 'next/dynamic';
 
-import type { SongDefinition } from './songs';
-
 const LyricsScene = dynamic(
   () => import('./lyrics-scene').then((module) => module.LyricsScene),
   {
@@ -17,6 +15,6 @@ const LyricsScene = dynamic(
   },
 );
 
-export function LyricsSceneLoader({ song }: { song: SongDefinition }) {
-  return <LyricsScene song={song} />;
+export function LyricsSceneLoader() {
+  return <LyricsScene />;
 }

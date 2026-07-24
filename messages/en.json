@@ -1,0 +1,70 @@
+{
+  "Metadata": {
+    "title": "Haonan Su’s Homepage",
+    "description": "Portfolio of Haonan Su (苏浩南), a software engineer and photographer in Los Angeles, featuring selected work and a place-based photo atlas.",
+    "imageAlt": "Photographic work by Haonan Su",
+    "jobTitle": "Software Engineer",
+    "softwareEngineering": "Software engineering",
+    "photography": "Photography"
+  },
+  "Hero": {
+    "primaryNavigation": "Primary navigation",
+    "resume": "Resume",
+    "openResume": "Open resume in a new tab",
+    "email": "Email",
+    "emailHaonan": "Email Haonan Su",
+    "greeting": "Hi, I'm",
+    "atlas": "Atlas"
+  },
+  "LanguageSwitcher": {
+    "label": "Language",
+    "switchTo": "Switch language to {language}",
+    "currentLanguage": "Current language: {language}"
+  },
+  "Roles": {
+    "prefix": "a",
+    "softwareEngineer": "Software Engineer",
+    "photographer": "Photographer"
+  },
+  "About": {
+    "button": "About",
+    "open": "Open about Haonan Su",
+    "title": "About Haonan Su",
+    "description": "Profile, experience, projects, and personal interests for Haonan Su.",
+    "close": "Close about panel",
+    "eyebrow": "Profile / 2026",
+    "summary": "Software engineer and visual maker based in Los Angeles.",
+    "github": "Haonan Su on GitHub",
+    "linkedin": "Haonan Su on LinkedIn",
+    "instagram": "Haonan Su on Instagram"
+  },
+  "Atlas": {
+    "eyebrow": "Atlas / 2026",
+    "title": "Places.",
+    "countries": "{count, plural, one {country} other {countries}}",
+    "places": "{count, plural, one {place} other {places}}",
+    "posts": "{count, plural, one {post} other {posts}}",
+    "summary": "{countryCount, plural, one {# country} other {# countries}}, {placeCount, plural, one {# place} other {# places}}",
+    "loading": "Preparing atlas",
+    "loadingLabel": "Loading atlas",
+    "loadError": "The atlas could not load.",
+    "retry": "Try again",
+    "interactiveGlobe": "Interactive globe. Drag to rotate, scroll the mouse wheel, use the zoom controls, or pinch to zoom, and select a map marker to explore photographs.",
+    "locationNavigation": "Atlas location",
+    "world": "World",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "resetView": "Reset atlas view",
+    "dockMeta": "{placeCount, plural, one {# place} other {# places}} · {postCount, plural, one {# post} other {# posts}}"
+  },
+  "Gallery": {
+    "openPost": "Open photo post for {city}",
+    "coverAlt": "{city} cover",
+    "closeExpandedPost": "Close expanded photo post",
+    "photoPost": "{city} photo post",
+    "closePost": "Close photo post",
+    "photoAlt": "{city} photo {number}",
+    "previousPhoto": "Previous photo",
+    "nextPhoto": "Next photo"
+  }
+}

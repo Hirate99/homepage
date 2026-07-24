@@ -53,6 +53,7 @@
     "lucide-react": "latest",
     "marked-react": "^2.0.0",
     "next": "^16.2.11",
+    "next-intl": "^4.13.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-globe.gl": "^2.37.0",
@@ -62,7 +63,8 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "0.183.2",
     "vaul": "^1.1.2",
-    "ws": "^8.18.1"
+    "ws": "^8.18.1",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.16",

@@ -19,15 +19,16 @@ import {
 } from 'three';
 
 import { notoSerif } from '@/fonts';
+import { useSongStore } from '@/providers/song-store-provider';
 
 import { createMobileLayout, getLyricCues } from './lyrics-scene/layout';
 import { createLyricMesh } from './lyrics-scene/lyric-mesh';
 import { createAtmosphere } from './lyrics-scene/scene-objects';
 import { loadSongSceneTheme } from './lyrics-scene/themes';
 import type { LyricMesh } from './lyrics-scene/types';
-import type { SongDefinition } from './songs';
 
-export function LyricsScene({ song }: { song: SongDefinition }) {
+export function LyricsScene() {
+  const song = useSongStore((state) => state.song);
   const containerRef = useRef<HTMLDivElement>(null);
   const fontProbeRef = useRef<HTMLSpanElement>(null);
 
@@ -223,6 +224,8 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
       let frameId = 0;
       let sceneIsVisible = true;
       let documentIsVisible = document.visibilityState === 'visible';
+      let lastIsCompact: boolean | null = null;
+      let lastLyricScale: number | null = null;
 
       const hitTest = (event: PointerEvent) => {
         if (!containerRef.current) {
@@ -303,7 +306,16 @@ export function LyricsScene({ song }: { song: SongDefinition }) {
           : aspect < 1
             ? 0.84
             : 1;
-        lyricGroup.scale.set(compactScale, compactScale, compactScale);
+        if (lastLyricScale !== compactScale) {
+          lyricGroup.scale.set(compactScale, compactScale, compactScale);
+          lastLyricScale = compactScale;
+        }
+
+        if (lastIsCompact === isCompact) {
+          return;
+        }
+        lastIsCompact = isCompact;
+
         environment.resize(isCompact);
 
         meshes.forEach((mesh, index) => {

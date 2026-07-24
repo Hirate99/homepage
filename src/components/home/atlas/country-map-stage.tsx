@@ -451,9 +451,7 @@ export function CountryMapStage({
           pitchWithRotate: false,
           touchPitch: false,
           scrollZoom: true,
-          cooperativeGestures:
-            navigator.maxTouchPoints > 0 ||
-            window.matchMedia('(pointer: coarse)').matches,
+          cooperativeGestures: false,
         });
 
         mapRef.current = map;

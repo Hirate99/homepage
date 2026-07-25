@@ -207,6 +207,7 @@ function GlobeStage({
   cameraTarget,
   cameraFocusKey,
   autoRotateEnabled,
+  isInteractionActive,
   zoomScale,
   zoomTier,
   activeMarkerId,
@@ -224,6 +225,7 @@ function GlobeStage({
   cameraTarget: MarkerNode | null;
   cameraFocusKey: number;
   autoRotateEnabled: boolean;
+  isInteractionActive: boolean;
   zoomScale: number;
   zoomTier: ZoomTier;
   activeMarkerId: string | null;
@@ -280,6 +282,7 @@ function GlobeStage({
   } | null>(null);
   const hasRequestedCountryEntryRef = useRef(false);
   const autoRotateEnabledRef = useRef(autoRotateEnabled);
+  const isInteractionActiveRef = useRef(isInteractionActive);
   const isPinchActiveRef = useRef(false);
   const globeMaterial = useMemo(
     () =>
@@ -407,6 +410,10 @@ function GlobeStage({
   }, [autoRotateEnabled]);
 
   useEffect(() => {
+    isInteractionActiveRef.current = isInteractionActive;
+  }, [isInteractionActive]);
+
+  useEffect(() => {
     if (!isGlobeReady || !globeRef.current) {
       return;
     }
@@ -420,7 +427,7 @@ function GlobeStage({
       : hasFocusShift
         ? cameraTarget
           ? 980
-          : 620
+          : 520
         : 0;
     const nextView = hasFocusShift
       ? cameraTarget
@@ -454,7 +461,9 @@ function GlobeStage({
         }
 
         nextControls.autoRotate =
-          autoRotateEnabled && !isPointerOverGlobeRef.current;
+          isInteractionActiveRef.current &&
+          autoRotateEnabledRef.current &&
+          !isPointerOverGlobeRef.current;
       }, focusDuration + 40);
     }
 
@@ -474,7 +483,9 @@ function GlobeStage({
       return;
     }
 
-    if (isStageActive) {
+    const shouldAnimateStage = isStageActive && isInteractionActive;
+
+    if (shouldAnimateStage) {
       globeRef.current.resumeAnimation();
     } else {
       globeRef.current.pauseAnimation();
@@ -487,14 +498,24 @@ function GlobeStage({
     controls.dampingFactor = 0.08;
     controls.rotateSpeed = zoomTier === 'world' ? 0.85 : 0.65;
     controls.autoRotate =
-      isStageActive && autoRotateEnabled && !isPointerOverGlobeRef.current;
-    controls.autoRotateSpeed = zoomTier === 'world' ? 0.55 : 0.32;
-  }, [autoRotateEnabled, isGlobeReady, isStageActive, zoomTier]);
+      shouldAnimateStage &&
+      autoRotateEnabled &&
+      !isPointerOverGlobeRef.current &&
+      performance.now() >= focusTransitionUntilRef.current;
+    controls.autoRotateSpeed = zoomTier === 'world' ? 0.3 : 0.22;
+  }, [
+    autoRotateEnabled,
+    isGlobeReady,
+    isInteractionActive,
+    isStageActive,
+    zoomTier,
+  ]);
 
   useEffect(() => {
     if (
       !isGlobeReady ||
       !isStageActive ||
+      !isInteractionActive ||
       !globeRef.current ||
       viewport.width === 0 ||
       viewport.height === 0
@@ -594,7 +615,7 @@ function GlobeStage({
         focusTransitionTimerRef.current = null;
       }
     };
-  }, [isGlobeReady, isStageActive, viewport]);
+  }, [isGlobeReady, isInteractionActive, isStageActive, viewport]);
 
   const handlePointerEnter = () => {
     isPointerOverGlobeRef.current = true;
@@ -608,7 +629,11 @@ function GlobeStage({
     isPointerOverGlobeRef.current = false;
     const controls = globeRef.current?.controls();
     if (controls) {
-      controls.autoRotate = isStageActive && autoRotateEnabled;
+      controls.autoRotate =
+        isStageActive &&
+        isInteractionActive &&
+        autoRotateEnabled &&
+        performance.now() >= focusTransitionUntilRef.current;
     }
     onHoverMarker(null);
   };
@@ -644,6 +669,7 @@ function GlobeStage({
       controls.enabled = !active;
       controls.autoRotate =
         !active &&
+        isInteractionActiveRef.current &&
         autoRotateEnabledRef.current &&
         !isPointerOverGlobeRef.current;
     };
@@ -691,6 +717,11 @@ function GlobeStage({
     };
 
     const runWheelInertia = () => {
+      if (!isInteractionActiveRef.current) {
+        stopWheelInertia();
+        return;
+      }
+
       const momentum = wheelMomentumRef.current;
       if (Math.abs(momentum) < 0.0025) {
         stopWheelInertia();
@@ -726,6 +757,13 @@ function GlobeStage({
     };
 
     const handleWheel = (event: WheelEvent) => {
+      if (!isInteractionActiveRef.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        stopWheelInertia();
+        return;
+      }
+
       const delta =
         event.deltaMode === WheelEvent.DOM_DELTA_LINE
           ? event.deltaY * 12
@@ -776,6 +814,14 @@ function GlobeStage({
     };
 
     const handleTouchStart = (event: TouchEvent) => {
+      if (!isInteractionActiveRef.current) {
+        if (event.touches.length >= 2) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+
       if (event.touches.length < 2) {
         return;
       }
@@ -886,7 +932,7 @@ function GlobeStage({
             bumpImageUrl={ATLAS_TEXTURES.elevation}
             globeMaterial={globeMaterial}
             waitForGlobeReady
-            animateIn={!reduceMotion}
+            animateIn={false}
             showAtmosphere
             atmosphereColor={theme.atmosphere}
             atmosphereAltitude={theme.globe.atmosphereAltitude}
@@ -1076,6 +1122,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const [transitionDirection, setTransitionDirection] = useState<
     'enter' | 'exit' | null
   >(null);
+  const atlasViewportRef = useRef<HTMLDivElement>(null);
   const transitionTimersRef = useRef<number[]>([]);
 
   useEffect(() => {
@@ -1085,6 +1132,27 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const viewport = atlasViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const keepWheelInsideAtlas = (event: WheelEvent) => {
+      if (isLevelTransitioning || displayZoomTier !== 'world') {
+        event.preventDefault();
+      }
+    };
+
+    viewport.addEventListener('wheel', keepWheelInsideAtlas, {
+      passive: false,
+    });
+
+    return () => {
+      viewport.removeEventListener('wheel', keepWheelInsideAtlas);
+    };
+  }, [displayZoomTier, isLevelTransitioning]);
 
   useEffect(() => {
     if (displayZoomTier === 'place') {
@@ -1243,9 +1311,9 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setSelectedLocationId(country.locations[0]?.id ?? selectedLocation.id);
     setActivePostId(country.locations[0]?.posts[0]?.id ?? activePost.id);
     focusCamera(country.id, { freezeRotation: true });
-    setZoomScale(ZOOM_SCALE.region);
 
     if (shouldReduceMotion) {
+      setZoomScale(ZOOM_SCALE.region);
       setDisplayZoomTier('region');
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
@@ -1256,11 +1324,12 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setTransitionDirection('enter');
     scheduleTransitionStep(() => {
       setDisplayZoomTier('region');
-    }, 220);
+    }, 120);
     scheduleTransitionStep(() => {
+      setZoomScale(ZOOM_SCALE.region);
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
-    }, 620);
+    }, 540);
   };
 
   const returnToWorld = (resetSelection = false) => {
@@ -1304,12 +1373,14 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       setZoomScale(ZOOM_SCALE.world);
       setCameraTargetId(null);
       setCameraFocusKey((current) => current + 1);
-    }, 80);
+    }, 40);
     scheduleTransitionStep(() => {
-      setIsAutoRotateFrozen(false);
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
-    }, 620);
+    }, 580);
+    scheduleTransitionStep(() => {
+      setIsAutoRotateFrozen(false);
+    }, 760);
   };
 
   const handleCountrySelection = (markerId: string) => {
@@ -1534,7 +1605,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
           </header>
 
           <div className="grid min-w-0 overflow-hidden border-y border-[var(--atlas-rule)] bg-[var(--atlas-panel)] sm:rounded-[24px] sm:border lg:h-[min(74svh,720px)] lg:min-h-[600px] lg:grid-cols-[minmax(0,1fr)_352px]">
-            <div className="relative isolate h-[min(54svh,520px)] min-h-[360px] min-w-0 overflow-hidden lg:h-full">
+            <div
+              ref={atlasViewportRef}
+              className="relative isolate h-[min(54svh,520px)] min-h-[360px] min-w-0 overflow-hidden lg:h-full"
+            >
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_right,var(--atlas-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--atlas-grid)_1px,transparent_1px)] bg-[size:48px_48px] opacity-45"
@@ -1552,7 +1626,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       transitionDirection === 'exit'
                         ? {
                             opacity: 0,
-                            scale: 0.96,
+                            scale: 0.985,
                           }
                         : { opacity: 1, scale: 1 }
                     }
@@ -1564,15 +1638,15 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           }
                         : {
                             opacity: 0,
-                            scale: 1.06,
+                            scale: 1.025,
                           }
                     }
                     exit={{
                       opacity: 0,
-                      scale: 1.06,
+                      scale: 1.025,
                     }}
                     transition={{
-                      duration: shouldReduceMotion ? 0 : 0.42,
+                      duration: shouldReduceMotion ? 0 : 0.38,
                       ease: [0.22, 1, 0.36, 1],
                     }}
                     className={cn(
@@ -1587,6 +1661,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       cameraFocusKey={cameraFocusKey}
                       autoRotateEnabled={
                         !isAutoRotateFrozen && !shouldReduceMotion
+                      }
+                      isInteractionActive={
+                        displayZoomTier === 'world' &&
+                        transitionDirection !== 'enter'
                       }
                       zoomScale={zoomScale}
                       zoomTier="world"
@@ -1611,13 +1689,13 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                     key={`atlas-country-layer-${selectedCountry.id}`}
                     initial={{
                       opacity: 0,
-                      scale: 0.96,
+                      scale: 0.985,
                     }}
                     animate={
                       displayZoomTier === 'world'
                         ? {
                             opacity: 0,
-                            scale: 0.96,
+                            scale: 0.985,
                           }
                         : {
                             opacity: 1,
@@ -1626,10 +1704,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                     }
                     exit={{
                       opacity: 0,
-                      scale: 0.96,
+                      scale: 0.985,
                     }}
                     transition={{
-                      duration: shouldReduceMotion ? 0 : 0.42,
+                      duration: shouldReduceMotion ? 0 : 0.38,
                       ease: [0.22, 1, 0.36, 1],
                     }}
                     className={cn(

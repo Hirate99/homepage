@@ -194,23 +194,43 @@ function createLocationData(nodes: LocationNode[]) {
   };
 }
 
-function createLocationLabelElement(label: string) {
-  const element = document.createElement('span');
-  element.textContent = label;
-  element.setAttribute('aria-hidden', 'true');
-  Object.assign(element.style, {
-    backdropFilter: 'blur(14px)',
-    background: 'color-mix(in srgb, var(--atlas-card) 92%, transparent)',
-    border: '1px solid var(--atlas-rule)',
-    borderRadius: '10px',
-    boxShadow: '0 10px 28px var(--atlas-shadow)',
-    color: 'var(--atlas-ink)',
-    fontSize: '13px',
-    fontWeight: '600',
-    padding: '8px 11px',
-    pointerEvents: 'none',
-    whiteSpace: 'nowrap',
+function createLocationLabelElement({
+  node,
+  placeOnLeft,
+  onPointerEnter,
+  onPointerLeave,
+  onSelect,
+}: {
+  node: LocationNode;
+  placeOnLeft: boolean;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+  onSelect: (element: HTMLButtonElement) => void;
+}) {
+  const element = document.createElement('button');
+  const label = document.createElement('span');
+
+  element.type = 'button';
+  element.dataset.atlasMapLabel = node.id;
+  element.className = placeOnLeft
+    ? 'group flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 pr-2 text-left outline-none'
+    : 'group flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 pl-2 text-left outline-none';
+  element.setAttribute('aria-label', node.label);
+  element.addEventListener('pointerenter', onPointerEnter);
+  element.addEventListener('pointerleave', onPointerLeave);
+  element.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onSelect(element);
   });
+
+  label.textContent = node.label;
+  label.className =
+    'block whitespace-nowrap rounded-[10px] border border-[var(--atlas-rule)] bg-[var(--atlas-card)]/92 px-[11px] py-2 text-[13px] font-semibold text-[var(--atlas-ink)] shadow-[0_10px_28px_var(--atlas-shadow)] backdrop-blur-[14px] transition-[background-color,box-shadow] group-hover:bg-[var(--atlas-card)] group-focus-visible:ring-2 group-focus-visible:ring-[var(--atlas-accent)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-transparent';
+  Object.assign(label.style, {
+    backdropFilter: 'blur(14px)',
+  });
+  element.appendChild(label);
 
   return element;
 }
@@ -297,6 +317,7 @@ export function CountryMapStage({
     let isCancelled = false;
     let resizeFrame = 0;
     let inputUnlockTimer = 0;
+    let hoverClearTimer = 0;
 
     setIsLoaded(false);
     setHasTileError(false);
@@ -497,9 +518,25 @@ export function CountryMapStage({
             map.getContainer().clientWidth - 170;
 
           labelMarkerRef.current = new maplibre.Marker({
-            element: createLocationLabelElement(node.label),
+            element: createLocationLabelElement({
+              node,
+              placeOnLeft,
+              onPointerEnter: () => {
+                window.clearTimeout(hoverClearTimer);
+                setHoveredLocation(node.id);
+              },
+              onPointerLeave: () => {
+                window.clearTimeout(hoverClearTimer);
+                hoverClearTimer = window.setTimeout(
+                  () => setHoveredLocation(null),
+                  80,
+                );
+              },
+              onSelect: (element) => {
+                selectMarkerRef.current(node.id, element);
+              },
+            }),
             anchor: placeOnLeft ? 'right' : 'left',
-            offset: placeOnLeft ? [-14, 0] : [14, 0],
           })
             .setLngLat([node.lng, node.lat])
             .addTo(map);
@@ -508,6 +545,9 @@ export function CountryMapStage({
         syncLocationLabelRef.current = syncLocationLabel;
 
         const setHoveredLocation = (id: string | null) => {
+          window.clearTimeout(hoverClearTimer);
+          hoverClearTimer = 0;
+
           if (hoveredMarkerIdRef.current === id) {
             return;
           }
@@ -524,7 +564,11 @@ export function CountryMapStage({
         });
         map.on('mouseleave', LOCATION_POINT_HIT_LAYER_ID, () => {
           map.getCanvas().style.cursor = '';
-          setHoveredLocation(null);
+          window.clearTimeout(hoverClearTimer);
+          hoverClearTimer = window.setTimeout(
+            () => setHoveredLocation(null),
+            80,
+          );
         });
         map.on('click', LOCATION_POINT_HIT_LAYER_ID, (event) => {
           const id = event.features?.[0]?.properties?.id;
@@ -623,6 +667,7 @@ export function CountryMapStage({
       isCancelled = true;
       window.cancelAnimationFrame(resizeFrame);
       window.clearTimeout(inputUnlockTimer);
+      window.clearTimeout(hoverClearTimer);
       syncLocationLabelRef.current = null;
       labelMarkerRef.current?.remove();
       labelMarkerRef.current = null;

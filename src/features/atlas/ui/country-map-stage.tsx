@@ -18,10 +18,6 @@ interface CountryMapStageProps {
   country: CountryNode;
   level: 'region' | 'place';
   nodes: LocationNode[];
-  mapTextures: {
-    compact: string;
-    detailed: string;
-  };
   detailRaster: {
     saturation: number;
     contrast: number;
@@ -45,10 +41,9 @@ declare global {
   }
 }
 
-const TILE_URL =
-  process.env.NEXT_PUBLIC_ATLAS_TILE_URL ??
-  'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const LAND_DATA_URL = '/vendor/atlas/ne_110m_land.geojson';
+const IMAGERY_TILE_URL =
+  process.env.NEXT_PUBLIC_ATLAS_IMAGERY_TILE_URL ??
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const MAPLIBRE_MODULE_URL = '/vendor/maplibre/maplibre-loader.mjs';
 const MAPLIBRE_STYLESHEET_URL = '/vendor/maplibre/maplibre-gl.css';
 const LOCATION_SOURCE_ID = 'atlas-locations';
@@ -56,14 +51,8 @@ const LOCATION_CLUSTER_LAYER_ID = 'atlas-location-clusters';
 const LOCATION_POINT_HIT_LAYER_ID = 'atlas-location-point-hit-area';
 const LOCATION_POINT_LAYER_ID = 'atlas-location-points';
 const LOCATION_ACTIVE_LAYER_ID = 'atlas-location-active';
-const LOCAL_DETAIL_MIN_ZOOM = 5.5;
 const COUNTRY_EXIT_ZOOM_DELTA = 0.72;
-const WEB_MERCATOR_IMAGE_COORDINATES = [
-  [-180, 85.0511287798],
-  [180, 85.0511287798],
-  [180, -85.0511287798],
-  [-180, -85.0511287798],
-] as [[number, number], [number, number], [number, number], [number, number]];
+const ENTRY_INPUT_LOCK_MS = 620;
 const COUNTRY_MAP_CONTROL_CLASSNAME =
   'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]';
 
@@ -145,11 +134,7 @@ function loadMapLibre() {
   return mapLibrePromise;
 }
 
-function fitCountry(
-  map: MapLibreMap,
-  country: CountryNode,
-  reduceMotion: boolean,
-) {
+function fitCountry(map: MapLibreMap, country: CountryNode) {
   const horizontalPadding = Math.max(
     24,
     Math.min(56, map.getContainer().clientWidth * 0.07),
@@ -168,10 +153,9 @@ function fitCountry(
   });
   const zoom = camera?.zoom ?? 2;
 
-  map.easeTo({
+  map.jumpTo({
     center: camera?.center ?? [country.lng, country.lat],
     zoom,
-    duration: reduceMotion ? 0 : 1050,
   });
 
   return zoom;
@@ -219,7 +203,6 @@ export function CountryMapStage({
   country,
   level,
   nodes,
-  mapTextures,
   detailRaster,
   accentColor,
   activeMarkerId,
@@ -292,6 +275,7 @@ export function CountryMapStage({
 
     let isCancelled = false;
     let resizeFrame = 0;
+    let inputUnlockTimer = 0;
 
     setIsLoaded(false);
     setHasTileError(false);
@@ -303,32 +287,18 @@ export function CountryMapStage({
           return;
         }
 
-        const firstNode = nodesRef.current[0];
-        const texture =
-          container.clientWidth * Math.max(window.devicePixelRatio || 1, 1) >=
-          720
-            ? mapTextures.detailed
-            : mapTextures.compact;
         const map = new maplibre.Map({
           container: containerRef.current,
           style: {
             version: 8,
             sources: {
-              atlasTerrain: {
-                type: 'image',
-                url: texture,
-                coordinates: WEB_MERCATOR_IMAGE_COORDINATES,
-              },
-              atlasLand: {
-                type: 'geojson',
-                data: LAND_DATA_URL,
-              },
-              osm: {
+              imagery: {
                 type: 'raster',
-                tiles: [TILE_URL],
+                tiles: [IMAGERY_TILE_URL],
                 tileSize: 256,
+                maxzoom: 23,
                 attribution:
-                  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                  'Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community',
               },
               [LOCATION_SOURCE_ID]: {
                 type: 'geojson',
@@ -340,98 +310,17 @@ export function CountryMapStage({
             },
             layers: [
               {
-                id: 'atlas-ocean',
-                type: 'background',
-                paint: {
-                  'background-color': '#07151d',
-                },
-              },
-              {
-                id: 'atlas-terrain',
+                id: 'imagery',
                 type: 'raster',
-                source: 'atlasTerrain',
-                paint: {
-                  'raster-fade-duration': 0,
-                  'raster-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    1,
-                    1,
-                    LOCAL_DETAIL_MIN_ZOOM,
-                    0.92,
-                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
-                    0,
-                  ],
-                },
-              },
-              {
-                id: 'atlas-land',
-                type: 'fill',
-                source: 'atlasLand',
-                paint: {
-                  'fill-color': '#f3f7f4',
-                  'fill-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    1,
-                    0.025,
-                    LOCAL_DETAIL_MIN_ZOOM,
-                    0.07,
-                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
-                    0,
-                  ],
-                },
-              },
-              {
-                id: 'atlas-coastline',
-                type: 'line',
-                source: 'atlasLand',
-                paint: {
-                  'line-color': '#d4e2df',
-                  'line-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    1,
-                    0.16,
-                    LOCAL_DETAIL_MIN_ZOOM,
-                    0.34,
-                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
-                    0,
-                  ],
-                  'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    1,
-                    0.5,
-                    7,
-                    1.25,
-                  ],
-                },
-              },
-              {
-                id: 'osm',
-                type: 'raster',
-                source: 'osm',
-                minzoom: LOCAL_DETAIL_MIN_ZOOM,
+                source: 'imagery',
                 paint: {
                   'raster-brightness-max': detailRaster.brightnessMax,
                   'raster-brightness-min': detailRaster.brightnessMin,
                   'raster-contrast': detailRaster.contrast,
-                  'raster-fade-duration': 180,
+                  'raster-fade-duration': 120,
                   'raster-hue-rotate': detailRaster.hueRotate,
-                  'raster-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    LOCAL_DETAIL_MIN_ZOOM,
-                    0,
-                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
-                    1,
-                  ],
+                  'raster-opacity': 1,
+                  'raster-resampling': 'linear',
                   'raster-saturation': detailRaster.saturation,
                 },
               },
@@ -524,8 +413,8 @@ export function CountryMapStage({
               },
             ],
           },
-          center: firstNode ? [firstNode.lng, firstNode.lat] : [0, 24],
-          zoom: firstNode ? 5 : 1.5,
+          center: [country.lng, country.lat],
+          zoom: 2,
           maxZoom: 17,
           minZoom: 0.5,
           attributionControl: false,
@@ -533,7 +422,7 @@ export function CountryMapStage({
           pitchWithRotate: false,
           touchPitch: false,
           touchZoomRotate: true,
-          scrollZoom: true,
+          scrollZoom: false,
           cooperativeGestures: false,
         });
 
@@ -649,13 +538,26 @@ export function CountryMapStage({
             return;
           }
 
-          const entryZoom = fitCountry(map, country, reduceMotionRef.current);
-          worldExitZoomRef.current = Math.max(
-            map.getMinZoom() + 0.05,
-            entryZoom - COUNTRY_EXIT_ZOOM_DELTA,
-          );
-          syncLocationLabel();
-          setIsLoaded(true);
+          resizeFrame = window.requestAnimationFrame(() => {
+            if (isCancelled) {
+              return;
+            }
+
+            map.resize();
+            const entryZoom = fitCountry(map, country);
+            worldExitZoomRef.current = Math.max(
+              map.getMinZoom() + 0.05,
+              entryZoom - COUNTRY_EXIT_ZOOM_DELTA,
+            );
+            syncLocationLabel();
+            setIsLoaded(true);
+
+            inputUnlockTimer = window.setTimeout(() => {
+              if (!isCancelled) {
+                map.scrollZoom.enable();
+              }
+            }, ENTRY_INPUT_LOCK_MS);
+          });
         });
 
         const resizeObserver = new ResizeObserver(() => {
@@ -685,13 +587,14 @@ export function CountryMapStage({
     return () => {
       isCancelled = true;
       window.cancelAnimationFrame(resizeFrame);
+      window.clearTimeout(inputUnlockTimer);
       syncLocationLabelRef.current = null;
       labelMarkerRef.current?.remove();
       labelMarkerRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [accentColor, country, detailRaster, mapTextures]);
+  }, [accentColor, country, detailRaster]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -755,23 +658,14 @@ export function CountryMapStage({
       </div>
 
       <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 flex items-end justify-between gap-3 sm:inset-x-4 sm:bottom-4">
-        <div className="bg-[var(--atlas-card)]/86 pointer-events-auto flex items-center gap-1.5 rounded-full border border-[var(--atlas-rule)] px-2.5 py-1 text-[9px] font-medium text-[var(--atlas-muted)] shadow-md shadow-[var(--atlas-shadow)] backdrop-blur-md">
+        <div className="bg-[var(--atlas-card)]/86 pointer-events-auto max-w-[72%] rounded-lg border border-[var(--atlas-rule)] px-2.5 py-1 text-[8px] font-medium leading-tight text-[var(--atlas-muted)] shadow-md shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-[65%] sm:text-[9px]">
           <a
-            href="https://www.naturalearthdata.com/"
+            href="https://www.esri.com/"
             target="_blank"
             rel="noreferrer"
             className="rounded-sm outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
           >
-            Natural Earth
-          </a>
-          <span aria-hidden="true">·</span>
-          <a
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-sm outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
-          >
-            © OpenStreetMap
+            Imagery © Esri, Vantor, Earthstar Geographics, GIS User Community
           </a>
         </div>
 

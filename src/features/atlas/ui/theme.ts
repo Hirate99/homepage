@@ -23,10 +23,6 @@ interface AtlasThemePreset {
       brightnessMax: number;
       hueRotate: number;
     };
-    textures: {
-      compact: string;
-      detailed: string;
-    };
   };
 }
 
@@ -48,15 +44,11 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
     },
     map: {
       detailRaster: {
-        saturation: -0.38,
-        contrast: -0.08,
-        brightnessMin: 0.08,
-        brightnessMax: 0.9,
-        hueRotate: 338,
-      },
-      textures: {
-        compact: '/images/atlas/earth-california-mercator-2k.webp',
-        detailed: '/images/atlas/earth-california-mercator-4k.webp',
+        saturation: -0.28,
+        contrast: 0.04,
+        brightnessMin: 0.04,
+        brightnessMax: 0.88,
+        hueRotate: 344,
       },
     },
   },
@@ -72,15 +64,11 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
     },
     map: {
       detailRaster: {
-        saturation: -0.74,
-        contrast: 0.18,
+        saturation: -0.62,
+        contrast: 0.08,
         brightnessMin: 0,
-        brightnessMax: 0.46,
-        hueRotate: 180,
-      },
-      textures: {
-        compact: '/images/atlas/earth-rain-mercator-2k.webp',
-        detailed: '/images/atlas/earth-rain-mercator-4k.webp',
+        brightnessMax: 0.62,
+        hueRotate: 190,
       },
     },
   },

@@ -16,7 +16,17 @@ interface AtlasThemePreset {
     atmosphereAltitude: number;
   };
   map: {
-    filter: string;
+    detailRaster: {
+      saturation: number;
+      contrast: number;
+      brightnessMin: number;
+      brightnessMax: number;
+      hueRotate: number;
+    };
+    textures: {
+      compact: string;
+      detailed: string;
+    };
   };
 }
 
@@ -37,8 +47,17 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
       atmosphereAltitude: 0.12,
     },
     map: {
-      filter:
-        'sepia(.24) saturate(.72) hue-rotate(338deg) brightness(.98) contrast(.9)',
+      detailRaster: {
+        saturation: -0.38,
+        contrast: -0.08,
+        brightnessMin: 0.08,
+        brightnessMax: 0.9,
+        hueRotate: 338,
+      },
+      textures: {
+        compact: '/images/atlas/earth-california-mercator-2k.webp',
+        detailed: '/images/atlas/earth-california-mercator-4k.webp',
+      },
     },
   },
   'rain-night': {
@@ -52,8 +71,17 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
       atmosphereAltitude: 0.14,
     },
     map: {
-      filter:
-        'invert(1) hue-rotate(180deg) saturate(.28) brightness(.68) contrast(1.12)',
+      detailRaster: {
+        saturation: -0.74,
+        contrast: 0.18,
+        brightnessMin: 0,
+        brightnessMax: 0.46,
+        hueRotate: 180,
+      },
+      textures: {
+        compact: '/images/atlas/earth-rain-mercator-2k.webp',
+        detailed: '/images/atlas/earth-rain-mercator-4k.webp',
+      },
     },
   },
 };
@@ -104,7 +132,6 @@ export function getAtlasTheme(song: SongDefinition): AtlasTheme {
         'color-mix(in srgb, var(--atlas-signal) 22%, transparent)',
       '--atlas-shadow': 'color-mix(in srgb, var(--atlas-ink) 18%, transparent)',
       '--atlas-on-accent': 'color-mix(in srgb, var(--atlas-bg) 12%, white)',
-      '--atlas-map-filter': preset.map.filter,
     },
   };
 }

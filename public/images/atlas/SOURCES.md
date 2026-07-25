@@ -13,4 +13,5 @@ Blue Marble: Next Generation imagery:
 
 Run `bun run atlas:textures` from the repository root to regenerate the
 optimized WebP assets. The generator converts the satellite image into
-theme-specific duotone relief maps while preserving one shared elevation map.
+theme-specific duotone relief maps, emits Web Mercator variants for the
+country explorer, and preserves one shared elevation map.

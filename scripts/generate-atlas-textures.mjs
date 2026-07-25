@@ -50,6 +50,62 @@ async function makeSurface(sourcePath, width, palette, destination) {
   })
     .webp({ effort: 6, quality: 86, smartSubsample: true })
     .toFile(destination);
+
+  return {
+    data: duotone,
+    width: info.width,
+    height: info.height,
+  };
+}
+
+function projectToWebMercator(source, width, height) {
+  const destination = Buffer.alloc(width * width * 3);
+
+  for (let targetY = 0; targetY < width; targetY += 1) {
+    const normalizedY = (targetY + 0.5) / width;
+    const latitude = Math.atan(Math.sinh(Math.PI * (1 - 2 * normalizedY)));
+    const sourceY = ((Math.PI / 2 - latitude) / Math.PI) * height - 0.5;
+    const topY = Math.max(0, Math.min(height - 1, Math.floor(sourceY)));
+    const bottomY = Math.max(0, Math.min(height - 1, topY + 1));
+    const mix = Math.max(0, Math.min(1, sourceY - topY));
+    const topOffset = topY * width * 3;
+    const bottomOffset = bottomY * width * 3;
+    const targetOffset = targetY * width * 3;
+
+    for (let x = 0; x < width * 3; x += 1) {
+      destination[targetOffset + x] = Math.round(
+        source[topOffset + x] * (1 - mix) + source[bottomOffset + x] * mix,
+      );
+    }
+  }
+
+  return destination;
+}
+
+async function makeSurfacePair({
+  sourcePath,
+  width,
+  palette,
+  globeDestination,
+  mapDestination,
+}) {
+  const surface = await makeSurface(
+    sourcePath,
+    width,
+    palette,
+    globeDestination,
+  );
+  const mercator = projectToWebMercator(
+    surface.data,
+    surface.width,
+    surface.height,
+  );
+
+  await sharp(mercator, {
+    raw: { width, height: width, channels: 3 },
+  })
+    .webp({ effort: 6, quality: 84, smartSubsample: true })
+    .toFile(mapDestination);
 }
 
 async function makeElevation(sourcePath, destination) {
@@ -77,42 +133,52 @@ try {
   ]);
 
   await Promise.all([
-    makeSurface(
-      surfaceSource,
-      4096,
-      {
+    makeSurfacePair({
+      sourcePath: surfaceSource,
+      width: 4096,
+      palette: {
         shadow: [20, 54, 56],
         light: [244, 211, 157],
       },
-      join(outputDirectory, 'earth-california-4k.webp'),
-    ),
-    makeSurface(
-      surfaceSource,
-      2048,
-      {
+      globeDestination: join(outputDirectory, 'earth-california-4k.webp'),
+      mapDestination: join(
+        outputDirectory,
+        'earth-california-mercator-4k.webp',
+      ),
+    }),
+    makeSurfacePair({
+      sourcePath: surfaceSource,
+      width: 2048,
+      palette: {
         shadow: [20, 54, 56],
         light: [244, 211, 157],
       },
-      join(outputDirectory, 'earth-california-2k.webp'),
-    ),
-    makeSurface(
-      surfaceSource,
-      4096,
-      {
+      globeDestination: join(outputDirectory, 'earth-california-2k.webp'),
+      mapDestination: join(
+        outputDirectory,
+        'earth-california-mercator-2k.webp',
+      ),
+    }),
+    makeSurfacePair({
+      sourcePath: surfaceSource,
+      width: 4096,
+      palette: {
         shadow: [5, 22, 34],
         light: [145, 193, 198],
       },
-      join(outputDirectory, 'earth-rain-4k.webp'),
-    ),
-    makeSurface(
-      surfaceSource,
-      2048,
-      {
+      globeDestination: join(outputDirectory, 'earth-rain-4k.webp'),
+      mapDestination: join(outputDirectory, 'earth-rain-mercator-4k.webp'),
+    }),
+    makeSurfacePair({
+      sourcePath: surfaceSource,
+      width: 2048,
+      palette: {
         shadow: [5, 22, 34],
         light: [145, 193, 198],
       },
-      join(outputDirectory, 'earth-rain-2k.webp'),
-    ),
+      globeDestination: join(outputDirectory, 'earth-rain-2k.webp'),
+      mapDestination: join(outputDirectory, 'earth-rain-mercator-2k.webp'),
+    }),
     makeElevation(
       elevationSource,
       join(outputDirectory, 'earth-elevation-2k.webp'),

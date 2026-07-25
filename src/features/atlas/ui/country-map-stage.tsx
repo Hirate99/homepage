@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Minus, Plus } from 'lucide-react';
-import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
+import type {
+  GeoJSONSource,
+  Map as MapLibreMap,
+  Marker as MapLibreMarker,
+} from 'maplibre-gl';
 import { useTranslations } from 'next-intl';
 
 import { cn } from '@/lib/utils';
@@ -14,19 +18,23 @@ interface CountryMapStageProps {
   country: CountryNode;
   level: 'region' | 'place';
   nodes: LocationNode[];
+  mapTextures: {
+    compact: string;
+    detailed: string;
+  };
+  detailRaster: {
+    saturation: number;
+    contrast: number;
+    brightnessMin: number;
+    brightnessMax: number;
+    hueRotate: number;
+  };
+  accentColor: string;
   activeMarkerId: string | null;
   onHoverMarker: (id: string | null) => void;
   onSelectMarker: (id: string, element?: HTMLButtonElement) => void;
   onExitToWorld: () => void;
   reduceMotion: boolean;
-}
-
-interface MarkerGroup {
-  nodes: LocationNode[];
-  lat: number;
-  lng: number;
-  screenX: number;
-  screenY: number;
 }
 
 type MapLibreModule = typeof import('maplibre-gl');
@@ -43,10 +51,19 @@ const TILE_URL =
 const LAND_DATA_URL = '/vendor/atlas/ne_110m_land.geojson';
 const MAPLIBRE_MODULE_URL = '/vendor/maplibre/maplibre-loader.mjs';
 const MAPLIBRE_STYLESHEET_URL = '/vendor/maplibre/maplibre-gl.css';
-const CLUSTER_CELL_SIZE = 54;
-const WORLD_EXIT_ZOOM = 1.8;
-const COUNTRY_MIN_ZOOM = 2.15;
-const LOCAL_DETAIL_MIN_ZOOM = 7;
+const LOCATION_SOURCE_ID = 'atlas-locations';
+const LOCATION_CLUSTER_LAYER_ID = 'atlas-location-clusters';
+const LOCATION_POINT_HIT_LAYER_ID = 'atlas-location-point-hit-area';
+const LOCATION_POINT_LAYER_ID = 'atlas-location-points';
+const LOCATION_ACTIVE_LAYER_ID = 'atlas-location-active';
+const LOCAL_DETAIL_MIN_ZOOM = 5.5;
+const COUNTRY_EXIT_ZOOM_DELTA = 0.72;
+const WEB_MERCATOR_IMAGE_COORDINATES = [
+  [-180, 85.0511287798],
+  [180, 85.0511287798],
+  [180, -85.0511287798],
+  [-180, -85.0511287798],
+] as [[number, number], [number, number], [number, number], [number, number]];
 const COUNTRY_MAP_CONTROL_CLASSNAME =
   'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]';
 
@@ -133,191 +150,55 @@ function fitCountry(
   country: CountryNode,
   reduceMotion: boolean,
 ) {
+  const horizontalPadding = Math.max(
+    24,
+    Math.min(56, map.getContainer().clientWidth * 0.07),
+  );
+  const verticalPadding = Math.max(
+    52,
+    Math.min(72, map.getContainer().clientHeight * 0.09),
+  );
   const camera = map.cameraForBounds(country.bounds, {
-    padding: { top: 72, right: 56, bottom: 72, left: 56 },
+    padding: {
+      top: verticalPadding,
+      right: horizontalPadding,
+      bottom: verticalPadding,
+      left: horizontalPadding,
+    },
   });
+  const zoom = camera?.zoom ?? 2;
 
   map.easeTo({
     center: camera?.center ?? [country.lng, country.lat],
-    zoom: Math.max(camera?.zoom ?? COUNTRY_MIN_ZOOM, COUNTRY_MIN_ZOOM),
+    zoom,
     duration: reduceMotion ? 0 : 1050,
   });
+
+  return zoom;
 }
 
-function groupVisibleNodes(map: MapLibreMap, nodes: LocationNode[]) {
-  const container = map.getContainer();
-  const groups = new Map<string, MarkerGroup>();
-
-  for (const node of nodes) {
-    const point = map.project([node.lng, node.lat]);
-    if (
-      point.x < -CLUSTER_CELL_SIZE ||
-      point.y < -CLUSTER_CELL_SIZE ||
-      point.x > container.clientWidth + CLUSTER_CELL_SIZE ||
-      point.y > container.clientHeight + CLUSTER_CELL_SIZE
-    ) {
-      continue;
-    }
-
-    const key = `${Math.floor(point.x / CLUSTER_CELL_SIZE)}:${Math.floor(
-      point.y / CLUSTER_CELL_SIZE,
-    )}`;
-    const group = groups.get(key);
-
-    if (group) {
-      group.nodes.push(node);
-      continue;
-    }
-
-    groups.set(key, {
-      nodes: [node],
-      lat: node.lat,
-      lng: node.lng,
-      screenX: point.x,
-      screenY: point.y,
-    });
-  }
-
-  return [...groups.values()].map((group) => {
-    if (group.nodes.length === 1) {
-      return group;
-    }
-
-    const projectedNodes = group.nodes.map((node) => ({
-      node,
-      point: map.project([node.lng, node.lat]),
-    }));
-    const center = projectedNodes.reduce(
-      (total, item) => ({
-        x: total.x + item.point.x / projectedNodes.length,
-        y: total.y + item.point.y / projectedNodes.length,
-      }),
-      { x: 0, y: 0 },
-    );
-    const anchor = projectedNodes.reduce((closest, item) =>
-      Math.hypot(item.point.x - center.x, item.point.y - center.y) <
-      Math.hypot(closest.point.x - center.x, closest.point.y - center.y)
-        ? item
-        : closest,
-    );
-
-    return {
-      ...group,
-      lat: anchor.node.lat,
-      lng: anchor.node.lng,
-      screenX: anchor.point.x,
-      screenY: anchor.point.y,
-    };
-  });
+function createLocationData(nodes: LocationNode[]) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: nodes.map((node) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [node.lng, node.lat],
+      },
+      properties: {
+        id: node.id,
+        label: node.label,
+      },
+    })),
+  };
 }
 
-function setMarkerLabelVisible(label: HTMLSpanElement, visible: boolean) {
-  label.style.opacity = visible ? '1' : '0';
-  label.style.transform = visible
-    ? (label.dataset.visibleTransform ?? 'translate(0, -50%)')
-    : `${label.dataset.visibleTransform ?? 'translate(0, -50%)'} scale(.94)`;
-}
-
-function createLocationMarkerElement({
-  group,
-  map,
-  activeMarkerId,
-  onHoverMarker,
-  onSelectMarker,
-  reduceMotion,
-  clusterLabel,
-}: {
-  group: MarkerGroup;
-  map: MapLibreMap;
-  activeMarkerId: string | null;
-  onHoverMarker: (id: string | null) => void;
-  onSelectMarker: (id: string, element?: HTMLButtonElement) => void;
-  reduceMotion: boolean;
-  clusterLabel: (count: number) => string;
-}) {
-  const button = document.createElement('button');
-  const core = document.createElement('span');
-  const isCluster = group.nodes.length > 1;
-  const singleNode = group.nodes[0];
-  const isActive = !isCluster && singleNode.id === activeMarkerId;
-
-  button.type = 'button';
-  button.dataset.atlasMapMarker = isCluster ? 'cluster' : singleNode.id;
-  button.setAttribute(
-    'aria-label',
-    isCluster ? clusterLabel(group.nodes.length) : singleNode.label,
-  );
-  Object.assign(button.style, {
-    appearance: 'none',
-    background: 'transparent',
-    border: '0',
-    borderRadius: '999px',
-    cursor: 'pointer',
-    display: 'grid',
-    height: '44px',
-    outline: 'none',
-    placeItems: 'center',
-    position: 'relative',
-    width: '44px',
-  });
-
-  Object.assign(core.style, {
-    alignItems: 'center',
-    background: 'var(--atlas-accent)',
-    border: '1px solid var(--atlas-on-accent)',
-    borderRadius: '999px',
-    boxShadow: isActive
-      ? '0 0 0 10px var(--atlas-glow), 0 10px 28px var(--atlas-shadow)'
-      : '0 0 0 6px var(--atlas-glow), 0 8px 22px var(--atlas-shadow)',
-    color: 'var(--atlas-on-accent)',
-    display: 'flex',
-    fontSize: '11px',
-    fontWeight: '700',
-    height: isCluster ? '32px' : isActive ? '16px' : '12px',
-    justifyContent: 'center',
-    minWidth: isCluster ? '32px' : isActive ? '16px' : '12px',
-    transition: reduceMotion
-      ? 'none'
-      : 'transform 180ms ease, box-shadow 220ms ease',
-  });
-
-  button.addEventListener('focus', () => {
-    button.style.outline = '2px solid var(--atlas-accent)';
-    button.style.outlineOffset = '2px';
-  });
-  button.addEventListener('blur', () => {
-    button.style.outline = 'none';
-  });
-
-  if (isCluster) {
-    core.textContent = String(group.nodes.length);
-    button.appendChild(core);
-    button.addEventListener('click', () => {
-      const longitudes = group.nodes.map((node) => node.lng);
-      const latitudes = group.nodes.map((node) => node.lat);
-      map.fitBounds(
-        [
-          [Math.min(...longitudes), Math.min(...latitudes)],
-          [Math.max(...longitudes), Math.max(...latitudes)],
-        ],
-        {
-          padding: 72,
-          maxZoom: Math.min(map.getZoom() + 2, 14),
-          duration: reduceMotion ? 0 : 620,
-        },
-      );
-    });
-    return button;
-  }
-
-  const label = document.createElement('span');
-  const shouldPlaceLeft = group.screenX > map.getContainer().clientWidth - 180;
-  const visibleTransform = shouldPlaceLeft
-    ? 'translate(-100%, -50%)'
-    : 'translate(0, -50%)';
-  label.textContent = singleNode.label;
-  label.dataset.visibleTransform = visibleTransform;
-  Object.assign(label.style, {
+function createLocationLabelElement(label: string) {
+  const element = document.createElement('span');
+  element.textContent = label;
+  element.setAttribute('aria-hidden', 'true');
+  Object.assign(element.style, {
     backdropFilter: 'blur(14px)',
     background: 'color-mix(in srgb, var(--atlas-card) 92%, transparent)',
     border: '1px solid var(--atlas-rule)',
@@ -326,51 +207,21 @@ function createLocationMarkerElement({
     color: 'var(--atlas-ink)',
     fontSize: '13px',
     fontWeight: '600',
-    left: shouldPlaceLeft ? '-5px' : 'calc(100% + 5px)',
-    opacity: '0',
     padding: '8px 11px',
     pointerEvents: 'none',
-    position: 'absolute',
-    top: '50%',
-    transformOrigin: shouldPlaceLeft ? 'right center' : 'left center',
-    transition: reduceMotion
-      ? 'none'
-      : 'opacity 160ms ease, transform 160ms ease',
     whiteSpace: 'nowrap',
   });
-  setMarkerLabelVisible(label, isActive);
 
-  button.appendChild(core);
-  button.appendChild(label);
-  button.addEventListener('mouseenter', () => {
-    core.style.transform = 'scale(1.16)';
-    setMarkerLabelVisible(label, true);
-    onHoverMarker(singleNode.id);
-  });
-  button.addEventListener('mouseleave', () => {
-    core.style.transform = '';
-    setMarkerLabelVisible(label, isActive);
-    onHoverMarker(null);
-  });
-  button.addEventListener('focus', () => {
-    setMarkerLabelVisible(label, true);
-    onHoverMarker(singleNode.id);
-  });
-  button.addEventListener('blur', () => {
-    setMarkerLabelVisible(label, isActive);
-    onHoverMarker(null);
-  });
-  button.addEventListener('click', () => {
-    onSelectMarker(singleNode.id, button);
-  });
-
-  return button;
+  return element;
 }
 
 export function CountryMapStage({
   country,
   level,
   nodes,
+  mapTextures,
+  detailRaster,
+  accentColor,
   activeMarkerId,
   onHoverMarker,
   onSelectMarker,
@@ -380,29 +231,41 @@ export function CountryMapStage({
   const t = useTranslations('Atlas');
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const markersRef = useRef<MapLibreMarker[]>([]);
-  const refreshMarkersRef = useRef<(() => void) | null>(null);
+  const labelMarkerRef = useRef<MapLibreMarker | null>(null);
+  const syncLocationLabelRef = useRef<(() => void) | null>(null);
   const nodesRef = useRef(nodes);
   const activeMarkerIdRef = useRef(activeMarkerId);
+  const hoveredMarkerIdRef = useRef<string | null>(null);
   const selectMarkerRef = useRef(onSelectMarker);
   const exitToWorldRef = useRef(onExitToWorld);
   const hasRequestedWorldExitRef = useRef(false);
+  const worldExitZoomRef = useRef(1);
   const hoverMarkerRef = useRef(onHoverMarker);
   const reduceMotionRef = useRef(reduceMotion);
-  const clusterLabelRef = useRef((count: number) =>
-    t('mapClusterLabel', { count }),
-  );
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasTileError, setHasTileError] = useState(false);
 
   useEffect(() => {
     nodesRef.current = nodes;
-    refreshMarkersRef.current?.();
+    const map = mapRef.current;
+    const source = map?.getSource(LOCATION_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    source?.setData(createLocationData(nodes));
+    syncLocationLabelRef.current?.();
   }, [nodes]);
 
   useEffect(() => {
     activeMarkerIdRef.current = activeMarkerId;
-    refreshMarkersRef.current?.();
+    const map = mapRef.current;
+    if (map?.getLayer(LOCATION_ACTIVE_LAYER_ID)) {
+      map.setFilter(LOCATION_ACTIVE_LAYER_ID, [
+        '==',
+        ['get', 'id'],
+        activeMarkerId ?? '',
+      ]);
+    }
+    syncLocationLabelRef.current?.();
   }, [activeMarkerId]);
 
   useEffect(() => {
@@ -422,11 +285,6 @@ export function CountryMapStage({
   }, [reduceMotion]);
 
   useEffect(() => {
-    clusterLabelRef.current = (count: number) =>
-      t('mapClusterLabel', { count });
-  }, [t]);
-
-  useEffect(() => {
     const container = containerRef.current;
     if (!container) {
       return;
@@ -434,7 +292,6 @@ export function CountryMapStage({
 
     let isCancelled = false;
     let resizeFrame = 0;
-    let detachWheelHandler: (() => void) | null = null;
 
     setIsLoaded(false);
     setHasTileError(false);
@@ -447,11 +304,21 @@ export function CountryMapStage({
         }
 
         const firstNode = nodesRef.current[0];
+        const texture =
+          container.clientWidth * Math.max(window.devicePixelRatio || 1, 1) >=
+          720
+            ? mapTextures.detailed
+            : mapTextures.compact;
         const map = new maplibre.Map({
           container: containerRef.current,
           style: {
             version: 8,
             sources: {
+              atlasTerrain: {
+                type: 'image',
+                url: texture,
+                coordinates: WEB_MERCATOR_IMAGE_COORDINATES,
+              },
               atlasLand: {
                 type: 'geojson',
                 data: LAND_DATA_URL,
@@ -463,13 +330,39 @@ export function CountryMapStage({
                 attribution:
                   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
               },
+              [LOCATION_SOURCE_ID]: {
+                type: 'geojson',
+                data: createLocationData(nodesRef.current),
+                cluster: true,
+                clusterMaxZoom: 10,
+                clusterRadius: 32,
+              },
             },
             layers: [
               {
                 id: 'atlas-ocean',
                 type: 'background',
                 paint: {
-                  'background-color': '#e7ece9',
+                  'background-color': '#07151d',
+                },
+              },
+              {
+                id: 'atlas-terrain',
+                type: 'raster',
+                source: 'atlasTerrain',
+                paint: {
+                  'raster-fade-duration': 0,
+                  'raster-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    1,
+                    1,
+                    LOCAL_DETAIL_MIN_ZOOM,
+                    0.92,
+                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
+                    0,
+                  ],
                 },
               },
               {
@@ -477,8 +370,18 @@ export function CountryMapStage({
                 type: 'fill',
                 source: 'atlasLand',
                 paint: {
-                  'fill-color': '#bdc8c2',
-                  'fill-opacity': 0.98,
+                  'fill-color': '#f3f7f4',
+                  'fill-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    1,
+                    0.025,
+                    LOCAL_DETAIL_MIN_ZOOM,
+                    0.07,
+                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
+                    0,
+                  ],
                 },
               },
               {
@@ -486,8 +389,18 @@ export function CountryMapStage({
                 type: 'line',
                 source: 'atlasLand',
                 paint: {
-                  'line-color': '#84958e',
-                  'line-opacity': 0.72,
+                  'line-color': '#d4e2df',
+                  'line-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    1,
+                    0.16,
+                    LOCAL_DETAIL_MIN_ZOOM,
+                    0.34,
+                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
+                    0,
+                  ],
                   'line-width': [
                     'interpolate',
                     ['linear'],
@@ -505,8 +418,108 @@ export function CountryMapStage({
                 source: 'osm',
                 minzoom: LOCAL_DETAIL_MIN_ZOOM,
                 paint: {
-                  'raster-fade-duration': 260,
-                  'raster-saturation': -0.04,
+                  'raster-brightness-max': detailRaster.brightnessMax,
+                  'raster-brightness-min': detailRaster.brightnessMin,
+                  'raster-contrast': detailRaster.contrast,
+                  'raster-fade-duration': 180,
+                  'raster-hue-rotate': detailRaster.hueRotate,
+                  'raster-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    LOCAL_DETAIL_MIN_ZOOM,
+                    0,
+                    LOCAL_DETAIL_MIN_ZOOM + 1.5,
+                    1,
+                  ],
+                  'raster-saturation': detailRaster.saturation,
+                },
+              },
+              {
+                id: 'atlas-location-cluster-glow',
+                type: 'circle',
+                source: LOCATION_SOURCE_ID,
+                filter: ['has', 'point_count'],
+                paint: {
+                  'circle-color': accentColor,
+                  'circle-opacity': 0.18,
+                  'circle-radius': [
+                    'step',
+                    ['get', 'point_count'],
+                    20,
+                    5,
+                    25,
+                    20,
+                    31,
+                  ],
+                },
+              },
+              {
+                id: LOCATION_CLUSTER_LAYER_ID,
+                type: 'circle',
+                source: LOCATION_SOURCE_ID,
+                filter: ['has', 'point_count'],
+                paint: {
+                  'circle-color': accentColor,
+                  'circle-radius': [
+                    'step',
+                    ['get', 'point_count'],
+                    10,
+                    5,
+                    13,
+                    20,
+                    16,
+                  ],
+                  'circle-stroke-color': '#eef6f3',
+                  'circle-stroke-opacity': 0.88,
+                  'circle-stroke-width': 1.5,
+                },
+              },
+              {
+                id: 'atlas-location-point-glow',
+                type: 'circle',
+                source: LOCATION_SOURCE_ID,
+                filter: ['!', ['has', 'point_count']],
+                paint: {
+                  'circle-color': accentColor,
+                  'circle-opacity': 0.2,
+                  'circle-radius': 13,
+                },
+              },
+              {
+                id: LOCATION_POINT_HIT_LAYER_ID,
+                type: 'circle',
+                source: LOCATION_SOURCE_ID,
+                filter: ['!', ['has', 'point_count']],
+                paint: {
+                  'circle-color': accentColor,
+                  'circle-opacity': 0.01,
+                  'circle-radius': 22,
+                },
+              },
+              {
+                id: LOCATION_POINT_LAYER_ID,
+                type: 'circle',
+                source: LOCATION_SOURCE_ID,
+                filter: ['!', ['has', 'point_count']],
+                paint: {
+                  'circle-color': accentColor,
+                  'circle-radius': 5.5,
+                  'circle-stroke-color': '#eef6f3',
+                  'circle-stroke-opacity': 0.9,
+                  'circle-stroke-width': 1.25,
+                },
+              },
+              {
+                id: LOCATION_ACTIVE_LAYER_ID,
+                type: 'circle',
+                source: LOCATION_SOURCE_ID,
+                filter: ['==', ['get', 'id'], activeMarkerIdRef.current ?? ''],
+                paint: {
+                  'circle-color': accentColor,
+                  'circle-radius': 8,
+                  'circle-stroke-color': '#eef6f3',
+                  'circle-stroke-width': 2,
                 },
               },
             ],
@@ -514,17 +527,18 @@ export function CountryMapStage({
           center: firstNode ? [firstNode.lng, firstNode.lat] : [0, 24],
           zoom: firstNode ? 5 : 1.5,
           maxZoom: 17,
-          minZoom: 1,
+          minZoom: 0.5,
           attributionControl: false,
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
           touchZoomRotate: true,
-          scrollZoom: false,
+          scrollZoom: true,
           cooperativeGestures: false,
         });
 
         mapRef.current = map;
+        map.touchZoomRotate.disableRotation();
         let isUserZoom = false;
 
         const requestWorldExit = () => {
@@ -536,52 +550,11 @@ export function CountryMapStage({
           exitToWorldRef.current();
         };
 
-        const handleWheel = (event: WheelEvent) => {
-          const delta =
-            event.deltaMode === WheelEvent.DOM_DELTA_LINE
-              ? event.deltaY * 12
-              : event.deltaY;
-          if (!Number.isFinite(delta) || delta === 0) {
-            return;
-          }
-
-          const currentZoom = map.getZoom();
-          const zoomStep = Math.min(1.2, Math.max(0.3, Math.abs(delta) / 320));
-          const nextZoom = Math.min(
-            map.getMaxZoom(),
-            Math.max(
-              map.getMinZoom(),
-              currentZoom + (delta > 0 ? -zoomStep : zoomStep),
-            ),
-          );
-          if (nextZoom === currentZoom) {
-            return;
-          }
-
-          event.preventDefault();
-          event.stopPropagation();
-
-          if (nextZoom <= WORLD_EXIT_ZOOM) {
-            requestWorldExit();
-            return;
-          }
-
-          map.stop();
-          map.easeTo({
-            zoom: nextZoom,
-            duration: reduceMotionRef.current ? 0 : 180,
-          });
-        };
-
-        container.addEventListener('wheel', handleWheel, { passive: false });
-        detachWheelHandler = () =>
-          container.removeEventListener('wheel', handleWheel);
-
         map.on('zoomstart', (event) => {
           isUserZoom = Boolean(event.originalEvent);
         });
         map.on('zoomend', () => {
-          if (map.getZoom() > WORLD_EXIT_ZOOM) {
+          if (map.getZoom() > worldExitZoomRef.current) {
             hasRequestedWorldExitRef.current = false;
             isUserZoom = false;
             return;
@@ -593,59 +566,97 @@ export function CountryMapStage({
           isUserZoom = false;
         });
 
-        Object.assign(map.getCanvas().style, {
-          filter: 'var(--atlas-map-filter)',
-          transition: reduceMotionRef.current
-            ? 'none'
-            : 'filter 700ms cubic-bezier(.22, 1, .36, 1)',
-        });
+        const syncLocationLabel = () => {
+          labelMarkerRef.current?.remove();
+          labelMarkerRef.current = null;
 
-        const clearMarkers = () => {
-          for (const marker of markersRef.current) {
-            marker.remove();
-          }
-          markersRef.current = [];
-        };
-
-        const refreshMarkers = () => {
-          if (!map.isStyleLoaded()) {
+          const markerId =
+            hoveredMarkerIdRef.current ?? activeMarkerIdRef.current;
+          const node = nodesRef.current.find((item) => item.id === markerId);
+          if (!node) {
             return;
           }
 
-          clearMarkers();
-          const groups = groupVisibleNodes(map, nodesRef.current);
-          markersRef.current = groups.map((group) => {
-            const element = createLocationMarkerElement({
-              group,
-              map,
-              activeMarkerId: activeMarkerIdRef.current,
-              onHoverMarker: (id) => hoverMarkerRef.current(id),
-              onSelectMarker: (id) => selectMarkerRef.current(id),
-              reduceMotion: reduceMotionRef.current,
-              clusterLabel: (count) => clusterLabelRef.current(count),
-            });
+          const placeOnLeft =
+            map.project([node.lng, node.lat]).x >
+            map.getContainer().clientWidth - 170;
 
-            return new maplibre.Marker({
-              element,
-              anchor: 'center',
-            })
-              .setLngLat([group.lng, group.lat])
-              .addTo(map);
-          });
+          labelMarkerRef.current = new maplibre.Marker({
+            element: createLocationLabelElement(node.label),
+            anchor: placeOnLeft ? 'right' : 'left',
+            offset: placeOnLeft ? [-14, 0] : [14, 0],
+          })
+            .setLngLat([node.lng, node.lat])
+            .addTo(map);
         };
 
-        refreshMarkersRef.current = refreshMarkers;
+        syncLocationLabelRef.current = syncLocationLabel;
+
+        const setHoveredLocation = (id: string | null) => {
+          if (hoveredMarkerIdRef.current === id) {
+            return;
+          }
+
+          hoveredMarkerIdRef.current = id;
+          hoverMarkerRef.current(id);
+          syncLocationLabel();
+        };
+
+        map.on('mouseenter', LOCATION_POINT_HIT_LAYER_ID, (event) => {
+          map.getCanvas().style.cursor = 'pointer';
+          const id = event.features?.[0]?.properties?.id;
+          setHoveredLocation(typeof id === 'string' ? id : null);
+        });
+        map.on('mouseleave', LOCATION_POINT_HIT_LAYER_ID, () => {
+          map.getCanvas().style.cursor = '';
+          setHoveredLocation(null);
+        });
+        map.on('click', LOCATION_POINT_HIT_LAYER_ID, (event) => {
+          const id = event.features?.[0]?.properties?.id;
+          if (typeof id === 'string') {
+            selectMarkerRef.current(id);
+          }
+        });
+        map.on('mouseenter', LOCATION_CLUSTER_LAYER_ID, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', LOCATION_CLUSTER_LAYER_ID, () => {
+          map.getCanvas().style.cursor = '';
+        });
+        map.on('click', LOCATION_CLUSTER_LAYER_ID, (event) => {
+          const feature = event.features?.[0];
+          const clusterId = feature?.properties?.cluster_id;
+          if (
+            typeof clusterId !== 'number' ||
+            feature?.geometry.type !== 'Point'
+          ) {
+            return;
+          }
+
+          const source = map.getSource(LOCATION_SOURCE_ID) as GeoJSONSource;
+          const [lng, lat] = feature.geometry.coordinates;
+          void source.getClusterExpansionZoom(clusterId).then((zoom) => {
+            map.easeTo({
+              center: [lng, lat],
+              zoom,
+              duration: reduceMotionRef.current ? 0 : 420,
+            });
+          });
+        });
+
         map.on('load', () => {
           if (isCancelled) {
             return;
           }
 
-          fitCountry(map, country, reduceMotionRef.current);
-          refreshMarkers();
+          const entryZoom = fitCountry(map, country, reduceMotionRef.current);
+          worldExitZoomRef.current = Math.max(
+            map.getMinZoom() + 0.05,
+            entryZoom - COUNTRY_EXIT_ZOOM_DELTA,
+          );
+          syncLocationLabel();
           setIsLoaded(true);
         });
-        map.on('moveend', refreshMarkers);
-        map.on('resize', refreshMarkers);
 
         const resizeObserver = new ResizeObserver(() => {
           window.cancelAnimationFrame(resizeFrame);
@@ -674,16 +685,13 @@ export function CountryMapStage({
     return () => {
       isCancelled = true;
       window.cancelAnimationFrame(resizeFrame);
-      detachWheelHandler?.();
-      refreshMarkersRef.current = null;
-      for (const marker of markersRef.current) {
-        marker.remove();
-      }
-      markersRef.current = [];
+      syncLocationLabelRef.current = null;
+      labelMarkerRef.current?.remove();
+      labelMarkerRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [country]);
+  }, [accentColor, country, detailRaster, mapTextures]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -782,7 +790,7 @@ export function CountryMapStage({
                 }
 
                 const nextZoom = Math.max(map.getZoom() - 1, map.getMinZoom());
-                if (nextZoom <= WORLD_EXIT_ZOOM) {
+                if (nextZoom <= worldExitZoomRef.current) {
                   if (!hasRequestedWorldExitRef.current) {
                     hasRequestedWorldExitRef.current = true;
                     exitToWorldRef.current();

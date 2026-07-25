@@ -585,14 +585,14 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         data-song={song.id}
         data-theme={song.theme}
         style={atlasTheme.cssVariables}
-        className="relative w-full scroll-mt-0 overflow-x-hidden bg-[var(--atlas-bg)] pb-20 pt-12 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
+        className="relative w-full scroll-mt-0 overflow-x-hidden bg-[var(--atlas-bg)] pb-20 pt-10 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
         aria-labelledby="atlas-title"
       >
         <div className="relative mx-auto w-full max-w-[1280px]">
-          <header className="mx-4 flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:mx-0 sm:gap-8 sm:pb-9 sm:pt-7">
+          <header className="mx-4 flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-5 pt-4 sm:mx-0 sm:gap-8 sm:pb-9 sm:pt-7">
             <h2
               id="atlas-title"
-              className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
+              className="font-serif text-[clamp(3rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
             >
               {t('title')}
             </h2>
@@ -620,10 +620,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             </p>
           </header>
 
-          <div className="grid min-w-0 overflow-hidden border-y border-[var(--atlas-rule)] bg-[var(--atlas-panel)] sm:rounded-[24px] sm:border lg:h-[min(74svh,720px)] lg:min-h-[600px] lg:grid-cols-[minmax(0,1fr)_352px]">
+          <div className="mx-3 grid min-w-0 gap-3 bg-transparent sm:mx-0 lg:h-[min(74svh,720px)] lg:min-h-[600px] lg:grid-cols-[minmax(0,1fr)_352px] lg:gap-0 lg:overflow-hidden lg:rounded-[24px] lg:border lg:border-[var(--atlas-rule)] lg:bg-[var(--atlas-panel)]">
             <div
               ref={atlasViewportRef}
-              className="relative isolate h-[min(54svh,520px)] min-h-[360px] min-w-0 overflow-hidden lg:h-full"
+              className="relative isolate h-[min(49svh,440px)] min-h-[340px] min-w-0 overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] sm:h-[min(58svh,560px)] lg:h-full lg:rounded-none lg:border-0"
             >
               <div
                 aria-hidden="true"
@@ -750,10 +750,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                 )}
               </AnimatePresence>
 
-              <div className="bg-[var(--atlas-panel)]/88 pointer-events-none absolute inset-x-0 top-0 z-40 flex min-h-14 items-center justify-between gap-2 border-b border-[var(--atlas-rule)] px-3 py-1.5 backdrop-blur-md sm:px-4">
+              <div className="bg-[var(--atlas-card)]/88 lg:bg-[var(--atlas-panel)]/88 pointer-events-none absolute inset-x-2 top-2 z-40 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-[var(--atlas-rule)] px-1.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-xl sm:inset-x-3 sm:px-2 lg:inset-x-0 lg:top-0 lg:min-h-14 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:px-3 lg:py-1.5 lg:shadow-none">
                 <nav
                   aria-label={t('locationNavigation')}
-                  className="pointer-events-auto max-w-[70%] overflow-hidden sm:max-w-[76%]"
+                  className="pointer-events-auto max-w-[calc(100%_-_50px)] overflow-hidden sm:max-w-[76%]"
                 >
                   <ol className="flex min-h-11 min-w-0 items-center text-xs font-semibold uppercase tracking-[0.1em] text-[var(--atlas-ink)] sm:text-sm">
                     <li

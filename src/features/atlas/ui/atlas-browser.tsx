@@ -81,14 +81,14 @@ export function AtlasBrowser({
   return (
     <aside
       data-slot="atlas-browser"
-      className="flex min-h-0 flex-col border-t border-[var(--atlas-rule)] bg-[var(--atlas-panel)] [overflow-anchor:none] lg:border-l lg:border-t-0"
+      className="flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] [overflow-anchor:none] lg:rounded-none lg:border-y-0 lg:border-l lg:border-r-0"
       aria-labelledby="atlas-browser-title"
     >
       <div className="shrink-0 border-b border-[var(--atlas-rule)] px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
         <div className="flex items-baseline justify-between gap-3">
           <h3
             id="atlas-browser-title"
-            className="min-w-0 text-pretty font-serif text-[1.55rem] leading-none tracking-[-0.035em] sm:text-[1.7rem]"
+            className="min-w-0 text-pretty font-serif text-[1.4rem] leading-none tracking-[-0.035em] sm:text-[1.6rem] lg:text-[1.7rem]"
           >
             {title}
           </h3>
@@ -124,33 +124,33 @@ export function AtlasBrowser({
       {filteredItems.length > 0 ? (
         <ul
           ref={listRef}
-          className="grid min-h-0 flex-1 grid-cols-2 gap-px bg-[var(--atlas-rule)] sm:grid-cols-3 lg:block lg:space-y-px lg:overflow-y-auto lg:overscroll-contain lg:bg-[var(--atlas-panel)] lg:[scrollbar-color:var(--atlas-rule)_transparent] lg:[scrollbar-width:thin]"
+          className="min-h-0 flex-1 divide-y divide-[var(--atlas-rule)] lg:block lg:space-y-px lg:divide-y-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-color:var(--atlas-rule)_transparent] lg:[scrollbar-width:thin]"
         >
           {filteredItems.map((item, index) => (
             <li
               key={item.id}
               ref={item.active ? activeItemRef : undefined}
-              className="min-w-0 bg-[var(--atlas-panel)] [contain-intrinsic-size:184px] [content-visibility:auto] lg:[contain-intrinsic-size:92px]"
+              className="min-w-0 bg-[var(--atlas-panel)] [contain-intrinsic-size:92px] [content-visibility:auto]"
             >
               <button
                 type="button"
                 data-atlas-browser-item={item.id}
                 data-state={item.active ? 'active' : 'idle'}
                 className={cn(
-                  'group relative grid h-full min-h-[176px] w-full touch-manipulation grid-rows-[112px_auto] gap-0 bg-[var(--atlas-panel)] text-left outline-none transition-[background-color,color] duration-200 hover:bg-[var(--atlas-card)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] lg:min-h-[92px] lg:grid-cols-[104px_minmax(0,1fr)_28px] lg:grid-rows-1 lg:items-center',
+                  'group relative grid min-h-[92px] w-full touch-manipulation grid-cols-[112px_minmax(0,1fr)_28px] items-center gap-0 bg-[var(--atlas-panel)] text-left outline-none transition-[background-color,color] duration-200 hover:bg-[var(--atlas-card)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:grid-cols-[132px_minmax(0,1fr)_32px] lg:grid-cols-[104px_minmax(0,1fr)_28px]',
                   item.active &&
                     'bg-[var(--atlas-card-active)] shadow-[inset_3px_0_0_var(--atlas-accent)]',
                 )}
                 onClick={(event) => item.onSelect(event.currentTarget)}
                 aria-current={item.active ? 'true' : undefined}
               >
-                <span className="relative block h-full overflow-hidden bg-[var(--atlas-panel-strong)] lg:h-[92px]">
+                <span className="relative block h-[92px] overflow-hidden bg-[var(--atlas-panel-strong)]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={item.image}
                     alt=""
-                    width={208}
-                    height={112}
+                    width={264}
+                    height={184}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035] motion-reduce:transition-none"
                     loading={index < 6 ? 'eager' : 'lazy'}
                     decoding="async"
@@ -158,7 +158,7 @@ export function AtlasBrowser({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      'absolute inset-0 border-b border-transparent transition-colors lg:border-b-0 lg:border-r',
+                      'absolute inset-0 border-r border-transparent transition-colors',
                       item.active
                         ? 'border-[var(--atlas-accent)]'
                         : 'border-[var(--atlas-rule)]',
@@ -166,7 +166,7 @@ export function AtlasBrowser({
                   />
                 </span>
 
-                <span className="min-w-0 px-3 py-3 lg:px-4 lg:py-2">
+                <span className="min-w-0 px-3.5 py-2 sm:px-4">
                   <span className="block truncate text-[15px] font-semibold leading-tight text-[var(--atlas-ink)]">
                     {item.title}
                   </span>
@@ -177,7 +177,7 @@ export function AtlasBrowser({
 
                 <ArrowUpRight
                   className={cn(
-                    'bg-[var(--atlas-card)]/80 absolute right-2.5 top-2.5 h-4 w-4 rounded-full p-0.5 text-[var(--atlas-muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--atlas-accent)] lg:static lg:bg-transparent lg:p-0',
+                    'h-4 w-4 text-[var(--atlas-muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--atlas-accent)]',
                     item.active && 'text-[var(--atlas-accent)]',
                   )}
                   aria-hidden="true"

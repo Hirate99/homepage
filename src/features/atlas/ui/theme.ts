@@ -44,11 +44,11 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
     },
     map: {
       detailRaster: {
-        saturation: -0.28,
-        contrast: 0.04,
-        brightnessMin: 0.04,
-        brightnessMax: 0.88,
-        hueRotate: 344,
+        saturation: -0.12,
+        contrast: 0.02,
+        brightnessMin: 0.05,
+        brightnessMax: 0.92,
+        hueRotate: 0,
       },
     },
   },
@@ -64,11 +64,11 @@ const ATLAS_THEME_PRESETS: Record<SongThemeId, AtlasThemePreset> = {
     },
     map: {
       detailRaster: {
-        saturation: -0.62,
-        contrast: 0.08,
-        brightnessMin: 0,
-        brightnessMax: 0.62,
-        hueRotate: 190,
+        saturation: -0.2,
+        contrast: 0.03,
+        brightnessMin: 0.04,
+        brightnessMax: 0.84,
+        hueRotate: 0,
       },
     },
   },

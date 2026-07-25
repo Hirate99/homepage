@@ -16,7 +16,8 @@ interface CountryMapStageProps {
   nodes: LocationNode[];
   activeMarkerId: string | null;
   onHoverMarker: (id: string | null) => void;
-  onSelectMarker: (id: string) => void;
+  onSelectMarker: (id: string, element?: HTMLButtonElement) => void;
+  onExitToWorld: () => void;
   reduceMotion: boolean;
 }
 
@@ -42,6 +43,7 @@ const TILE_URL =
 const MAPLIBRE_MODULE_URL = '/vendor/maplibre/maplibre-loader.mjs';
 const MAPLIBRE_STYLESHEET_URL = '/vendor/maplibre/maplibre-gl.css';
 const CLUSTER_CELL_SIZE = 54;
+const WORLD_EXIT_ZOOM = 1.8;
 const COUNTRY_MAP_CONTROL_CLASSNAME =
   'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]';
 
@@ -220,7 +222,7 @@ function createLocationMarkerElement({
   map: MapLibreMap;
   activeMarkerId: string | null;
   onHoverMarker: (id: string | null) => void;
-  onSelectMarker: (id: string) => void;
+  onSelectMarker: (id: string, element?: HTMLButtonElement) => void;
   reduceMotion: boolean;
   clusterLabel: (count: number) => string;
 }) {
@@ -342,12 +344,7 @@ function createLocationMarkerElement({
     onHoverMarker(null);
   });
   button.addEventListener('click', () => {
-    map.easeTo({
-      center: [singleNode.lng, singleNode.lat],
-      zoom: Math.max(map.getZoom(), 7),
-      duration: reduceMotion ? 0 : 620,
-    });
-    onSelectMarker(singleNode.id);
+    onSelectMarker(singleNode.id, button);
   });
 
   return button;
@@ -360,6 +357,7 @@ export function CountryMapStage({
   activeMarkerId,
   onHoverMarker,
   onSelectMarker,
+  onExitToWorld,
   reduceMotion,
 }: CountryMapStageProps) {
   const t = useTranslations('Atlas');
@@ -370,6 +368,8 @@ export function CountryMapStage({
   const nodesRef = useRef(nodes);
   const activeMarkerIdRef = useRef(activeMarkerId);
   const selectMarkerRef = useRef(onSelectMarker);
+  const exitToWorldRef = useRef(onExitToWorld);
+  const hasRequestedWorldExitRef = useRef(false);
   const hoverMarkerRef = useRef(onHoverMarker);
   const reduceMotionRef = useRef(reduceMotion);
   const clusterLabelRef = useRef((count: number) =>
@@ -393,6 +393,10 @@ export function CountryMapStage({
   }, [onSelectMarker]);
 
   useEffect(() => {
+    exitToWorldRef.current = onExitToWorld;
+  }, [onExitToWorld]);
+
+  useEffect(() => {
     hoverMarkerRef.current = onHoverMarker;
   }, [onHoverMarker]);
 
@@ -413,9 +417,11 @@ export function CountryMapStage({
 
     let isCancelled = false;
     let resizeFrame = 0;
+    let detachWheelHandler: (() => void) | null = null;
 
     setIsLoaded(false);
     setHasTileError(false);
+    hasRequestedWorldExitRef.current = false;
 
     void loadMapLibre()
       .then((maplibre) => {
@@ -457,11 +463,80 @@ export function CountryMapStage({
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
+          touchZoomRotate: true,
           scrollZoom: false,
           cooperativeGestures: false,
         });
 
         mapRef.current = map;
+        let isUserZoom = false;
+
+        const requestWorldExit = () => {
+          if (hasRequestedWorldExitRef.current) {
+            return;
+          }
+
+          hasRequestedWorldExitRef.current = true;
+          exitToWorldRef.current();
+        };
+
+        const handleWheel = (event: WheelEvent) => {
+          const delta =
+            event.deltaMode === WheelEvent.DOM_DELTA_LINE
+              ? event.deltaY * 12
+              : event.deltaY;
+          if (!Number.isFinite(delta) || delta === 0) {
+            return;
+          }
+
+          const currentZoom = map.getZoom();
+          const zoomStep = Math.min(1.2, Math.max(0.3, Math.abs(delta) / 320));
+          const nextZoom = Math.min(
+            map.getMaxZoom(),
+            Math.max(
+              map.getMinZoom(),
+              currentZoom + (delta > 0 ? -zoomStep : zoomStep),
+            ),
+          );
+          if (nextZoom === currentZoom) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          if (nextZoom <= WORLD_EXIT_ZOOM) {
+            requestWorldExit();
+            return;
+          }
+
+          map.stop();
+          map.easeTo({
+            zoom: nextZoom,
+            duration: reduceMotionRef.current ? 0 : 180,
+          });
+        };
+
+        container.addEventListener('wheel', handleWheel, { passive: false });
+        detachWheelHandler = () =>
+          container.removeEventListener('wheel', handleWheel);
+
+        map.on('zoomstart', (event) => {
+          isUserZoom = Boolean(event.originalEvent);
+        });
+        map.on('zoomend', () => {
+          if (map.getZoom() > WORLD_EXIT_ZOOM) {
+            hasRequestedWorldExitRef.current = false;
+            isUserZoom = false;
+            return;
+          }
+
+          if (isUserZoom) {
+            requestWorldExit();
+          }
+          isUserZoom = false;
+        });
+
         Object.assign(map.getCanvas().style, {
           filter: 'var(--atlas-map-filter)',
           transition: reduceMotionRef.current
@@ -543,6 +618,7 @@ export function CountryMapStage({
     return () => {
       isCancelled = true;
       window.cancelAnimationFrame(resizeFrame);
+      detachWheelHandler?.();
       refreshMarkersRef.current = null;
       for (const marker of markersRef.current) {
         marker.remove();
@@ -638,8 +714,17 @@ export function CountryMapStage({
                   return;
                 }
 
+                const nextZoom = Math.max(map.getZoom() - 1, map.getMinZoom());
+                if (nextZoom <= WORLD_EXIT_ZOOM) {
+                  if (!hasRequestedWorldExitRef.current) {
+                    hasRequestedWorldExitRef.current = true;
+                    exitToWorldRef.current();
+                  }
+                  return;
+                }
+
                 map.easeTo({
-                  zoom: Math.max(map.getZoom() - 1, map.getMinZoom()),
+                  zoom: nextZoom,
                   duration: reduceMotion ? 0 : 360,
                 });
               }}

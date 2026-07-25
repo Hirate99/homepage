@@ -36,6 +36,7 @@ export function AtlasBrowser({
 }: AtlasBrowserProps) {
   const [query, setQuery] = useState('');
   const activeItemRef = useRef<HTMLLIElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const activeItemId = items.find((item) => item.active)?.id;
 
   useEffect(() => {
@@ -47,10 +48,19 @@ export function AtlasBrowser({
       return;
     }
 
-    activeItemRef.current?.scrollIntoView({
-      block: 'nearest',
-      behavior: 'auto',
-    });
+    const list = listRef.current;
+    const activeItem = activeItemRef.current;
+    if (!list || !activeItem || list.scrollHeight <= list.clientHeight) {
+      return;
+    }
+
+    const listRect = list.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+    if (itemRect.top < listRect.top) {
+      list.scrollTop += itemRect.top - listRect.top;
+    } else if (itemRect.bottom > listRect.bottom) {
+      list.scrollTop += itemRect.bottom - listRect.bottom;
+    }
   }, [activeItemId, scopeKey]);
 
   const filteredItems = useMemo(() => {
@@ -112,7 +122,10 @@ export function AtlasBrowser({
       </div>
 
       {filteredItems.length > 0 ? (
-        <ul className="grid min-h-0 flex-1 grid-cols-2 gap-px bg-[var(--atlas-rule)] sm:grid-cols-3 lg:block lg:space-y-px lg:overflow-y-auto lg:overscroll-contain lg:bg-[var(--atlas-panel)] lg:[scrollbar-color:var(--atlas-rule)_transparent] lg:[scrollbar-width:thin]">
+        <ul
+          ref={listRef}
+          className="grid min-h-0 flex-1 grid-cols-2 gap-px bg-[var(--atlas-rule)] sm:grid-cols-3 lg:block lg:space-y-px lg:overflow-y-auto lg:overscroll-contain lg:bg-[var(--atlas-panel)] lg:[scrollbar-color:var(--atlas-rule)_transparent] lg:[scrollbar-width:thin]"
+        >
           {filteredItems.map((item, index) => (
             <li
               key={item.id}

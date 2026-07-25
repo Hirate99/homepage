@@ -736,7 +736,6 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       country={selectedCountry}
                       level={displayZoomTier === 'place' ? 'place' : 'region'}
                       nodes={regionNodes}
-                      mapTextures={atlasTheme.map.textures}
                       detailRaster={atlasTheme.map.detailRaster}
                       accentColor={song.colors.accent}
                       activeMarkerId={

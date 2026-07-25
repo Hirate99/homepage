@@ -85,7 +85,7 @@ describe('Atlas node model', () => {
     assert.equal(countries[0].postCount, 3);
   });
 
-  it('uses stable country anchors and complete country view bounds', () => {
+  it('uses stable country anchors and focused country view bounds', () => {
     const locations = buildLocationNodes([
       createPost('1', {
         order: 1,
@@ -126,10 +126,10 @@ describe('Atlas node model', () => {
       { lat: 39.8283, lng: -98.5795 },
     );
     assert.deepEqual(unitedStates?.bounds, [
-      [-179.2, 18.9],
-      [-66.8, 71.6],
+      [-125, 24],
+      [-66.5, 50],
     ]);
-    assert.ok((china?.bounds[0][1] ?? Infinity) < 4);
+    assert.ok((china?.bounds[0][1] ?? Infinity) <= 18);
     assert.ok((china?.bounds[1][1] ?? -Infinity) > 53);
   });
 

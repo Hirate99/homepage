@@ -35,6 +35,7 @@ export const ZOOM_SCALE = {
 } as const;
 export const MIN_GLOBE_SCALE = 0.84;
 export const MAX_GLOBE_SCALE = 4.42;
+export const COUNTRY_ENTRY_SCALE = 3.45;
 
 export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -48,6 +49,26 @@ export function sortPosts(posts: CityPost[]) {
 
     return left.city.localeCompare(right.city);
   });
+}
+
+function normalizeLocationName(value: string) {
+  return value
+    .normalize('NFKC')
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function getLocationCoordinateKey(post: CityPost) {
+  if (!post.location) {
+    return '';
+  }
+
+  return [
+    normalizeLocationName(post.location.country),
+    post.location.latitude.toFixed(4),
+    post.location.longitude.toFixed(4),
+  ].join(':');
 }
 
 function averageCoordinates(points: Array<{ lat: number; lng: number }>) {
@@ -66,25 +87,34 @@ function averageCoordinates(points: Array<{ lat: number; lng: number }>) {
 }
 
 export function buildLocationNodes(posts: CityPost[]) {
-  const groups = new Map<string, LocationNode>();
+  const groups: LocationNode[] = [];
+  const groupsByName = new Map<string, LocationNode>();
+  const groupsByCoordinates = new Map<string, LocationNode>();
 
   for (const post of posts) {
     if (!post.location) {
       continue;
     }
 
-    const key = `${post.location.country}:${post.location.locationName}`;
-    const existing = groups.get(key);
+    const nameKey = [
+      normalizeLocationName(post.location.country),
+      normalizeLocationName(post.location.locationName),
+    ].join(':');
+    const coordinateKey = getLocationCoordinateKey(post);
+    const existing =
+      groupsByName.get(nameKey) ?? groupsByCoordinates.get(coordinateKey);
 
     if (existing) {
       existing.posts.push(post);
       existing.count += 1;
+      groupsByName.set(nameKey, existing);
+      groupsByCoordinates.set(coordinateKey, existing);
       continue;
     }
 
-    groups.set(key, {
+    const node: LocationNode = {
       kind: 'location',
-      id: `location-${key.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      id: `location-${nameKey.replace(/[^a-z0-9]+/g, '-')}`,
       label: post.location.locationName,
       country: post.location.country,
       region: post.location.region,
@@ -93,12 +123,13 @@ export function buildLocationNodes(posts: CityPost[]) {
       count: 1,
       posts: [post],
       cover: post.cover,
-    });
+    };
+    groups.push(node);
+    groupsByName.set(nameKey, node);
+    groupsByCoordinates.set(coordinateKey, node);
   }
 
-  return [...groups.values()].sort((left, right) =>
-    left.label.localeCompare(right.label),
-  );
+  return groups.sort((left, right) => left.label.localeCompare(right.label));
 }
 
 export function buildCountryNodes(locations: LocationNode[]) {

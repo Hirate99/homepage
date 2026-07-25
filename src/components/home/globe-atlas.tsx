@@ -28,6 +28,7 @@ import {
   loadGlobeComponent,
 } from './atlas/globe-runtime';
 import {
+  COUNTRY_ENTRY_SCALE,
   MAX_GLOBE_SCALE,
   MIN_GLOBE_SCALE,
   ZOOM_SCALE,
@@ -213,6 +214,7 @@ function GlobeStage({
   onHoverMarker,
   onSelectMarker,
   onZoomScaleChange,
+  onZoomIntoMarker,
   onCenteredMarkerChange,
   onUserInteraction,
   theme,
@@ -229,6 +231,7 @@ function GlobeStage({
   onHoverMarker: (id: string | null) => void;
   onSelectMarker: (id: string) => void;
   onZoomScaleChange: (value: number | ((prev: number) => number)) => void;
+  onZoomIntoMarker: (id: string) => void;
   onCenteredMarkerChange: (id: string | null) => void;
   onUserInteraction: () => void;
   theme: AtlasTheme;
@@ -262,6 +265,7 @@ function GlobeStage({
   const lastCameraTargetIdRef = useRef<string | null>(null);
   const lastFocusKeyRef = useRef(cameraFocusKey);
   const zoomScaleChangeRef = useRef(onZoomScaleChange);
+  const zoomIntoMarkerRef = useRef(onZoomIntoMarker);
   const zoomScaleRef = useRef(zoomScale);
   const wheelMomentumRef = useRef(0);
   const wheelFrameRef = useRef<number | null>(null);
@@ -274,6 +278,7 @@ function GlobeStage({
     distance: number;
     scale: number;
   } | null>(null);
+  const hasRequestedCountryEntryRef = useRef(false);
   const autoRotateEnabledRef = useRef(autoRotateEnabled);
   const isPinchActiveRef = useRef(false);
   const globeMaterial = useMemo(
@@ -387,7 +392,14 @@ function GlobeStage({
   }, [onZoomScaleChange]);
 
   useEffect(() => {
+    zoomIntoMarkerRef.current = onZoomIntoMarker;
+  }, [onZoomIntoMarker]);
+
+  useEffect(() => {
     zoomScaleRef.current = zoomScale;
+    if (zoomScale < COUNTRY_ENTRY_SCALE) {
+      hasRequestedCountryEntryRef.current = false;
+    }
   }, [zoomScale]);
 
   useEffect(() => {
@@ -661,6 +673,23 @@ function GlobeStage({
       isWheelZoomingRef.current = false;
     };
 
+    const getCountryEntryMarker = (nextScale: number) => {
+      if (
+        nextScale < COUNTRY_ENTRY_SCALE ||
+        hasRequestedCountryEntryRef.current
+      ) {
+        return null;
+      }
+
+      const markerId = centeredMarkerIdRef.current ?? activeMarkerIdRef.current;
+      if (!markerId) {
+        return null;
+      }
+
+      hasRequestedCountryEntryRef.current = true;
+      return markerId;
+    };
+
     const runWheelInertia = () => {
       const momentum = wheelMomentumRef.current;
       if (Math.abs(momentum) < 0.0025) {
@@ -682,6 +711,13 @@ function GlobeStage({
       zoomScaleRef.current = nextScale;
       zoomScaleChangeRef.current(nextScale);
 
+      const entryMarkerId = getCountryEntryMarker(nextScale);
+      if (entryMarkerId) {
+        stopWheelInertia();
+        zoomIntoMarkerRef.current(entryMarkerId);
+        return;
+      }
+
       const now = performance.now();
       const isStillScrolling = now - lastWheelEventAtRef.current < 110;
 
@@ -698,9 +734,6 @@ function GlobeStage({
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
-
       const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
       const direction = delta > 0 ? -1 : 1;
       const immediateStep = nextStep * direction;
@@ -716,6 +749,8 @@ function GlobeStage({
         return;
       }
 
+      event.preventDefault();
+      event.stopPropagation();
       userInteractionRef.current();
 
       isWheelZoomingRef.current = true;
@@ -723,6 +758,13 @@ function GlobeStage({
 
       zoomScaleRef.current = nextScale;
       zoomScaleChangeRef.current(nextScale);
+
+      const entryMarkerId = getCountryEntryMarker(nextScale);
+      if (entryMarkerId) {
+        stopWheelInertia();
+        zoomIntoMarkerRef.current(entryMarkerId);
+        return;
+      }
 
       wheelMomentumRef.current = immediateStep * 0.28;
 
@@ -760,13 +802,18 @@ function GlobeStage({
       event.stopPropagation();
       isWheelZoomingRef.current = true;
 
-      zoomScaleChangeRef.current(
-        clamp(
-          pinch.scale * (distance / pinch.distance),
-          MIN_GLOBE_SCALE,
-          MAX_GLOBE_SCALE,
-        ),
+      const nextScale = clamp(
+        pinch.scale * (distance / pinch.distance),
+        MIN_GLOBE_SCALE,
+        MAX_GLOBE_SCALE,
       );
+      zoomScaleRef.current = nextScale;
+      zoomScaleChangeRef.current(nextScale);
+
+      const entryMarkerId = getCountryEntryMarker(nextScale);
+      if (entryMarkerId) {
+        zoomIntoMarkerRef.current(entryMarkerId);
+      }
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
@@ -999,10 +1046,8 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const initialLocationId = useMemo(
     () =>
       initialPost?.location
-        ? (locationNodes.find(
-            (node) =>
-              node.label === initialPost.location?.locationName &&
-              node.country === initialPost.location?.country,
+        ? (locationNodes.find((node) =>
+            node.posts.some((post) => post.id === initialPost.id),
           )?.id ??
           locationNodes[0]?.id ??
           '')
@@ -1267,29 +1312,35 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     }, 620);
   };
 
-  const handleMarkerSelection = (
-    markerId: string,
-    options?: { freezeRotation?: boolean },
-  ) => {
-    setIsAutoRotateFrozen(Boolean(options?.freezeRotation));
+  const handleCountrySelection = (markerId: string) => {
     const countryNode = countryNodes.find((node) => node.id === markerId);
-    if (countryNode) {
-      enterCountry(countryNode);
+    if (!countryNode) {
       return;
     }
 
-    const locationNode = locationNodes.find((node) => node.id === markerId);
-    if (!locationNode) {
+    enterCountry(countryNode);
+  };
+
+  const handleZoomIntoCountry = (markerId: string) => {
+    if (displayZoomTier !== 'world' || isLevelTransitioning) {
       return;
     }
 
-    setSelectedCountryId(
-      countryNodes.find((node) => node.label === locationNode.country)?.id ??
-        selectedCountry.id,
-    );
-    setSelectedLocationId(locationNode.id);
-    setActivePostId(locationNode.posts[0]?.id ?? activePost.id);
-    setDisplayZoomTier('region');
+    const countryNode =
+      countryNodes.find((node) => node.id === markerId) ?? selectedCountry;
+    enterCountry(countryNode);
+  };
+
+  const handleWorldZoomIn = () => {
+    const nextScale = clamp(zoomScale * 1.22, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE);
+
+    if (nextScale >= COUNTRY_ENTRY_SCALE) {
+      handleZoomIntoCountry(selectedCountry.id);
+      return;
+    }
+
+    setIsAutoRotateFrozen(true);
+    setZoomScale(nextScale);
   };
 
   const handleCenteredMarkerChange = (markerId: string | null) => {
@@ -1348,12 +1399,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setDisplayZoomTier('region');
   };
 
-  const handlePostSelection = (post: CityPost, element?: HTMLButtonElement) => {
+  const handlePostSelection = (post: CityPost, element?: HTMLElement) => {
     const parentLocationId =
-      locationNodes.find(
-        (node) =>
-          node.label === (post.location?.locationName ?? '') &&
-          node.country === post.location?.country,
+      locationNodes.find((node) =>
+        node.posts.some((locationPost) => locationPost.id === post.id),
       )?.id ?? null;
     const parentCountryId =
       countryNodes.find((node) => node.label === post.location?.country)?.id ??
@@ -1370,6 +1419,31 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     openViewer(post.id, element);
   };
 
+  const handleLocationSelection = (
+    markerId: string,
+    element?: HTMLButtonElement,
+  ) => {
+    const locationNode = locationNodes.find((node) => node.id === markerId);
+    if (!locationNode) {
+      return;
+    }
+
+    setIsAutoRotateFrozen(true);
+    setSelectedCountryId(
+      countryNodes.find((node) => node.label === locationNode.country)?.id ??
+        selectedCountry.id,
+    );
+    setSelectedLocationId(locationNode.id);
+    setActivePostId(locationNode.posts[0]?.id ?? activePost.id);
+
+    if (locationNode.posts.length === 1) {
+      handlePostSelection(locationNode.posts[0], element);
+      return;
+    }
+
+    setDisplayZoomTier('place');
+  };
+
   const browserItems: AtlasBrowserItem[] =
     displayZoomTier === 'world'
       ? countryNodes.map((country) => ({
@@ -1381,8 +1455,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             placeCount: country.count,
             postCount: country.postCount,
           }),
-          onSelect: () =>
-            handleMarkerSelection(country.id, { freezeRotation: true }),
+          onSelect: () => handleCountrySelection(country.id),
         }))
       : displayZoomTier === 'region'
         ? regionNodes.map((location) => ({
@@ -1391,15 +1464,8 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             image: location.cover,
             title: location.label,
             meta: location.region,
-            onSelect: (element) => {
-              handleMarkerSelection(location.id, { freezeRotation: true });
-              if (location.posts.length === 1) {
-                handlePostSelection(location.posts[0], element);
-                return;
-              }
-
-              setDisplayZoomTier('place');
-            },
+            onSelect: (element) =>
+              handleLocationSelection(location.id, element),
           }))
         : selectedLocation.posts.map((post) => ({
             id: post.id,
@@ -1529,12 +1595,9 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       }
                       hoveredMarkerId={hoveredMarkerId}
                       onHoverMarker={setHoveredMarkerId}
-                      onSelectMarker={(markerId) =>
-                        handleMarkerSelection(markerId, {
-                          freezeRotation: true,
-                        })
-                      }
+                      onSelectMarker={handleCountrySelection}
                       onZoomScaleChange={handleZoomScaleChange}
+                      onZoomIntoMarker={handleZoomIntoCountry}
                       onCenteredMarkerChange={handleCenteredMarkerChange}
                       onUserInteraction={() => setIsAutoRotateFrozen(true)}
                       theme={atlasTheme}
@@ -1583,11 +1646,8 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                         displayZoomTier === 'world' ? null : activeMarkerId
                       }
                       onHoverMarker={setHoveredMarkerId}
-                      onSelectMarker={(markerId) =>
-                        handleMarkerSelection(markerId, {
-                          freezeRotation: true,
-                        })
-                      }
+                      onSelectMarker={handleLocationSelection}
+                      onExitToWorld={() => returnToWorld()}
                       reduceMotion={shouldReduceMotion}
                     />
                   </motion.div>
@@ -1703,10 +1763,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           ATLAS_CONTROL_CLASSNAME,
                           'border-r border-[var(--atlas-rule)]',
                         )}
-                        onClick={() => {
-                          setIsAutoRotateFrozen(true);
-                          handleZoomScaleChange((current) => current * 1.22);
-                        }}
+                        onClick={handleWorldZoomIn}
                         aria-label={t('zoomIn')}
                         title={t('zoomIn')}
                         disabled={isLevelTransitioning}

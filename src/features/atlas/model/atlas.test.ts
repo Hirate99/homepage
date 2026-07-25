@@ -85,6 +85,54 @@ describe('Atlas node model', () => {
     assert.equal(countries[0].postCount, 3);
   });
 
+  it('uses stable country anchors and complete country view bounds', () => {
+    const locations = buildLocationNodes([
+      createPost('1', {
+        order: 1,
+        locationName: 'New York',
+        country: 'United States',
+        region: 'New York',
+        latitude: 40.7128,
+        longitude: -74.006,
+        description: '',
+      }),
+      createPost('2', {
+        order: 2,
+        locationName: 'Chicago',
+        country: 'United States',
+        region: 'Illinois',
+        latitude: 41.8781,
+        longitude: -87.6298,
+        description: '',
+      }),
+      createPost('3', {
+        order: 3,
+        locationName: 'Shanghai',
+        country: 'China',
+        region: 'Shanghai',
+        latitude: 31.2304,
+        longitude: 121.4737,
+        description: '',
+      }),
+    ]);
+    const countries = buildCountryNodes(locations);
+    const unitedStates = countries.find(
+      (country) => country.label === 'United States',
+    );
+    const china = countries.find((country) => country.label === 'China');
+
+    assert.deepEqual(
+      { lat: unitedStates?.lat, lng: unitedStates?.lng },
+      { lat: 39.8283, lng: -98.5795 },
+    );
+    assert.deepEqual(unitedStates?.bounds, [
+      [-179.2, 18.9],
+      [-66.8, 71.6],
+    ]);
+    assert.ok((china?.bounds[0][1] ?? Infinity) < 4);
+    assert.ok((china?.bounds[1][1] ?? -Infinity) > 53);
+  });
+
   it('offsets multiple post markers that share one location', () => {
     const location = buildLocationNodes([
       createPost('1', {

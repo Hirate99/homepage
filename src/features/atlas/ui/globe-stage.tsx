@@ -20,6 +20,7 @@ import {
   isNodeVisibleFromView,
 } from '@/features/atlas/model/globe-view';
 import {
+  COUNTRY_ENTRY_SCALE,
   MAX_GLOBE_SCALE,
   MIN_GLOBE_SCALE,
   clamp,
@@ -93,8 +94,8 @@ function getMarkerButtonStyle(position: {
     position: 'absolute',
     left: `${position.x * 100}%`,
     top: `${position.y * 100}%`,
-    width: '5rem',
-    height: '5rem',
+    width: '2.75rem',
+    height: '2.75rem',
     opacity: position.visible ? 1 : 0,
     transform: `translate(-50%, -50%) scale(${position.visible ? 1 : 0.85})`,
     transition: 'opacity 220ms ease, transform 220ms ease',
@@ -106,6 +107,7 @@ export interface GlobeStageProps {
   cameraTarget: MarkerNode | null;
   cameraFocusKey: number;
   autoRotateEnabled: boolean;
+  isInteractionActive: boolean;
   zoomScale: number;
   zoomTier: ZoomTier;
   activeMarkerId: string | null;
@@ -113,6 +115,7 @@ export interface GlobeStageProps {
   onHoverMarker: (id: string | null) => void;
   onSelectMarker: (id: string) => void;
   onZoomScaleChange: (value: number | ((prev: number) => number)) => void;
+  onZoomIntoMarker: (id: string) => void;
   onCenteredMarkerChange: (id: string | null) => void;
   onUserInteraction: () => void;
   theme: AtlasTheme;
@@ -124,6 +127,7 @@ export function GlobeStage({
   cameraTarget,
   cameraFocusKey,
   autoRotateEnabled,
+  isInteractionActive,
   zoomScale,
   zoomTier,
   activeMarkerId,
@@ -131,6 +135,7 @@ export function GlobeStage({
   onHoverMarker,
   onSelectMarker,
   onZoomScaleChange,
+  onZoomIntoMarker,
   onCenteredMarkerChange,
   onUserInteraction,
   theme,
@@ -164,6 +169,7 @@ export function GlobeStage({
   const lastCameraTargetIdRef = useRef<string | null>(null);
   const lastFocusKeyRef = useRef(cameraFocusKey);
   const zoomScaleChangeRef = useRef(onZoomScaleChange);
+  const zoomIntoMarkerRef = useRef(onZoomIntoMarker);
   const zoomScaleRef = useRef(zoomScale);
   const wheelMomentumRef = useRef(0);
   const wheelFrameRef = useRef<number | null>(null);
@@ -176,7 +182,9 @@ export function GlobeStage({
     distance: number;
     scale: number;
   } | null>(null);
+  const hasRequestedCountryEntryRef = useRef(false);
   const autoRotateEnabledRef = useRef(autoRotateEnabled);
+  const isInteractionActiveRef = useRef(isInteractionActive);
   const isPinchActiveRef = useRef(false);
   const globeMaterial = useMemo(
     () =>
@@ -289,12 +297,23 @@ export function GlobeStage({
   }, [onZoomScaleChange]);
 
   useEffect(() => {
+    zoomIntoMarkerRef.current = onZoomIntoMarker;
+  }, [onZoomIntoMarker]);
+
+  useEffect(() => {
     zoomScaleRef.current = zoomScale;
+    if (zoomScale < COUNTRY_ENTRY_SCALE) {
+      hasRequestedCountryEntryRef.current = false;
+    }
   }, [zoomScale]);
 
   useEffect(() => {
     autoRotateEnabledRef.current = autoRotateEnabled;
   }, [autoRotateEnabled]);
+
+  useEffect(() => {
+    isInteractionActiveRef.current = isInteractionActive;
+  }, [isInteractionActive]);
 
   useEffect(() => {
     if (!isGlobeReady || !globeRef.current) {
@@ -310,7 +329,7 @@ export function GlobeStage({
       : hasFocusShift
         ? cameraTarget
           ? 980
-          : 620
+          : 520
         : 0;
     const nextView = hasFocusShift
       ? cameraTarget
@@ -344,7 +363,9 @@ export function GlobeStage({
         }
 
         nextControls.autoRotate =
-          autoRotateEnabled && !isPointerOverGlobeRef.current;
+          isInteractionActiveRef.current &&
+          autoRotateEnabledRef.current &&
+          !isPointerOverGlobeRef.current;
       }, focusDuration + 40);
     }
 
@@ -364,7 +385,9 @@ export function GlobeStage({
       return;
     }
 
-    if (isStageActive) {
+    const shouldAnimateStage = isStageActive && isInteractionActive;
+
+    if (shouldAnimateStage) {
       globeRef.current.resumeAnimation();
     } else {
       globeRef.current.pauseAnimation();
@@ -377,14 +400,24 @@ export function GlobeStage({
     controls.dampingFactor = 0.08;
     controls.rotateSpeed = zoomTier === 'world' ? 0.85 : 0.65;
     controls.autoRotate =
-      isStageActive && autoRotateEnabled && !isPointerOverGlobeRef.current;
-    controls.autoRotateSpeed = zoomTier === 'world' ? 0.55 : 0.32;
-  }, [autoRotateEnabled, isGlobeReady, isStageActive, zoomTier]);
+      shouldAnimateStage &&
+      autoRotateEnabled &&
+      !isPointerOverGlobeRef.current &&
+      performance.now() >= focusTransitionUntilRef.current;
+    controls.autoRotateSpeed = zoomTier === 'world' ? 0.3 : 0.22;
+  }, [
+    autoRotateEnabled,
+    isGlobeReady,
+    isInteractionActive,
+    isStageActive,
+    zoomTier,
+  ]);
 
   useEffect(() => {
     if (
       !isGlobeReady ||
       !isStageActive ||
+      !isInteractionActive ||
       !globeRef.current ||
       viewport.width === 0 ||
       viewport.height === 0
@@ -484,7 +517,7 @@ export function GlobeStage({
         focusTransitionTimerRef.current = null;
       }
     };
-  }, [isGlobeReady, isStageActive, viewport]);
+  }, [isGlobeReady, isInteractionActive, isStageActive, viewport]);
 
   const handlePointerEnter = () => {
     isPointerOverGlobeRef.current = true;
@@ -498,7 +531,11 @@ export function GlobeStage({
     isPointerOverGlobeRef.current = false;
     const controls = globeRef.current?.controls();
     if (controls) {
-      controls.autoRotate = isStageActive && autoRotateEnabled;
+      controls.autoRotate =
+        isStageActive &&
+        isInteractionActive &&
+        autoRotateEnabled &&
+        performance.now() >= focusTransitionUntilRef.current;
     }
     onHoverMarker(null);
   };
@@ -534,6 +571,7 @@ export function GlobeStage({
       controls.enabled = !active;
       controls.autoRotate =
         !active &&
+        isInteractionActiveRef.current &&
         autoRotateEnabledRef.current &&
         !isPointerOverGlobeRef.current;
     };
@@ -563,7 +601,29 @@ export function GlobeStage({
       isWheelZoomingRef.current = false;
     };
 
+    const getCountryEntryMarker = (nextScale: number) => {
+      if (
+        nextScale < COUNTRY_ENTRY_SCALE ||
+        hasRequestedCountryEntryRef.current
+      ) {
+        return null;
+      }
+
+      const markerId = centeredMarkerIdRef.current ?? activeMarkerIdRef.current;
+      if (!markerId) {
+        return null;
+      }
+
+      hasRequestedCountryEntryRef.current = true;
+      return markerId;
+    };
+
     const runWheelInertia = () => {
+      if (!isInteractionActiveRef.current) {
+        stopWheelInertia();
+        return;
+      }
+
       const momentum = wheelMomentumRef.current;
       if (Math.abs(momentum) < 0.0025) {
         stopWheelInertia();
@@ -584,6 +644,13 @@ export function GlobeStage({
       zoomScaleRef.current = nextScale;
       zoomScaleChangeRef.current(nextScale);
 
+      const entryMarkerId = getCountryEntryMarker(nextScale);
+      if (entryMarkerId) {
+        stopWheelInertia();
+        zoomIntoMarkerRef.current(entryMarkerId);
+        return;
+      }
+
       const now = performance.now();
       const isStillScrolling = now - lastWheelEventAtRef.current < 110;
 
@@ -592,6 +659,13 @@ export function GlobeStage({
     };
 
     const handleWheel = (event: WheelEvent) => {
+      if (!isInteractionActiveRef.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        stopWheelInertia();
+        return;
+      }
+
       const delta =
         event.deltaMode === WheelEvent.DOM_DELTA_LINE
           ? event.deltaY * 12
@@ -599,9 +673,6 @@ export function GlobeStage({
       if (!Number.isFinite(delta) || delta === 0) {
         return;
       }
-
-      event.preventDefault();
-      event.stopPropagation();
 
       const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
       const direction = delta > 0 ? -1 : 1;
@@ -618,6 +689,8 @@ export function GlobeStage({
         return;
       }
 
+      event.preventDefault();
+      event.stopPropagation();
       userInteractionRef.current();
 
       isWheelZoomingRef.current = true;
@@ -625,6 +698,13 @@ export function GlobeStage({
 
       zoomScaleRef.current = nextScale;
       zoomScaleChangeRef.current(nextScale);
+
+      const entryMarkerId = getCountryEntryMarker(nextScale);
+      if (entryMarkerId) {
+        stopWheelInertia();
+        zoomIntoMarkerRef.current(entryMarkerId);
+        return;
+      }
 
       wheelMomentumRef.current = immediateStep * 0.28;
 
@@ -636,6 +716,14 @@ export function GlobeStage({
     };
 
     const handleTouchStart = (event: TouchEvent) => {
+      if (!isInteractionActiveRef.current) {
+        if (event.touches.length >= 2) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+
       if (event.touches.length < 2) {
         return;
       }
@@ -662,13 +750,18 @@ export function GlobeStage({
       event.stopPropagation();
       isWheelZoomingRef.current = true;
 
-      zoomScaleChangeRef.current(
-        clamp(
-          pinch.scale * (distance / pinch.distance),
-          MIN_GLOBE_SCALE,
-          MAX_GLOBE_SCALE,
-        ),
+      const nextScale = clamp(
+        pinch.scale * (distance / pinch.distance),
+        MIN_GLOBE_SCALE,
+        MAX_GLOBE_SCALE,
       );
+      zoomScaleRef.current = nextScale;
+      zoomScaleChangeRef.current(nextScale);
+
+      const entryMarkerId = getCountryEntryMarker(nextScale);
+      if (entryMarkerId) {
+        zoomIntoMarkerRef.current(entryMarkerId);
+      }
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
@@ -710,7 +803,7 @@ export function GlobeStage({
     <div
       ref={containerRef}
       data-slot="atlas-globe-stage"
-      className="relative mx-auto h-[min(72svh,570px)] min-h-[430px] w-full cursor-grab touch-pan-y overflow-hidden active:cursor-grabbing sm:h-[620px] lg:h-[min(68vh,700px)]"
+      className="relative h-full min-h-[430px] w-full cursor-grab touch-pan-y overflow-hidden active:cursor-grabbing"
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       onPointerDown={handlePointerDown}
@@ -741,7 +834,7 @@ export function GlobeStage({
             bumpImageUrl={ATLAS_TEXTURES.elevation}
             globeMaterial={globeMaterial}
             waitForGlobeReady
-            animateIn={!reduceMotion}
+            animateIn={false}
             showAtmosphere
             atmosphereColor={theme.atmosphere}
             atmosphereAltitude={theme.globe.atmosphereAltitude}

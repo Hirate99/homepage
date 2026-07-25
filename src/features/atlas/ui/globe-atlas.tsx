@@ -1,41 +1,32 @@
 'use client';
 
-import {
-  Suspense,
-  lazy,
-  useEffect,
-  useMemo,
-  useReducer,
-  useState,
-} from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronRight, Minus, Plus, RotateCcw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import type { CardRect } from '@/components/home/images';
-import { type CityPost } from '@/features/collections/model/city-post';
+import type { CityPost } from '@/features/collections/model/city-post';
 import {
-  atlasNavigationReducer,
-  createAtlasNavigationState,
-} from '@/features/atlas/model/navigation';
-import {
+  COUNTRY_ENTRY_SCALE,
+  MAX_GLOBE_SCALE,
+  MIN_GLOBE_SCALE,
   ZOOM_SCALE,
-  buildAllPostNodes,
   buildCountryNodes,
   buildLocationNodes,
-  getZoomTier,
+  clamp,
   sortPosts,
   type CountryNode,
   type LocationNode,
   type MarkerNode,
-  type PostNode,
   type ZoomTier,
 } from '@/features/atlas/model/atlas';
 import { cn } from '@/lib/utils';
 import { useSongStore } from '@/providers/song-store-provider';
 
-import { AtlasDockCard } from './atlas-dock-card';
+import { AtlasBrowser, type AtlasBrowserItem } from './atlas-browser';
+import { CountryMapStage } from './country-map-stage';
 import { GlobeStage } from './globe-stage';
 import { getAtlasTheme } from './theme';
 
@@ -44,7 +35,7 @@ interface GlobeAtlasProps {
 }
 
 const ATLAS_CONTROL_CLASSNAME =
-  'grid h-11 w-11 place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-inset';
+  'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-inset';
 
 let expandedPostModulePromise: Promise<
   typeof import('@/components/home/images')
@@ -119,58 +110,67 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const initialLocationId = useMemo(
     () =>
       initialPost?.location
-        ? (locationNodes.find(
-            (node) =>
-              node.label === initialPost.location?.locationName &&
-              node.country === initialPost.location?.country,
+        ? (locationNodes.find((node) =>
+            node.posts.some((post) => post.id === initialPost.id),
           )?.id ??
           locationNodes[0]?.id ??
           '')
         : (locationNodes[0]?.id ?? ''),
     [initialPost, locationNodes],
   );
-  const [navigation, dispatchNavigation] = useReducer(
-    atlasNavigationReducer,
-    {
-      countryId: initialCountryId,
-      locationId: initialLocationId,
-      postId: initialPost?.id ?? '',
-    },
-    createAtlasNavigationState,
+  const [zoomScale, setZoomScale] = useState<number>(ZOOM_SCALE.world);
+  const [selectedCountryId, setSelectedCountryId] = useState(initialCountryId);
+  const [selectedLocationId, setSelectedLocationId] =
+    useState(initialLocationId);
+  const [activePostId, setActivePostId] = useState(initialPost?.id ?? '');
+  const [cameraTargetId, setCameraTargetId] = useState<string | null>(
+    initialCountryId || null,
   );
-  const {
-    zoomScale,
-    selectedCountryId,
-    selectedLocationId,
-    activePostId,
-    cameraTargetId,
-    cameraFocusKey,
-    isAutoRotateFrozen,
-    displayZoomTier,
-  } = navigation;
+  const [cameraFocusKey, setCameraFocusKey] = useState(0);
+  const [isAutoRotateFrozen, setIsAutoRotateFrozen] = useState(false);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{
     id: string;
     originRect: CardRect;
   } | null>(null);
-  const zoomTier = getZoomTier(zoomScale);
+  const [displayZoomTier, setDisplayZoomTier] = useState<ZoomTier>(
+    () => 'world',
+  );
+  const [isLevelTransitioning, setIsLevelTransitioning] = useState(false);
+  const [transitionDirection, setTransitionDirection] = useState<
+    'enter' | 'exit' | null
+  >(null);
+  const atlasViewportRef = useRef<HTMLDivElement>(null);
+  const transitionTimersRef = useRef<number[]>([]);
 
   useEffect(() => {
-    if (zoomTier === displayZoomTier) {
+    return () => {
+      for (const timerId of transitionTimersRef.current) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const viewport = atlasViewportRef.current;
+    if (!viewport) {
       return;
     }
 
-    const timerId = window.setTimeout(() => {
-      dispatchNavigation({
-        type: 'set_display_tier',
-        tier: zoomTier,
-      });
-    }, 150);
+    const keepWheelInsideAtlas = (event: WheelEvent) => {
+      if (isLevelTransitioning || displayZoomTier !== 'world') {
+        event.preventDefault();
+      }
+    };
+
+    viewport.addEventListener('wheel', keepWheelInsideAtlas, {
+      passive: false,
+    });
 
     return () => {
-      window.clearTimeout(timerId);
+      viewport.removeEventListener('wheel', keepWheelInsideAtlas);
     };
-  }, [displayZoomTier, zoomTier]);
+  }, [displayZoomTier, isLevelTransitioning]);
 
   useEffect(() => {
     if (displayZoomTier === 'place') {
@@ -183,17 +183,20 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       return;
     }
 
-    dispatchNavigation({
-      type: 'sync',
-      countryIds: countryNodes.map((node) => node.id),
-      locationIds: locationNodes.map((node) => node.id),
-      postIds: atlasPosts.map((post) => post.id),
-      fallback: {
-        countryId: initialCountryId,
-        locationId: initialLocationId,
-        postId: atlasPosts[0].id,
-      },
-    });
+    setSelectedCountryId((prev) =>
+      countryNodes.some((node) => node.id === prev) ? prev : initialCountryId,
+    );
+    setSelectedLocationId((prev) =>
+      locationNodes.some((node) => node.id === prev) ? prev : initialLocationId,
+    );
+    setActivePostId((prev) =>
+      atlasPosts.some((post) => post.id === prev) ? prev : atlasPosts[0].id,
+    );
+    setCameraTargetId((prev) =>
+      prev && countryNodes.some((node) => node.id === prev)
+        ? prev
+        : initialCountryId,
+    );
   }, [
     atlasPosts,
     countryNodes,
@@ -238,54 +241,16 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       return selectedCountry?.id ?? null;
     }
 
-    if (displayZoomTier === 'place') {
-      return `post-${activePost?.id ?? ''}`;
-    }
-
     return selectedLocation?.id ?? null;
-  }, [activePost?.id, displayZoomTier, selectedCountry, selectedLocation]);
-
-  const dockItems = useMemo(() => {
-    if (displayZoomTier === 'world') {
-      return countryNodes;
-    }
-
-    if (displayZoomTier === 'region') {
-      return regionNodes;
-    }
-
-    return selectedLocation?.posts ?? [];
-  }, [countryNodes, displayZoomTier, regionNodes, selectedLocation?.posts]);
-
-  const postNodes = useMemo(
-    () => buildAllPostNodes(locationNodes),
-    [locationNodes],
-  );
-
-  const allNodes = useMemo(
-    () => [...countryNodes, ...locationNodes, ...postNodes],
-    [countryNodes, locationNodes, postNodes],
-  );
-
-  const globeNodes = useMemo(() => {
-    if (displayZoomTier === 'world') {
-      return countryNodes;
-    }
-
-    if (displayZoomTier === 'region') {
-      return locationNodes;
-    }
-
-    return postNodes;
-  }, [countryNodes, displayZoomTier, locationNodes, postNodes]);
+  }, [displayZoomTier, selectedCountry, selectedLocation]);
 
   const cameraTarget = useMemo<MarkerNode | null>(() => {
     if (!cameraTargetId) {
       return null;
     }
 
-    return allNodes.find((node) => node.id === cameraTargetId) ?? null;
-  }, [allNodes, cameraTargetId]);
+    return countryNodes.find((node) => node.id === cameraTargetId) ?? null;
+  }, [cameraTargetId, countryNodes]);
 
   useEffect(() => {
     if (!selectedLocation) {
@@ -299,10 +264,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       return;
     }
 
-    dispatchNavigation({
-      type: 'center_selection',
-      countryId: parentCountryId,
-    });
+    setSelectedCountryId(parentCountryId);
   }, [countryNodes, selectedCountryId, selectedLocation]);
 
   if (
@@ -334,143 +296,289 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const handleZoomScaleChange = (
     value: number | ((prev: number) => number),
   ) => {
-    dispatchNavigation({
-      type: 'set_zoom',
-      value,
+    setZoomScale((current) => {
+      const nextValue = typeof value === 'function' ? value(current) : value;
+      return clamp(nextValue, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE);
     });
   };
 
-  const handleMarkerSelection = (
-    markerId: string,
+  const focusCamera = (
+    targetId: string,
     options?: { freezeRotation?: boolean },
   ) => {
+    setCameraTargetId(targetId);
+    setIsAutoRotateFrozen(Boolean(options?.freezeRotation));
+    setCameraFocusKey((current) => current + 1);
+  };
+
+  const clearTransitionTimers = () => {
+    for (const timerId of transitionTimersRef.current) {
+      window.clearTimeout(timerId);
+    }
+    transitionTimersRef.current = [];
+  };
+
+  const scheduleTransitionStep = (callback: () => void, delay: number) => {
+    const timerId = window.setTimeout(callback, delay);
+    transitionTimersRef.current.push(timerId);
+  };
+
+  const enterCountry = (country: CountryNode) => {
+    clearTransitionTimers();
+    setSelectedCountryId(country.id);
+    setSelectedLocationId(country.locations[0]?.id ?? selectedLocation.id);
+    setActivePostId(country.locations[0]?.posts[0]?.id ?? activePost.id);
+    focusCamera(country.id, { freezeRotation: true });
+
+    if (shouldReduceMotion) {
+      setZoomScale(ZOOM_SCALE.region);
+      setDisplayZoomTier('region');
+      setIsLevelTransitioning(false);
+      setTransitionDirection(null);
+      return;
+    }
+
+    setIsLevelTransitioning(true);
+    setTransitionDirection('enter');
+    scheduleTransitionStep(() => {
+      setDisplayZoomTier('region');
+    }, 120);
+    scheduleTransitionStep(() => {
+      setZoomScale(ZOOM_SCALE.region);
+      setIsLevelTransitioning(false);
+      setTransitionDirection(null);
+    }, 540);
+  };
+
+  const returnToWorld = (resetSelection = false) => {
+    clearTransitionTimers();
+    const targetCountry = resetSelection
+      ? (countryNodes.find((country) => country.id === initialCountryId) ??
+        selectedCountry)
+      : selectedCountry;
+
+    if (resetSelection) {
+      setSelectedCountryId(targetCountry.id);
+      setSelectedLocationId(
+        targetCountry.locations[0]?.id ?? initialLocationId,
+      );
+      setActivePostId(
+        targetCountry.locations[0]?.posts[0]?.id ??
+          initialPost?.id ??
+          atlasPosts[0].id,
+      );
+    }
+
+    setCameraTargetId(targetCountry.id);
+    setCameraFocusKey((current) => current + 1);
+    setIsAutoRotateFrozen(true);
+    setZoomScale(ZOOM_SCALE.region);
+
+    if (shouldReduceMotion) {
+      setDisplayZoomTier('world');
+      setZoomScale(ZOOM_SCALE.world);
+      setCameraTargetId(resetSelection ? initialCountryId : targetCountry.id);
+      setIsAutoRotateFrozen(false);
+      setIsLevelTransitioning(false);
+      setTransitionDirection(null);
+      return;
+    }
+
+    setIsLevelTransitioning(true);
+    setTransitionDirection('exit');
+    setDisplayZoomTier('world');
+    scheduleTransitionStep(() => {
+      setZoomScale(ZOOM_SCALE.world);
+      setCameraTargetId(null);
+      setCameraFocusKey((current) => current + 1);
+    }, 40);
+    scheduleTransitionStep(() => {
+      setIsLevelTransitioning(false);
+      setTransitionDirection(null);
+    }, 580);
+    scheduleTransitionStep(() => {
+      setIsAutoRotateFrozen(false);
+    }, 760);
+  };
+
+  const handleCountrySelection = (markerId: string) => {
     const countryNode = countryNodes.find((node) => node.id === markerId);
-    if (countryNode) {
-      dispatchNavigation({
-        type: 'select_country',
-        countryId: countryNode.id,
-        locationId: countryNode.locations[0]?.id ?? selectedLocation.id,
-        postId: countryNode.locations[0]?.posts[0]?.id ?? activePost.id,
-        freezeRotation: Boolean(options?.freezeRotation),
-      });
+    if (!countryNode) {
       return;
     }
 
-    const postNode = postNodes.find((node) => node.id === markerId);
-    if (postNode) {
-      const parentLocationId =
-        locationNodes.find(
-          (node) =>
-            node.label === (postNode.post.location?.locationName ?? '') &&
-            node.country === postNode.country,
-        )?.id ?? null;
-      const parentCountryId =
-        countryNodes.find((node) => node.label === postNode.country)?.id ??
-        null;
+    enterCountry(countryNode);
+  };
 
-      dispatchNavigation({
-        type: 'select_post',
-        countryId: parentCountryId ?? undefined,
-        locationId: parentLocationId ?? undefined,
-        postId: postNode.post.id,
-        markerId: postNode.id,
-        freezeRotation: Boolean(options?.freezeRotation),
-        incrementFocus: true,
-      });
-      openViewer(postNode.post.id);
+  const handleZoomIntoCountry = (markerId: string) => {
+    if (displayZoomTier !== 'world' || isLevelTransitioning) {
       return;
     }
 
-    const locationNode = locationNodes.find((node) => node.id === markerId);
-    if (!locationNode) {
+    const countryNode =
+      countryNodes.find((node) => node.id === markerId) ?? selectedCountry;
+    enterCountry(countryNode);
+  };
+
+  const handleWorldZoomIn = () => {
+    const nextScale = clamp(zoomScale * 1.22, MIN_GLOBE_SCALE, MAX_GLOBE_SCALE);
+
+    if (nextScale >= COUNTRY_ENTRY_SCALE) {
+      handleZoomIntoCountry(selectedCountry.id);
       return;
     }
 
-    dispatchNavigation({
-      type: 'select_location',
-      countryId:
-        countryNodes.find((node) => node.label === locationNode.country)?.id ??
-        selectedCountry.id,
-      locationId: locationNode.id,
-      postId: locationNode.posts[0]?.id ?? activePost.id,
-      freezeRotation: Boolean(options?.freezeRotation),
-    });
+    setIsAutoRotateFrozen(true);
+    setZoomScale(nextScale);
   };
 
   const handleCenteredMarkerChange = (markerId: string | null) => {
-    if (!markerId) {
+    if (!markerId || !isAutoRotateFrozen) {
       return;
     }
 
     const countryNode = countryNodes.find((node) => node.id === markerId);
-    if (countryNode) {
-      dispatchNavigation({
-        type: 'center_selection',
-        countryId: countryNode.id,
-        locationId: countryNode.locations[0]?.id,
-        postId: countryNode.locations[0]?.posts[0]?.id,
-      });
+    if (!countryNode) {
       return;
     }
 
-    const postNode = postNodes.find((node) => node.id === markerId);
-    if (postNode) {
-      const locationId =
-        locationNodes.find(
-          (node) =>
-            node.label === (postNode.post.location?.locationName ?? '') &&
-            node.country === postNode.country,
-        )?.id ?? null;
-      const parentCountryId =
-        countryNodes.find((node) => node.label === postNode.country)?.id ??
-        null;
+    setSelectedCountryId((current) =>
+      current === countryNode.id ? current : countryNode.id,
+    );
 
-      dispatchNavigation({
-        type: 'center_selection',
-        countryId: parentCountryId ?? undefined,
-        locationId: locationId ?? undefined,
-        postId: postNode.post.id,
-      });
+    const firstLocationId = countryNode.locations[0]?.id;
+    if (firstLocationId) {
+      setSelectedLocationId((current) =>
+        current === firstLocationId ? current : firstLocationId,
+      );
+    }
+
+    const firstPostId = countryNode.locations[0]?.posts[0]?.id;
+    if (firstPostId) {
+      setActivePostId((current) =>
+        current === firstPostId ? current : firstPostId,
+      );
+    }
+  };
+
+  const resetAtlasView = () => {
+    if (displayZoomTier === 'world') {
+      clearTransitionTimers();
+      setSelectedCountryId(initialCountryId);
+      setSelectedLocationId(initialLocationId);
+      setActivePostId(initialPost?.id ?? atlasPosts[0].id);
+      setCameraTargetId(null);
+      setCameraFocusKey((current) => current + 1);
+      setZoomScale(ZOOM_SCALE.world);
+      setIsAutoRotateFrozen(false);
+      setIsLevelTransitioning(false);
+      setTransitionDirection(null);
       return;
     }
 
+    returnToWorld(true);
+  };
+
+  const navigateToAtlasLevel = (level: Exclude<ZoomTier, 'place'>) => {
+    if (level === 'world') {
+      returnToWorld();
+      return;
+    }
+
+    setDisplayZoomTier('region');
+  };
+
+  const handlePostSelection = (post: CityPost, element?: HTMLElement) => {
+    const parentLocationId =
+      locationNodes.find((node) =>
+        node.posts.some((locationPost) => locationPost.id === post.id),
+      )?.id ?? null;
+    const parentCountryId =
+      countryNodes.find((node) => node.label === post.location?.country)?.id ??
+      null;
+
+    if (parentCountryId) {
+      setSelectedCountryId(parentCountryId);
+    }
+    if (parentLocationId) {
+      setSelectedLocationId(parentLocationId);
+    }
+    setActivePostId(post.id);
+    setIsAutoRotateFrozen(true);
+    openViewer(post.id, element);
+  };
+
+  const handleLocationSelection = (
+    markerId: string,
+    element?: HTMLButtonElement,
+  ) => {
     const locationNode = locationNodes.find((node) => node.id === markerId);
     if (!locationNode) {
       return;
     }
 
-    const parentCountryId =
+    setIsAutoRotateFrozen(true);
+    setSelectedCountryId(
       countryNodes.find((node) => node.label === locationNode.country)?.id ??
-      null;
-    dispatchNavigation({
-      type: 'center_selection',
-      countryId: parentCountryId ?? undefined,
-      locationId: locationNode.id,
-      postId: locationNode.posts[0]?.id,
-    });
+        selectedCountry.id,
+    );
+    setSelectedLocationId(locationNode.id);
+    setActivePostId(locationNode.posts[0]?.id ?? activePost.id);
+
+    if (locationNode.posts.length === 1) {
+      handlePostSelection(locationNode.posts[0], element);
+      return;
+    }
+
+    setDisplayZoomTier('place');
   };
 
-  const resetAtlasView = () => {
-    dispatchNavigation({
-      type: 'reset',
-      selection: {
-        countryId: initialCountryId,
-        locationId: initialLocationId,
-        postId: initialPost?.id ?? atlasPosts[0].id,
-      },
-    });
-  };
+  const browserItems: AtlasBrowserItem[] =
+    displayZoomTier === 'world'
+      ? countryNodes.map((country) => ({
+          id: country.id,
+          active: country.id === selectedCountry.id,
+          image: country.cover,
+          title: country.label,
+          meta: t('dockMeta', {
+            placeCount: country.count,
+            postCount: country.postCount,
+          }),
+          onSelect: () => handleCountrySelection(country.id),
+        }))
+      : displayZoomTier === 'region'
+        ? regionNodes.map((location) => ({
+            id: location.id,
+            active: location.id === selectedLocation.id,
+            image: location.cover,
+            title: location.label,
+            meta: location.region,
+            onSelect: (element) =>
+              handleLocationSelection(location.id, element),
+          }))
+        : selectedLocation.posts.map((post) => ({
+            id: post.id,
+            active: post.id === activePost.id,
+            image: post.cover,
+            title: post.city,
+            meta: post.location?.region ?? selectedLocation.region,
+            onSelect: (element) => handlePostSelection(post, element),
+          }));
 
-  const navigateToAtlasLevel = (level: Exclude<ZoomTier, 'place'>) => {
-    const targetId =
-      level === 'world' ? selectedCountry.id : selectedLocation.id;
-
-    dispatchNavigation({
-      type: 'navigate',
-      tier: level,
-      targetId,
-    });
-  };
+  const browserTitle =
+    displayZoomTier === 'world'
+      ? t('browseCountries')
+      : displayZoomTier === 'region'
+        ? t('browseCountryPlaces', { country: selectedCountry.label })
+        : t('browsePlacePosts', { place: selectedLocation.label });
+  const browserSearchPlaceholder =
+    displayZoomTier === 'world'
+      ? t('searchCountries')
+      : displayZoomTier === 'region'
+        ? t('searchCountryPlaces', { country: selectedCountry.label })
+        : t('searchPlacePosts', { place: selectedLocation.label });
+  const showWorldLayer = displayZoomTier === 'world' || isLevelTransitioning;
+  const showCountryLayer = displayZoomTier !== 'world' || isLevelTransitioning;
 
   return (
     <>
@@ -479,11 +587,11 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         data-song={song.id}
         data-theme={song.theme}
         style={atlasTheme.cssVariables}
-        className="relative w-full scroll-mt-0 bg-[var(--atlas-bg)] px-4 pb-20 pt-12 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
+        className="relative w-full scroll-mt-0 overflow-x-hidden bg-[var(--atlas-bg)] pb-20 pt-12 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
         aria-labelledby="atlas-title"
       >
-        <div className="relative mx-auto w-full max-w-[1240px]">
-          <header className="flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:gap-8 sm:pb-9 sm:pt-7">
+        <div className="relative mx-auto w-full max-w-[1280px]">
+          <header className="mx-4 flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:mx-0 sm:gap-8 sm:pb-9 sm:pt-7">
             <h2
               id="atlas-title"
               className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
@@ -514,10 +622,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             </p>
           </header>
 
-          <div className="space-y-5">
-            <motion.div
-              layout={!shouldReduceMotion}
-              className="relative w-full overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] shadow-[0_32px_90px_-58px_var(--atlas-shadow)] sm:rounded-[28px]"
+          <div className="grid min-w-0 overflow-hidden border-y border-[var(--atlas-rule)] bg-[var(--atlas-panel)] sm:rounded-[24px] sm:border lg:h-[min(74svh,720px)] lg:min-h-[600px] lg:grid-cols-[minmax(0,1fr)_352px]">
+            <div
+              ref={atlasViewportRef}
+              className="relative isolate h-[min(54svh,520px)] min-h-[360px] min-w-0 overflow-hidden lg:h-full"
             >
               <div
                 aria-hidden="true"
@@ -527,37 +635,127 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-0 [background:radial-gradient(circle_at_50%_46%,var(--atlas-glow),transparent_54%)]"
               />
-              <GlobeStage
-                nodes={globeNodes}
-                cameraTarget={cameraTarget}
-                cameraFocusKey={cameraFocusKey}
-                autoRotateEnabled={!isAutoRotateFrozen && !shouldReduceMotion}
-                zoomScale={zoomScale}
-                zoomTier={displayZoomTier}
-                activeMarkerId={activeMarkerId}
-                hoveredMarkerId={hoveredMarkerId}
-                onHoverMarker={setHoveredMarkerId}
-                onSelectMarker={(markerId) =>
-                  handleMarkerSelection(markerId, { freezeRotation: true })
-                }
-                onZoomScaleChange={handleZoomScaleChange}
-                onCenteredMarkerChange={handleCenteredMarkerChange}
-                onUserInteraction={() =>
-                  dispatchNavigation({
-                    type: 'set_rotation_frozen',
-                    frozen: true,
-                  })
-                }
-                theme={atlasTheme}
-                reduceMotion={shouldReduceMotion}
-              />
 
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 p-3 sm:p-5">
+              <AnimatePresence initial={false}>
+                {showWorldLayer && (
+                  <motion.div
+                    key="atlas-world-layer"
+                    initial={
+                      transitionDirection === 'exit'
+                        ? {
+                            opacity: 0,
+                            scale: 0.985,
+                          }
+                        : { opacity: 1, scale: 1 }
+                    }
+                    animate={
+                      displayZoomTier === 'world'
+                        ? {
+                            opacity: 1,
+                            scale: 1,
+                          }
+                        : {
+                            opacity: 0,
+                            scale: 1.025,
+                          }
+                    }
+                    exit={{
+                      opacity: 0,
+                      scale: 1.025,
+                    }}
+                    transition={{
+                      duration: shouldReduceMotion ? 0 : 0.38,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className={cn(
+                      'absolute inset-0 z-10 origin-center will-change-[opacity,transform]',
+                      (displayZoomTier !== 'world' || isLevelTransitioning) &&
+                        'pointer-events-none',
+                    )}
+                  >
+                    <GlobeStage
+                      nodes={countryNodes}
+                      cameraTarget={cameraTarget}
+                      cameraFocusKey={cameraFocusKey}
+                      autoRotateEnabled={
+                        !isAutoRotateFrozen && !shouldReduceMotion
+                      }
+                      isInteractionActive={
+                        displayZoomTier === 'world' &&
+                        transitionDirection !== 'enter'
+                      }
+                      zoomScale={zoomScale}
+                      zoomTier="world"
+                      activeMarkerId={
+                        displayZoomTier === 'world' ? activeMarkerId : null
+                      }
+                      hoveredMarkerId={hoveredMarkerId}
+                      onHoverMarker={setHoveredMarkerId}
+                      onSelectMarker={handleCountrySelection}
+                      onZoomScaleChange={handleZoomScaleChange}
+                      onZoomIntoMarker={handleZoomIntoCountry}
+                      onCenteredMarkerChange={handleCenteredMarkerChange}
+                      onUserInteraction={() => setIsAutoRotateFrozen(true)}
+                      theme={atlasTheme}
+                      reduceMotion={shouldReduceMotion}
+                    />
+                  </motion.div>
+                )}
+
+                {showCountryLayer && (
+                  <motion.div
+                    key={`atlas-country-layer-${selectedCountry.id}`}
+                    initial={{
+                      opacity: 0,
+                      scale: 0.985,
+                    }}
+                    animate={
+                      displayZoomTier === 'world'
+                        ? {
+                            opacity: 0,
+                            scale: 0.985,
+                          }
+                        : {
+                            opacity: 1,
+                            scale: 1,
+                          }
+                    }
+                    exit={{
+                      opacity: 0,
+                      scale: 0.985,
+                    }}
+                    transition={{
+                      duration: shouldReduceMotion ? 0 : 0.38,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className={cn(
+                      'absolute inset-0 z-20 origin-center will-change-[opacity,transform]',
+                      (displayZoomTier === 'world' || isLevelTransitioning) &&
+                        'pointer-events-none',
+                    )}
+                  >
+                    <CountryMapStage
+                      country={selectedCountry}
+                      level={displayZoomTier === 'place' ? 'place' : 'region'}
+                      nodes={regionNodes}
+                      activeMarkerId={
+                        displayZoomTier === 'world' ? null : activeMarkerId
+                      }
+                      onHoverMarker={setHoveredMarkerId}
+                      onSelectMarker={handleLocationSelection}
+                      onExitToWorld={() => returnToWorld()}
+                      reduceMotion={shouldReduceMotion}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="bg-[var(--atlas-panel)]/88 pointer-events-none absolute inset-x-0 top-0 z-40 flex min-h-14 items-center justify-between gap-2 border-b border-[var(--atlas-rule)] px-3 py-1.5 backdrop-blur-md sm:px-4">
                 <nav
                   aria-label={t('locationNavigation')}
-                  className="bg-[var(--atlas-card)]/90 pointer-events-auto max-w-[62%] overflow-hidden rounded-xl border border-[var(--atlas-rule)] px-1.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-[70%]"
+                  className="pointer-events-auto max-w-[70%] overflow-hidden sm:max-w-[76%]"
                 >
-                  <ol className="flex min-h-11 min-w-0 items-center text-sm font-semibold text-[var(--atlas-ink)] sm:text-base">
+                  <ol className="flex min-h-11 min-w-0 items-center text-xs font-semibold uppercase tracking-[0.1em] text-[var(--atlas-ink)] sm:text-sm">
                     <li
                       className={cn(
                         'min-w-0',
@@ -576,6 +774,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           type="button"
                           className="block min-h-11 truncate rounded-lg px-1.5 py-2 text-[var(--atlas-muted)] outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-2.5"
                           onClick={() => navigateToAtlasLevel('world')}
+                          disabled={isLevelTransitioning}
                         >
                           {t('world')}
                         </button>
@@ -635,149 +834,80 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                   </ol>
                 </nav>
 
-                <div className="bg-[var(--atlas-card)]/90 pointer-events-auto flex shrink-0 overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
-                  <button
-                    type="button"
-                    className={cn(
-                      ATLAS_CONTROL_CLASSNAME,
-                      'border-r border-[var(--atlas-rule)]',
-                    )}
-                    onClick={() => {
-                      dispatchNavigation({
-                        type: 'set_rotation_frozen',
-                        frozen: true,
-                      });
-                      handleZoomScaleChange((current) => current * 0.82);
-                    }}
-                    aria-label={t('zoomOut')}
-                    title={t('zoomOut')}
-                  >
-                    <Minus className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      ATLAS_CONTROL_CLASSNAME,
-                      'border-r border-[var(--atlas-rule)]',
-                    )}
-                    onClick={() => {
-                      dispatchNavigation({
-                        type: 'set_rotation_frozen',
-                        frozen: true,
-                      });
-                      handleZoomScaleChange((current) => current * 1.22);
-                    }}
-                    aria-label={t('zoomIn')}
-                    title={t('zoomIn')}
-                  >
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                <div className="pointer-events-auto flex shrink-0 overflow-hidden border-l border-[var(--atlas-rule)]">
+                  {displayZoomTier === 'world' && (
+                    <>
+                      <button
+                        type="button"
+                        className={cn(
+                          ATLAS_CONTROL_CLASSNAME,
+                          'border-r border-[var(--atlas-rule)]',
+                        )}
+                        onClick={() => {
+                          setIsAutoRotateFrozen(true);
+                          handleZoomScaleChange((current) => current * 0.82);
+                        }}
+                        aria-label={t('zoomOut')}
+                        title={t('zoomOut')}
+                        disabled={isLevelTransitioning}
+                      >
+                        <Minus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          ATLAS_CONTROL_CLASSNAME,
+                          'border-r border-[var(--atlas-rule)]',
+                        )}
+                        onClick={handleWorldZoomIn}
+                        aria-label={t('zoomIn')}
+                        title={t('zoomIn')}
+                        disabled={isLevelTransitioning}
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     className={ATLAS_CONTROL_CLASSNAME}
                     onClick={resetAtlasView}
                     aria-label={t('resetView')}
                     title={t('resetView')}
+                    disabled={isLevelTransitioning}
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
-              <div
-                aria-hidden="true"
-                className="via-[var(--atlas-panel)]/70 pointer-events-none absolute inset-x-0 bottom-0 z-20 h-28 bg-gradient-to-t from-[var(--atlas-panel)] to-transparent sm:h-36"
-              />
-            </motion.div>
+              {displayZoomTier === 'world' && (
+                <div
+                  aria-hidden="true"
+                  className="via-[var(--atlas-panel)]/70 pointer-events-none absolute inset-x-0 bottom-0 z-30 h-28 bg-gradient-to-t from-[var(--atlas-panel)] to-transparent sm:h-36"
+                />
+              )}
 
-            <motion.div
-              layout={!shouldReduceMotion}
-              className="overflow-visible border-t border-[var(--atlas-rule)] pt-4 lg:mx-auto lg:w-full"
-            >
-              <div className="-mx-1 flex snap-x snap-proximity gap-3 overflow-x-auto overflow-y-visible px-1 pb-4 pt-2 [scrollbar-width:none] sm:gap-4 [&::-webkit-scrollbar]:hidden">
-                {displayZoomTier === 'world' &&
-                  (dockItems as CountryNode[]).map((country) => {
-                    const isActive = country.id === selectedCountry.id;
+              {isLevelTransitioning && (
+                <span className="sr-only" role="status">
+                  {transitionDirection === 'enter'
+                    ? t('enteringCountry', {
+                        country: selectedCountry.label,
+                      })
+                    : t('returningToWorld')}
+                </span>
+              )}
+            </div>
 
-                    return (
-                      <AtlasDockCard
-                        key={country.id}
-                        active={isActive}
-                        image={country.cover}
-                        title={country.label}
-                        meta={t('dockMeta', {
-                          placeCount: country.count,
-                          postCount: country.postCount,
-                        })}
-                        onClick={() => {
-                          handleMarkerSelection(country.id, {
-                            freezeRotation: true,
-                          });
-                        }}
-                      />
-                    );
-                  })}
-
-                {displayZoomTier === 'region' &&
-                  (dockItems as LocationNode[]).map((location) => {
-                    const isActive = location.id === selectedLocation.id;
-
-                    return (
-                      <AtlasDockCard
-                        key={location.id}
-                        active={isActive}
-                        image={location.cover}
-                        title={location.label}
-                        meta={location.region}
-                        onClick={() => {
-                          handleMarkerSelection(location.id, {
-                            freezeRotation: true,
-                          });
-                        }}
-                      />
-                    );
-                  })}
-
-                {displayZoomTier === 'place' &&
-                  (dockItems as CityPost[]).map((post) => {
-                    const isActive = post.id === activePost.id;
-
-                    return (
-                      <AtlasDockCard
-                        key={post.id}
-                        active={isActive}
-                        image={post.cover}
-                        title={post.city}
-                        meta={post.location?.region ?? selectedLocation.region}
-                        onClick={(element) => {
-                          const parentLocationId =
-                            locationNodes.find(
-                              (node) =>
-                                node.label ===
-                                  (post.location?.locationName ?? '') &&
-                                node.country === post.location?.country,
-                            )?.id ?? null;
-                          const parentCountryId =
-                            countryNodes.find(
-                              (node) => node.label === post.location?.country,
-                            )?.id ?? null;
-
-                          dispatchNavigation({
-                            type: 'select_post',
-                            countryId: parentCountryId ?? undefined,
-                            locationId: parentLocationId ?? undefined,
-                            postId: post.id,
-                            markerId: `post-${post.id}`,
-                            freezeRotation: true,
-                            incrementFocus: false,
-                          });
-                          openViewer(post.id, element);
-                        }}
-                      />
-                    );
-                  })}
-              </div>
-            </motion.div>
+            <AtlasBrowser
+              title={browserTitle}
+              items={browserItems}
+              scopeKey={`${displayZoomTier}:${selectedCountry.id}:${selectedLocation.id}`}
+              searchLabel={t('searchLabel')}
+              searchPlaceholder={browserSearchPlaceholder}
+              resultLabel={(count) => t('resultCount', { count })}
+              emptyLabel={t('noResults')}
+            />
           </div>
         </div>
       </section>

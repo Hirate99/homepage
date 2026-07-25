@@ -55,7 +55,7 @@ interface GlobeAtlasProps {
 }
 
 const ATLAS_CONTROL_CLASSNAME =
-  'grid h-11 w-11 place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-inset';
+  'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] focus-visible:ring-inset';
 
 let expandedPostModulePromise: Promise<typeof import('./images')> | null = null;
 
@@ -1211,11 +1211,11 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setTransitionDirection('enter');
     scheduleTransitionStep(() => {
       setDisplayZoomTier('region');
-    }, 820);
+    }, 220);
     scheduleTransitionStep(() => {
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
-    }, 1500);
+    }, 620);
   };
 
   const returnToWorld = (resetSelection = false) => {
@@ -1264,7 +1264,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       setIsAutoRotateFrozen(false);
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
-    }, 820);
+    }, 620);
   };
 
   const handleMarkerSelection = (
@@ -1289,11 +1289,11 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     );
     setSelectedLocationId(locationNode.id);
     setActivePostId(locationNode.posts[0]?.id ?? activePost.id);
-    setDisplayZoomTier('place');
+    setDisplayZoomTier('region');
   };
 
   const handleCenteredMarkerChange = (markerId: string | null) => {
-    if (!markerId) {
+    if (!markerId || !isAutoRotateFrozen) {
       return;
     }
 
@@ -1391,8 +1391,15 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             image: location.cover,
             title: location.label,
             meta: location.region,
-            onSelect: () =>
-              handleMarkerSelection(location.id, { freezeRotation: true }),
+            onSelect: (element) => {
+              handleMarkerSelection(location.id, { freezeRotation: true });
+              if (location.posts.length === 1) {
+                handlePostSelection(location.posts[0], element);
+                return;
+              }
+
+              setDisplayZoomTier('place');
+            },
           }))
         : selectedLocation.posts.map((post) => ({
             id: post.id,
@@ -1425,11 +1432,11 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         data-song={song.id}
         data-theme={song.theme}
         style={atlasTheme.cssVariables}
-        className="relative w-full scroll-mt-0 bg-[var(--atlas-bg)] px-4 pb-20 pt-12 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
+        className="relative w-full scroll-mt-0 overflow-x-hidden bg-[var(--atlas-bg)] pb-20 pt-12 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
         aria-labelledby="atlas-title"
       >
-        <div className="relative mx-auto w-full max-w-[1240px]">
-          <header className="flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:gap-8 sm:pb-9 sm:pt-7">
+        <div className="relative mx-auto w-full max-w-[1280px]">
+          <header className="mx-4 flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:mx-0 sm:gap-8 sm:pb-9 sm:pt-7">
             <h2
               id="atlas-title"
               className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
@@ -1460,8 +1467,8 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             </p>
           </header>
 
-          <div className="grid min-w-0 overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] shadow-[0_32px_90px_-58px_var(--atlas-shadow)] sm:rounded-[28px] lg:h-[min(76svh,760px)] lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="relative isolate h-[min(64svh,590px)] min-h-[430px] min-w-0 overflow-hidden lg:h-full">
+          <div className="grid min-w-0 overflow-hidden border-y border-[var(--atlas-rule)] bg-[var(--atlas-panel)] sm:rounded-[24px] sm:border lg:h-[min(74svh,720px)] lg:min-h-[600px] lg:grid-cols-[minmax(0,1fr)_352px]">
+            <div className="relative isolate h-[min(54svh,520px)] min-h-[360px] min-w-0 overflow-hidden lg:h-full">
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_right,var(--atlas-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--atlas-grid)_1px,transparent_1px)] bg-[size:48px_48px] opacity-45"
@@ -1479,35 +1486,31 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       transitionDirection === 'exit'
                         ? {
                             opacity: 0,
-                            scale: 1.28,
-                            filter: 'blur(14px)',
+                            scale: 0.96,
                           }
-                        : { opacity: 1, scale: 1, filter: 'blur(0px)' }
+                        : { opacity: 1, scale: 1 }
                     }
                     animate={
                       displayZoomTier === 'world'
                         ? {
                             opacity: 1,
-                            scale: transitionDirection === 'enter' ? 1.04 : 1,
-                            filter: 'blur(0px)',
+                            scale: 1,
                           }
                         : {
                             opacity: 0,
-                            scale: 1.28,
-                            filter: 'blur(14px)',
+                            scale: 1.06,
                           }
                     }
                     exit={{
                       opacity: 0,
-                      scale: 1.28,
-                      filter: 'blur(14px)',
+                      scale: 1.06,
                     }}
                     transition={{
-                      duration: shouldReduceMotion ? 0 : 0.62,
+                      duration: shouldReduceMotion ? 0 : 0.42,
                       ease: [0.22, 1, 0.36, 1],
                     }}
                     className={cn(
-                      'absolute inset-0 z-10 origin-center will-change-[opacity,transform,filter]',
+                      'absolute inset-0 z-10 origin-center will-change-[opacity,transform]',
                       (displayZoomTier !== 'world' || isLevelTransitioning) &&
                         'pointer-events-none',
                     )}
@@ -1545,37 +1548,29 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                     key={`atlas-country-layer-${selectedCountry.id}`}
                     initial={{
                       opacity: 0,
-                      scale: 1.16,
-                      filter: 'blur(12px)',
-                      clipPath: 'circle(16% at 50% 46%)',
+                      scale: 0.96,
                     }}
                     animate={
                       displayZoomTier === 'world'
                         ? {
                             opacity: 0,
-                            scale: 0.88,
-                            filter: 'blur(10px)',
-                            clipPath: 'circle(16% at 50% 46%)',
+                            scale: 0.96,
                           }
                         : {
                             opacity: 1,
                             scale: 1,
-                            filter: 'blur(0px)',
-                            clipPath: 'circle(150% at 50% 46%)',
                           }
                     }
                     exit={{
                       opacity: 0,
-                      scale: 0.88,
-                      filter: 'blur(10px)',
-                      clipPath: 'circle(16% at 50% 46%)',
+                      scale: 0.96,
                     }}
                     transition={{
-                      duration: shouldReduceMotion ? 0 : 0.62,
+                      duration: shouldReduceMotion ? 0 : 0.42,
                       ease: [0.22, 1, 0.36, 1],
                     }}
                     className={cn(
-                      'absolute inset-0 z-20 origin-center will-change-[clip-path,filter,opacity,transform]',
+                      'absolute inset-0 z-20 origin-center will-change-[opacity,transform]',
                       (displayZoomTier === 'world' || isLevelTransitioning) &&
                         'pointer-events-none',
                     )}
@@ -1599,12 +1594,12 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                 )}
               </AnimatePresence>
 
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-3 p-3 sm:p-5">
+              <div className="bg-[var(--atlas-panel)]/88 pointer-events-none absolute inset-x-0 top-0 z-40 flex min-h-14 items-center justify-between gap-2 border-b border-[var(--atlas-rule)] px-3 py-1.5 backdrop-blur-md sm:px-4">
                 <nav
                   aria-label={t('locationNavigation')}
-                  className="bg-[var(--atlas-card)]/90 pointer-events-auto max-w-[62%] overflow-hidden rounded-xl border border-[var(--atlas-rule)] px-1.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-[70%]"
+                  className="pointer-events-auto max-w-[70%] overflow-hidden sm:max-w-[76%]"
                 >
-                  <ol className="flex min-h-11 min-w-0 items-center text-sm font-semibold text-[var(--atlas-ink)] sm:text-base">
+                  <ol className="flex min-h-11 min-w-0 items-center text-xs font-semibold uppercase tracking-[0.1em] text-[var(--atlas-ink)] sm:text-sm">
                     <li
                       className={cn(
                         'min-w-0',
@@ -1683,7 +1678,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                   </ol>
                 </nav>
 
-                <div className="bg-[var(--atlas-card)]/90 pointer-events-auto flex shrink-0 overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
+                <div className="pointer-events-auto flex shrink-0 overflow-hidden border-l border-[var(--atlas-rule)]">
                   {displayZoomTier === 'world' && (
                     <>
                       <button
@@ -1759,11 +1754,6 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
               searchPlaceholder={browserSearchPlaceholder}
               resultLabel={(count) => t('resultCount', { count })}
               emptyLabel={t('noResults')}
-              activeHint={
-                displayZoomTier === 'place'
-                  ? t('openStory')
-                  : t('exploreSelection')
-              }
             />
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { ExternalLink, MapPinned, Minus, Plus } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 import { useTranslations } from 'next-intl';
 
@@ -43,7 +43,7 @@ const MAPLIBRE_MODULE_URL = '/vendor/maplibre/maplibre-loader.mjs';
 const MAPLIBRE_STYLESHEET_URL = '/vendor/maplibre/maplibre-gl.css';
 const CLUSTER_CELL_SIZE = 54;
 const COUNTRY_MAP_CONTROL_CLASSNAME =
-  'grid h-11 w-11 place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]';
+  'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]';
 
 let mapLibrePromise: Promise<MapLibreModule> | null = null;
 
@@ -149,7 +149,7 @@ function fitCountry(
       [Math.max(...longitudes), Math.max(...latitudes)],
     ],
     {
-      padding: { top: 112, right: 72, bottom: 72, left: 72 },
+      padding: { top: 64, right: 52, bottom: 64, left: 52 },
       maxZoom: 7.25,
       duration: reduceMotion ? 0 : 1050,
     },
@@ -341,7 +341,14 @@ function createLocationMarkerElement({
     setMarkerLabelVisible(label, isActive);
     onHoverMarker(null);
   });
-  button.addEventListener('click', () => onSelectMarker(singleNode.id));
+  button.addEventListener('click', () => {
+    map.easeTo({
+      center: [singleNode.lng, singleNode.lat],
+      zoom: Math.max(map.getZoom(), 7),
+      duration: reduceMotion ? 0 : 620,
+    });
+    onSelectMarker(singleNode.id);
+  });
 
   return button;
 }
@@ -450,7 +457,7 @@ export function CountryMapStage({
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
-          scrollZoom: true,
+          scrollZoom: false,
           cooperativeGestures: false,
         });
 
@@ -564,7 +571,7 @@ export function CountryMapStage({
     <div
       data-slot="atlas-country-map-stage"
       data-level={level}
-      className="relative h-full min-h-[430px] w-full overflow-hidden bg-[var(--atlas-panel-strong)]"
+      className="relative h-full min-h-[360px] w-full overflow-hidden bg-[var(--atlas-panel-strong)]"
       role="group"
       aria-label={t('interactiveCountryMap', { country: country.label })}
     >
@@ -579,16 +586,16 @@ export function CountryMapStage({
 
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 opacity-55"
+        className="pointer-events-none absolute inset-0 z-10 opacity-40"
         style={{
           background:
-            'radial-gradient(circle at 50% 44%, transparent 0%, transparent 42%, color-mix(in srgb, var(--atlas-bg) 54%, transparent) 100%)',
-          boxShadow: 'inset 0 0 92px var(--atlas-shadow)',
+            'radial-gradient(circle at 50% 44%, transparent 0%, transparent 52%, color-mix(in srgb, var(--atlas-bg) 44%, transparent) 100%)',
+          boxShadow: 'inset 0 0 72px var(--atlas-shadow)',
         }}
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(to_right,var(--atlas-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--atlas-grid)_1px,transparent_1px)] bg-[size:48px_48px] opacity-20"
+        className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(to_right,var(--atlas-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--atlas-grid)_1px,transparent_1px)] bg-[size:48px_48px] opacity-15"
       />
 
       <div
@@ -608,30 +615,17 @@ export function CountryMapStage({
       </div>
 
       <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 flex items-end justify-between gap-3 sm:inset-x-4 sm:bottom-4">
-        <div className="bg-[var(--atlas-card)]/90 pointer-events-auto flex min-h-11 min-w-0 items-center overflow-hidden rounded-xl border border-[var(--atlas-rule)] text-[var(--atlas-ink)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
-          <span className="flex min-w-0 items-center gap-2.5 px-3.5">
-            <MapPinned
-              className="h-4 w-4 shrink-0 text-[var(--atlas-accent)]"
-              aria-hidden="true"
-            />
-            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em]">
-              {country.label}
-            </span>
-          </span>
-          <a
-            href="https://www.openstreetmap.org/fixthemap"
-            target="_blank"
-            rel="noreferrer"
-            className="grid h-11 min-w-11 place-items-center border-l border-[var(--atlas-rule)] px-3 text-[10px] font-semibold text-[var(--atlas-muted)] outline-none transition hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:flex sm:gap-1.5"
-            aria-label={t('reportMapIssue')}
-          >
-            <span className="hidden sm:inline">{t('reportMapIssue')}</span>
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
-        </div>
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+          className="bg-[var(--atlas-card)]/86 pointer-events-auto rounded-full border border-[var(--atlas-rule)] px-2.5 py-1 text-[9px] font-medium text-[var(--atlas-muted)] shadow-md shadow-[var(--atlas-shadow)] outline-none backdrop-blur-md transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
+        >
+          © OpenStreetMap contributors
+        </a>
 
-        <div className="pointer-events-auto flex shrink-0 flex-col items-end gap-2">
-          <div className="bg-[var(--atlas-card)]/90 flex overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
+        <div className="pointer-events-auto flex shrink-0 flex-col items-end">
+          <div className="bg-[var(--atlas-card)]/88 flex overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
             <button
               type="button"
               className={cn(
@@ -680,14 +674,6 @@ export function CountryMapStage({
               <Plus className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          <a
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noreferrer"
-            className="bg-[var(--atlas-card)]/90 rounded-full border border-[var(--atlas-rule)] px-2.5 py-1 text-[9px] font-medium text-[var(--atlas-muted)] shadow-md shadow-[var(--atlas-shadow)] outline-none backdrop-blur-md transition hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
-          >
-            © OpenStreetMap contributors
-          </a>
         </div>
       </div>
 

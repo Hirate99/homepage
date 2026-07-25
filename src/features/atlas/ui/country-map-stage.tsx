@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 
 import { cn } from '@/lib/utils';
 
-import type { CountryNode, LocationNode } from './model';
+import type { CountryNode, LocationNode } from '@/features/atlas/model/atlas';
 
 interface CountryMapStageProps {
   country: CountryNode;

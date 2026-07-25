@@ -1,6 +1,10 @@
 import type { CityPost } from '@/features/collections/model/city-post';
 
 export type ZoomTier = 'world' | 'region' | 'place';
+export type CountryBounds = [
+  southwest: [lng: number, lat: number],
+  northeast: [lng: number, lat: number],
+];
 
 export interface LocationNode {
   kind: 'location';
@@ -21,6 +25,7 @@ export interface CountryNode {
   label: string;
   lat: number;
   lng: number;
+  bounds: CountryBounds;
   count: number;
   postCount: number;
   locations: LocationNode[];
@@ -52,6 +57,51 @@ export const MAX_GLOBE_SCALE = 4.42;
 export const COUNTRY_ENTRY_SCALE = 3.45;
 const REGION_ZOOM_THRESHOLD = 1.62;
 const PLACE_ZOOM_THRESHOLD = ZOOM_SCALE.place;
+const COUNTRY_MAP_PROFILES: Record<
+  string,
+  { lat: number; lng: number; bounds: CountryBounds }
+> = {
+  china: {
+    lat: 35.8617,
+    lng: 104.1954,
+    bounds: [
+      [73.49, 3.39],
+      [135.1, 53.57],
+    ],
+  },
+  japan: {
+    lat: 36.2048,
+    lng: 138.2529,
+    bounds: [
+      [122.7, 20.4],
+      [154.1, 45.8],
+    ],
+  },
+  'united states': {
+    lat: 39.8283,
+    lng: -98.5795,
+    bounds: [
+      [-179.2, 18.9],
+      [-66.8, 71.6],
+    ],
+  },
+  'united states of america': {
+    lat: 39.8283,
+    lng: -98.5795,
+    bounds: [
+      [-179.2, 18.9],
+      [-66.8, 71.6],
+    ],
+  },
+  usa: {
+    lat: 39.8283,
+    lng: -98.5795,
+    bounds: [
+      [-179.2, 18.9],
+      [-66.8, 71.6],
+    ],
+  },
+};
 
 export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -114,6 +164,44 @@ function averageCoordinates(points: Array<{ lat: number; lng: number }>) {
   };
 }
 
+function getCountryMapProfile(
+  country: string,
+  locations: LocationNode[],
+): { lat: number; lng: number; bounds: CountryBounds } {
+  const preset = COUNTRY_MAP_PROFILES[normalizeLocationName(country)];
+  if (preset) {
+    return preset;
+  }
+
+  const center = averageCoordinates(locations);
+  const longitudes = locations.map((location) => location.lng);
+  const latitudes = locations.map((location) => location.lat);
+  const longitudeSpan = Math.max(
+    Math.max(...longitudes) - Math.min(...longitudes),
+    8,
+  );
+  const latitudeSpan = Math.max(
+    Math.max(...latitudes) - Math.min(...latitudes),
+    6,
+  );
+  const longitudePadding = Math.max(longitudeSpan * 0.24, 3);
+  const latitudePadding = Math.max(latitudeSpan * 0.24, 2.5);
+
+  return {
+    ...center,
+    bounds: [
+      [
+        clamp(Math.min(...longitudes) - longitudePadding, -179.9, 179.9),
+        clamp(Math.min(...latitudes) - latitudePadding, -84, 84),
+      ],
+      [
+        clamp(Math.max(...longitudes) + longitudePadding, -179.9, 179.9),
+        clamp(Math.max(...latitudes) + latitudePadding, -84, 84),
+      ],
+    ],
+  };
+}
+
 export function buildLocationNodes(posts: CityPost[]) {
   const groups: LocationNode[] = [];
   const groupsByName = new Map<string, LocationNode>();
@@ -170,11 +258,6 @@ export function buildCountryNodes(locations: LocationNode[]) {
       existing.locations.push(location);
       existing.count += 1;
       existing.postCount += location.posts.length;
-      const average = averageCoordinates(
-        existing.locations.map((item) => ({ lat: item.lat, lng: item.lng })),
-      );
-      existing.lat = average.lat;
-      existing.lng = average.lng;
       continue;
     }
 
@@ -184,6 +267,10 @@ export function buildCountryNodes(locations: LocationNode[]) {
       label: location.country,
       lat: location.lat,
       lng: location.lng,
+      bounds: [
+        [location.lng, location.lat],
+        [location.lng, location.lat],
+      ],
       count: 1,
       postCount: location.posts.length,
       locations: [location],
@@ -191,9 +278,12 @@ export function buildCountryNodes(locations: LocationNode[]) {
     });
   }
 
-  return [...groups.values()].sort((left, right) =>
-    left.label.localeCompare(right.label),
-  );
+  return [...groups.values()]
+    .map((country) => ({
+      ...country,
+      ...getCountryMapProfile(country.label, country.locations),
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function wrapLongitude(lng: number) {

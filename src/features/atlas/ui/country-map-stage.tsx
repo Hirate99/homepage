@@ -40,10 +40,13 @@ declare global {
 const TILE_URL =
   process.env.NEXT_PUBLIC_ATLAS_TILE_URL ??
   'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const LAND_DATA_URL = '/vendor/atlas/ne_110m_land.geojson';
 const MAPLIBRE_MODULE_URL = '/vendor/maplibre/maplibre-loader.mjs';
 const MAPLIBRE_STYLESHEET_URL = '/vendor/maplibre/maplibre-gl.css';
 const CLUSTER_CELL_SIZE = 54;
 const WORLD_EXIT_ZOOM = 1.8;
+const COUNTRY_MIN_ZOOM = 2.15;
+const LOCAL_DETAIL_MIN_ZOOM = 7;
 const COUNTRY_MAP_CONTROL_CLASSNAME =
   'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]';
 
@@ -127,35 +130,18 @@ function loadMapLibre() {
 
 function fitCountry(
   map: MapLibreMap,
-  nodes: LocationNode[],
+  country: CountryNode,
   reduceMotion: boolean,
 ) {
-  if (nodes.length === 0) {
-    return;
-  }
+  const camera = map.cameraForBounds(country.bounds, {
+    padding: { top: 72, right: 56, bottom: 72, left: 56 },
+  });
 
-  if (nodes.length === 1) {
-    map.easeTo({
-      center: [nodes[0].lng, nodes[0].lat],
-      zoom: 7,
-      duration: reduceMotion ? 0 : 900,
-    });
-    return;
-  }
-
-  const longitudes = nodes.map((node) => node.lng);
-  const latitudes = nodes.map((node) => node.lat);
-  map.fitBounds(
-    [
-      [Math.min(...longitudes), Math.min(...latitudes)],
-      [Math.max(...longitudes), Math.max(...latitudes)],
-    ],
-    {
-      padding: { top: 64, right: 52, bottom: 64, left: 52 },
-      maxZoom: 7.25,
-      duration: reduceMotion ? 0 : 1050,
-    },
-  );
+  map.easeTo({
+    center: camera?.center ?? [country.lng, country.lat],
+    zoom: Math.max(camera?.zoom ?? COUNTRY_MIN_ZOOM, COUNTRY_MIN_ZOOM),
+    duration: reduceMotion ? 0 : 1050,
+  });
 }
 
 function groupVisibleNodes(map: MapLibreMap, nodes: LocationNode[]) {
@@ -179,13 +165,6 @@ function groupVisibleNodes(map: MapLibreMap, nodes: LocationNode[]) {
     const group = groups.get(key);
 
     if (group) {
-      const nextCount = group.nodes.length + 1;
-      group.lat = (group.lat * group.nodes.length + node.lat) / nextCount;
-      group.lng = (group.lng * group.nodes.length + node.lng) / nextCount;
-      group.screenX =
-        (group.screenX * group.nodes.length + point.x) / nextCount;
-      group.screenY =
-        (group.screenY * group.nodes.length + point.y) / nextCount;
       group.nodes.push(node);
       continue;
     }
@@ -199,7 +178,37 @@ function groupVisibleNodes(map: MapLibreMap, nodes: LocationNode[]) {
     });
   }
 
-  return [...groups.values()];
+  return [...groups.values()].map((group) => {
+    if (group.nodes.length === 1) {
+      return group;
+    }
+
+    const projectedNodes = group.nodes.map((node) => ({
+      node,
+      point: map.project([node.lng, node.lat]),
+    }));
+    const center = projectedNodes.reduce(
+      (total, item) => ({
+        x: total.x + item.point.x / projectedNodes.length,
+        y: total.y + item.point.y / projectedNodes.length,
+      }),
+      { x: 0, y: 0 },
+    );
+    const anchor = projectedNodes.reduce((closest, item) =>
+      Math.hypot(item.point.x - center.x, item.point.y - center.y) <
+      Math.hypot(closest.point.x - center.x, closest.point.y - center.y)
+        ? item
+        : closest,
+    );
+
+    return {
+      ...group,
+      lat: anchor.node.lat,
+      lng: anchor.node.lng,
+      screenX: anchor.point.x,
+      screenY: anchor.point.y,
+    };
+  });
 }
 
 function setMarkerLabelVisible(label: HTMLSpanElement, visible: boolean) {
@@ -284,11 +293,19 @@ function createLocationMarkerElement({
     core.textContent = String(group.nodes.length);
     button.appendChild(core);
     button.addEventListener('click', () => {
-      map.easeTo({
-        center: [group.lng, group.lat],
-        zoom: Math.min(map.getZoom() + 2, 14),
-        duration: reduceMotion ? 0 : 620,
-      });
+      const longitudes = group.nodes.map((node) => node.lng);
+      const latitudes = group.nodes.map((node) => node.lat);
+      map.fitBounds(
+        [
+          [Math.min(...longitudes), Math.min(...latitudes)],
+          [Math.max(...longitudes), Math.max(...latitudes)],
+        ],
+        {
+          padding: 72,
+          maxZoom: Math.min(map.getZoom() + 2, 14),
+          duration: reduceMotion ? 0 : 620,
+        },
+      );
     });
     return button;
   }
@@ -435,6 +452,10 @@ export function CountryMapStage({
           style: {
             version: 8,
             sources: {
+              atlasLand: {
+                type: 'geojson',
+                data: LAND_DATA_URL,
+              },
               osm: {
                 type: 'raster',
                 tiles: [TILE_URL],
@@ -445,9 +466,44 @@ export function CountryMapStage({
             },
             layers: [
               {
+                id: 'atlas-ocean',
+                type: 'background',
+                paint: {
+                  'background-color': '#e7ece9',
+                },
+              },
+              {
+                id: 'atlas-land',
+                type: 'fill',
+                source: 'atlasLand',
+                paint: {
+                  'fill-color': '#bdc8c2',
+                  'fill-opacity': 0.98,
+                },
+              },
+              {
+                id: 'atlas-coastline',
+                type: 'line',
+                source: 'atlasLand',
+                paint: {
+                  'line-color': '#84958e',
+                  'line-opacity': 0.72,
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    1,
+                    0.5,
+                    7,
+                    1.25,
+                  ],
+                },
+              },
+              {
                 id: 'osm',
                 type: 'raster',
                 source: 'osm',
+                minzoom: LOCAL_DETAIL_MIN_ZOOM,
                 paint: {
                   'raster-fade-duration': 260,
                   'raster-saturation': -0.04,
@@ -584,7 +640,7 @@ export function CountryMapStage({
             return;
           }
 
-          fitCountry(map, nodesRef.current, reduceMotionRef.current);
+          fitCountry(map, country, reduceMotionRef.current);
           refreshMarkers();
           setIsLoaded(true);
         });
@@ -627,7 +683,7 @@ export function CountryMapStage({
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [country.id]);
+  }, [country]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -691,14 +747,25 @@ export function CountryMapStage({
       </div>
 
       <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 flex items-end justify-between gap-3 sm:inset-x-4 sm:bottom-4">
-        <a
-          href="https://www.openstreetmap.org/copyright"
-          target="_blank"
-          rel="noreferrer"
-          className="bg-[var(--atlas-card)]/86 pointer-events-auto rounded-full border border-[var(--atlas-rule)] px-2.5 py-1 text-[9px] font-medium text-[var(--atlas-muted)] shadow-md shadow-[var(--atlas-shadow)] outline-none backdrop-blur-md transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
-        >
-          © OpenStreetMap contributors
-        </a>
+        <div className="bg-[var(--atlas-card)]/86 pointer-events-auto flex items-center gap-1.5 rounded-full border border-[var(--atlas-rule)] px-2.5 py-1 text-[9px] font-medium text-[var(--atlas-muted)] shadow-md shadow-[var(--atlas-shadow)] backdrop-blur-md">
+          <a
+            href="https://www.naturalearthdata.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-sm outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
+          >
+            Natural Earth
+          </a>
+          <span aria-hidden="true">·</span>
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-sm outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)]"
+          >
+            © OpenStreetMap
+          </a>
+        </div>
 
         <div className="pointer-events-auto flex shrink-0 flex-col items-end">
           <div className="bg-[var(--atlas-card)]/88 flex overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">

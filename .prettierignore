@@ -3,3 +3,6 @@ cloudflare-env.d.ts
 
 # Vendored MapLibre runtime files are copied byte-for-byte from the package.
 public/vendor/maplibre/
+
+# Vendored Natural Earth geometry is kept in its compact upstream form.
+public/vendor/atlas/

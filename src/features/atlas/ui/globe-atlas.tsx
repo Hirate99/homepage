@@ -389,8 +389,6 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setDisplayZoomTier('world');
     scheduleTransitionStep(() => {
       setZoomScale(ZOOM_SCALE.world);
-      setCameraTargetId(null);
-      setCameraFocusKey((current) => current + 1);
     }, 40);
     scheduleTransitionStep(() => {
       setIsLevelTransitioning(false);

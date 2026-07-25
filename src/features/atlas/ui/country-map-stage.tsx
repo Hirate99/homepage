@@ -134,29 +134,45 @@ function loadMapLibre() {
   return mapLibrePromise;
 }
 
-function fitCountry(map: MapLibreMap, country: CountryNode) {
-  const horizontalPadding = Math.max(
-    24,
-    Math.min(56, map.getContainer().clientWidth * 0.07),
-  );
-  const verticalPadding = Math.max(
-    52,
-    Math.min(72, map.getContainer().clientHeight * 0.09),
-  );
+function fitCountry(
+  map: MapLibreMap,
+  country: CountryNode,
+  options: { animate?: boolean; reduceMotion?: boolean } = {},
+) {
+  const { clientHeight, clientWidth } = map.getContainer();
+  const isCompact = clientWidth < 640;
+  const horizontalPadding = isCompact
+    ? 18
+    : Math.max(24, Math.min(56, clientWidth * 0.07));
+  const topPadding = isCompact
+    ? Math.min(68, clientHeight * 0.2)
+    : Math.max(52, Math.min(72, clientHeight * 0.09));
+  const bottomPadding = isCompact
+    ? Math.min(28, clientHeight * 0.08)
+    : Math.max(52, Math.min(72, clientHeight * 0.09));
   const camera = map.cameraForBounds(country.bounds, {
     padding: {
-      top: verticalPadding,
+      top: topPadding,
       right: horizontalPadding,
-      bottom: verticalPadding,
+      bottom: bottomPadding,
       left: horizontalPadding,
     },
   });
   const zoom = camera?.zoom ?? 2;
 
-  map.jumpTo({
+  const cameraTarget = {
     center: camera?.center ?? [country.lng, country.lat],
     zoom,
-  });
+  } as const;
+
+  if (options.animate && !options.reduceMotion) {
+    map.easeTo({
+      ...cameraTarget,
+      duration: 520,
+    });
+  } else {
+    map.jumpTo(cameraTarget);
+  }
 
   return zoom;
 }
@@ -225,6 +241,7 @@ export function CountryMapStage({
   const worldExitZoomRef = useRef(1);
   const hoverMarkerRef = useRef(onHoverMarker);
   const reduceMotionRef = useRef(reduceMotion);
+  const levelRef = useRef(level);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasTileError, setHasTileError] = useState(false);
 
@@ -266,6 +283,10 @@ export function CountryMapStage({
   useEffect(() => {
     reduceMotionRef.current = reduceMotion;
   }, [reduceMotion]);
+
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -429,6 +450,7 @@ export function CountryMapStage({
         mapRef.current = map;
         map.touchZoomRotate.disableRotation();
         let isUserZoom = false;
+        let hasUserMovedMap = false;
 
         const requestWorldExit = () => {
           if (hasRequestedWorldExitRef.current) {
@@ -441,6 +463,10 @@ export function CountryMapStage({
 
         map.on('zoomstart', (event) => {
           isUserZoom = Boolean(event.originalEvent);
+          hasUserMovedMap ||= isUserZoom;
+        });
+        map.on('dragstart', (event) => {
+          hasUserMovedMap ||= Boolean(event.originalEvent);
         });
         map.on('zoomend', () => {
           if (map.getZoom() > worldExitZoomRef.current) {
@@ -562,7 +588,16 @@ export function CountryMapStage({
 
         const resizeObserver = new ResizeObserver(() => {
           window.cancelAnimationFrame(resizeFrame);
-          resizeFrame = window.requestAnimationFrame(() => map.resize());
+          resizeFrame = window.requestAnimationFrame(() => {
+            map.resize();
+            if (!hasUserMovedMap && levelRef.current === 'region') {
+              const entryZoom = fitCountry(map, country);
+              worldExitZoomRef.current = Math.max(
+                map.getMinZoom() + 0.05,
+                entryZoom - COUNTRY_EXIT_ZOOM_DELTA,
+              );
+            }
+          });
         });
         resizeObserver.observe(container);
 
@@ -610,18 +645,40 @@ export function CountryMapStage({
     });
   }, [activeMarkerId, level, nodes, reduceMotion]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || level !== 'region') {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      map.resize();
+      const entryZoom = fitCountry(map, country, {
+        animate: true,
+        reduceMotion,
+      });
+      worldExitZoomRef.current = Math.max(
+        map.getMinZoom() + 0.05,
+        entryZoom - COUNTRY_EXIT_ZOOM_DELTA,
+      );
+      hasRequestedWorldExitRef.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [country, level, reduceMotion]);
+
   return (
     <div
       data-slot="atlas-country-map-stage"
       data-level={level}
-      className="relative h-full min-h-[360px] w-full overflow-hidden bg-[var(--atlas-panel-strong)]"
+      className="relative h-full w-full overflow-hidden bg-[var(--atlas-panel-strong)]"
       role="group"
       aria-label={t('interactiveCountryMap', { country: country.label })}
     >
       <div
         ref={containerRef}
         className={cn(
-          'absolute inset-0 origin-center transition duration-700 ease-out',
+          'absolute inset-0 origin-center transition duration-700 ease-out motion-reduce:transition-none',
           isLoaded ? 'scale-100 opacity-100' : 'scale-[1.035] opacity-0',
         )}
         style={{ position: 'absolute', inset: 0 }}
@@ -629,21 +686,17 @@ export function CountryMapStage({
 
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 opacity-40"
+        className="pointer-events-none absolute inset-0 z-10 opacity-15 sm:opacity-25"
         style={{
           background:
-            'radial-gradient(circle at 50% 44%, transparent 0%, transparent 52%, color-mix(in srgb, var(--atlas-bg) 44%, transparent) 100%)',
-          boxShadow: 'inset 0 0 72px var(--atlas-shadow)',
+            'radial-gradient(circle at 50% 44%, transparent 0%, transparent 62%, color-mix(in srgb, var(--atlas-bg) 34%, transparent) 100%)',
+          boxShadow: 'inset 0 0 36px var(--atlas-shadow)',
         }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(to_right,var(--atlas-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--atlas-grid)_1px,transparent_1px)] bg-[size:48px_48px] opacity-15"
       />
 
       <div
         className={cn(
-          'pointer-events-none absolute inset-0 z-20 grid place-items-center bg-[var(--atlas-panel-strong)] transition duration-500',
+          'pointer-events-none absolute inset-0 z-20 grid place-items-center bg-[var(--atlas-panel-strong)] transition duration-500 motion-reduce:transition-none',
           isLoaded ? 'invisible opacity-0' : 'visible opacity-100',
         )}
         role={isLoaded ? undefined : 'status'}
@@ -657,8 +710,8 @@ export function CountryMapStage({
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--atlas-rule)] border-t-[var(--atlas-accent)] motion-reduce:animate-none" />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-3 bottom-3 z-30 flex items-end justify-between gap-3 sm:inset-x-4 sm:bottom-4">
-        <div className="bg-[var(--atlas-card)]/86 pointer-events-auto max-w-[72%] rounded-lg border border-[var(--atlas-rule)] px-2.5 py-1 text-[8px] font-medium leading-tight text-[var(--atlas-muted)] shadow-md shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-[65%] sm:text-[9px]">
+      <div className="pointer-events-none absolute inset-x-2 bottom-2 z-30 flex items-end justify-between gap-2 sm:inset-x-4 sm:bottom-4">
+        <div className="bg-[var(--atlas-panel)]/72 pointer-events-auto max-w-[68%] rounded-md px-1.5 py-0.5 text-[7px] font-medium leading-tight text-[var(--atlas-muted)] shadow-sm shadow-[var(--atlas-shadow)] backdrop-blur-md sm:max-w-[65%] sm:px-2.5 sm:py-1 sm:text-[9px]">
           <a
             href="https://www.esri.com/"
             target="_blank"
@@ -670,12 +723,12 @@ export function CountryMapStage({
         </div>
 
         <div className="pointer-events-auto flex shrink-0 flex-col items-end">
-          <div className="bg-[var(--atlas-card)]/88 flex overflow-hidden rounded-xl border border-[var(--atlas-rule)] shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-md">
+          <div className="sm:bg-[var(--atlas-card)]/88 flex gap-1 sm:gap-0 sm:overflow-hidden sm:rounded-xl sm:border sm:border-[var(--atlas-rule)] sm:shadow-lg sm:shadow-[var(--atlas-shadow)] sm:backdrop-blur-md">
             <button
               type="button"
               className={cn(
                 COUNTRY_MAP_CONTROL_CLASSNAME,
-                'border-r border-[var(--atlas-rule)]',
+                'rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] shadow-lg backdrop-blur-md sm:rounded-none sm:border-y-0 sm:border-l-0 sm:bg-transparent sm:shadow-none',
               )}
               onClick={() => {
                 const map = mapRef.current;
@@ -704,7 +757,10 @@ export function CountryMapStage({
             </button>
             <button
               type="button"
-              className={COUNTRY_MAP_CONTROL_CLASSNAME}
+              className={cn(
+                COUNTRY_MAP_CONTROL_CLASSNAME,
+                'rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] shadow-lg backdrop-blur-md sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none',
+              )}
               onClick={() => {
                 const map = mapRef.current;
                 if (!map) {

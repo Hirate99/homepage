@@ -12,7 +12,11 @@ import { useTranslations } from 'next-intl';
 
 import { cn } from '@/lib/utils';
 
-import type { CountryNode, LocationNode } from '@/features/atlas/model/atlas';
+import {
+  clamp,
+  type CountryNode,
+  type LocationNode,
+} from '@/features/atlas/model/atlas';
 
 interface CountryMapStageProps {
   country: CountryNode;
@@ -52,7 +56,9 @@ const LOCATION_POINT_HIT_LAYER_ID = 'atlas-location-point-hit-area';
 const LOCATION_POINT_LAYER_ID = 'atlas-location-points';
 const LOCATION_ACTIVE_LAYER_ID = 'atlas-location-active';
 const COUNTRY_EXIT_ZOOM_DELTA = 0.72;
-const ENTRY_INPUT_LOCK_MS = 620;
+const COUNTRY_WHEEL_ZOOM_RATE = 1 / 360;
+const COUNTRY_PINCH_WHEEL_ZOOM_RATE = 1 / 120;
+const COUNTRY_WHEEL_MAX_STEP = 0.32;
 const COUNTRY_MAP_CONTROL_CLASSNAME =
   'grid h-11 w-11 touch-manipulation place-items-center text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]';
 
@@ -316,8 +322,11 @@ export function CountryMapStage({
 
     let isCancelled = false;
     let resizeFrame = 0;
-    let inputUnlockTimer = 0;
     let hoverClearTimer = 0;
+    let wheelFrame = 0;
+    let pendingWheelZoom = 0;
+    let wheelPoint: [number, number] | null = null;
+    let detachInputHandlers: (() => void) | null = null;
 
     setIsLoaded(false);
     setHasTileError(false);
@@ -359,7 +368,7 @@ export function CountryMapStage({
                   'raster-brightness-max': detailRaster.brightnessMax,
                   'raster-brightness-min': detailRaster.brightnessMin,
                   'raster-contrast': detailRaster.contrast,
-                  'raster-fade-duration': 120,
+                  'raster-fade-duration': 0,
                   'raster-hue-rotate': detailRaster.hueRotate,
                   'raster-opacity': 1,
                   'raster-resampling': 'linear',
@@ -460,6 +469,9 @@ export function CountryMapStage({
           maxZoom: 17,
           minZoom: 0.5,
           attributionControl: false,
+          dragPan: {
+            maxSpeed: 0,
+          },
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
@@ -480,6 +492,84 @@ export function CountryMapStage({
 
           hasRequestedWorldExitRef.current = true;
           exitToWorldRef.current();
+        };
+
+        const applyWheelZoom = () => {
+          wheelFrame = 0;
+
+          if (isCancelled || pendingWheelZoom === 0) {
+            pendingWheelZoom = 0;
+            return;
+          }
+
+          const zoomDelta = clamp(
+            pendingWheelZoom,
+            -COUNTRY_WHEEL_MAX_STEP,
+            COUNTRY_WHEEL_MAX_STEP,
+          );
+          pendingWheelZoom = 0;
+
+          const nextZoom = clamp(
+            map.getZoom() + zoomDelta,
+            map.getMinZoom(),
+            map.getMaxZoom(),
+          );
+
+          if (
+            levelRef.current === 'region' &&
+            nextZoom <= worldExitZoomRef.current
+          ) {
+            requestWorldExit();
+            return;
+          }
+
+          if (nextZoom === map.getZoom()) {
+            return;
+          }
+
+          hasUserMovedMap = true;
+          map.stop();
+          map.easeTo({
+            zoom: nextZoom,
+            around: wheelPoint ? map.unproject(wheelPoint) : undefined,
+            duration: 0,
+          });
+        };
+
+        const handleWheel = (event: WheelEvent) => {
+          const delta =
+            event.deltaMode === WheelEvent.DOM_DELTA_LINE
+              ? event.deltaY * 16
+              : event.deltaY;
+
+          if (!Number.isFinite(delta) || delta === 0) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const bounds = container.getBoundingClientRect();
+          wheelPoint = [
+            event.clientX - bounds.left,
+            event.clientY - bounds.top,
+          ];
+          pendingWheelZoom +=
+            -delta *
+            (event.ctrlKey
+              ? COUNTRY_PINCH_WHEEL_ZOOM_RATE
+              : COUNTRY_WHEEL_ZOOM_RATE);
+
+          if (!wheelFrame) {
+            wheelFrame = window.requestAnimationFrame(applyWheelZoom);
+          }
+        };
+
+        container.addEventListener('wheel', handleWheel, {
+          passive: false,
+        });
+        detachInputHandlers = () => {
+          container.removeEventListener('wheel', handleWheel);
         };
 
         map.on('zoomstart', (event) => {
@@ -621,12 +711,6 @@ export function CountryMapStage({
             );
             syncLocationLabel();
             setIsLoaded(true);
-
-            inputUnlockTimer = window.setTimeout(() => {
-              if (!isCancelled) {
-                map.scrollZoom.enable();
-              }
-            }, ENTRY_INPUT_LOCK_MS);
           });
         });
 
@@ -666,8 +750,9 @@ export function CountryMapStage({
     return () => {
       isCancelled = true;
       window.cancelAnimationFrame(resizeFrame);
-      window.clearTimeout(inputUnlockTimer);
+      window.cancelAnimationFrame(wheelFrame);
       window.clearTimeout(hoverClearTimer);
+      detachInputHandlers?.();
       syncLocationLabelRef.current = null;
       labelMarkerRef.current?.remove();
       labelMarkerRef.current = null;

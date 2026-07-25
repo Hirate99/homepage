@@ -168,12 +168,13 @@ export function GlobeStage({
   const userInteractionRef = useRef(onUserInteraction);
   const lastCameraTargetIdRef = useRef<string | null>(null);
   const lastFocusKeyRef = useRef(cameraFocusKey);
+  const lastZoomScaleRef = useRef(zoomScale);
   const zoomScaleChangeRef = useRef(onZoomScaleChange);
   const zoomIntoMarkerRef = useRef(onZoomIntoMarker);
   const zoomScaleRef = useRef(zoomScale);
-  const wheelMomentumRef = useRef(0);
+  const pendingWheelZoomRef = useRef(0);
   const wheelFrameRef = useRef<number | null>(null);
-  const lastWheelEventAtRef = useRef(0);
+  const wheelIdleTimerRef = useRef<number | null>(null);
   const isWheelZoomingRef = useRef(false);
   const focusTransitionUntilRef = useRef(0);
   const focusTransitionTimerRef = useRef<number | null>(null);
@@ -324,11 +325,17 @@ export function GlobeStage({
     const hasFocusShift =
       lastFocusKeyRef.current !== cameraFocusKey ||
       lastCameraTargetIdRef.current !== (cameraTarget?.id ?? null);
+    const hasZoomShift = lastZoomScaleRef.current !== zoomScale;
+
+    if (!hasFocusShift && !hasZoomShift) {
+      return;
+    }
+
     const focusDuration = reduceMotion
       ? 0
       : hasFocusShift
         ? cameraTarget
-          ? 980
+          ? 420
           : 520
         : 0;
     const nextView = hasFocusShift
@@ -371,6 +378,7 @@ export function GlobeStage({
 
     lastFocusKeyRef.current = cameraFocusKey;
     lastCameraTargetIdRef.current = cameraTarget?.id ?? null;
+    lastZoomScaleRef.current = zoomScale;
   }, [
     autoRotateEnabled,
     cameraFocusKey,
@@ -396,9 +404,8 @@ export function GlobeStage({
     const controls = globeRef.current.controls();
     controls.enablePan = false;
     controls.enableZoom = false;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.rotateSpeed = zoomTier === 'world' ? 0.85 : 0.65;
+    controls.enableDamping = false;
+    controls.rotateSpeed = zoomTier === 'world' ? 0.78 : 0.65;
     controls.autoRotate =
       shouldAnimateStage &&
       autoRotateEnabled &&
@@ -543,6 +550,18 @@ export function GlobeStage({
   const handlePointerDown = () => {
     onUserInteraction();
 
+    const globe = globeRef.current;
+    if (globe) {
+      const currentView = globe.pointOfView();
+      globe.pointOfView(currentView, 0);
+    }
+
+    focusTransitionUntilRef.current = 0;
+    if (focusTransitionTimerRef.current !== null) {
+      window.clearTimeout(focusTransitionTimerRef.current);
+      focusTransitionTimerRef.current = null;
+    }
+
     const controls = globeRef.current?.controls();
     if (controls) {
       controls.autoRotate = false;
@@ -591,13 +610,18 @@ export function GlobeStage({
       });
     };
 
-    const stopWheelInertia = () => {
+    const stopWheelInput = () => {
       if (wheelFrameRef.current !== null) {
         window.cancelAnimationFrame(wheelFrameRef.current);
         wheelFrameRef.current = null;
       }
 
-      wheelMomentumRef.current = 0;
+      if (wheelIdleTimerRef.current !== null) {
+        window.clearTimeout(wheelIdleTimerRef.current);
+        wheelIdleTimerRef.current = null;
+      }
+
+      pendingWheelZoomRef.current = 0;
       isWheelZoomingRef.current = false;
     };
 
@@ -618,27 +642,54 @@ export function GlobeStage({
       return markerId;
     };
 
-    const runWheelInertia = () => {
+    const scheduleWheelIdle = () => {
+      if (wheelIdleTimerRef.current !== null) {
+        window.clearTimeout(wheelIdleTimerRef.current);
+      }
+      wheelIdleTimerRef.current = window.setTimeout(() => {
+        isWheelZoomingRef.current = false;
+        wheelIdleTimerRef.current = null;
+      }, 90);
+    };
+
+    const applyWheelZoom = () => {
+      wheelFrameRef.current = null;
+
       if (!isInteractionActiveRef.current) {
-        stopWheelInertia();
+        stopWheelInput();
         return;
       }
 
-      const momentum = wheelMomentumRef.current;
-      if (Math.abs(momentum) < 0.0025) {
-        stopWheelInertia();
+      const wheelZoom = clamp(pendingWheelZoomRef.current, -0.2, 0.2);
+      pendingWheelZoomRef.current = 0;
+
+      if (wheelZoom === 0) {
+        scheduleWheelIdle();
         return;
       }
 
       const currentScale = zoomScaleRef.current;
       const nextScale = clamp(
-        currentScale + momentum,
+        currentScale + wheelZoom,
         MIN_GLOBE_SCALE,
         MAX_GLOBE_SCALE,
       );
       if (nextScale === currentScale) {
-        stopWheelInertia();
+        scheduleWheelIdle();
         return;
+      }
+
+      const globe = globeRef.current;
+      if (globe) {
+        const view = globe.pointOfView();
+        globe.pointOfView(
+          {
+            lat: view.lat,
+            lng: view.lng,
+            altitude: globeScaleToAltitude(nextScale),
+          },
+          0,
+        );
       }
 
       zoomScaleRef.current = nextScale;
@@ -646,23 +697,19 @@ export function GlobeStage({
 
       const entryMarkerId = getCountryEntryMarker(nextScale);
       if (entryMarkerId) {
-        stopWheelInertia();
+        stopWheelInput();
         zoomIntoMarkerRef.current(entryMarkerId);
         return;
       }
 
-      const now = performance.now();
-      const isStillScrolling = now - lastWheelEventAtRef.current < 110;
-
-      wheelMomentumRef.current *= isStillScrolling ? 0.91 : 0.88;
-      wheelFrameRef.current = window.requestAnimationFrame(runWheelInertia);
+      scheduleWheelIdle();
     };
 
     const handleWheel = (event: WheelEvent) => {
       if (!isInteractionActiveRef.current) {
         event.preventDefault();
         event.stopPropagation();
-        stopWheelInertia();
+        stopWheelInput();
         return;
       }
 
@@ -674,45 +721,22 @@ export function GlobeStage({
         return;
       }
 
-      const nextStep = clamp(Math.abs(delta) / 360, 0.07, 0.17);
-      const direction = delta > 0 ? -1 : 1;
-      const immediateStep = nextStep * direction;
-      const currentScale = zoomScaleRef.current;
-      const nextScale = clamp(
-        currentScale + immediateStep,
-        MIN_GLOBE_SCALE,
-        MAX_GLOBE_SCALE,
-      );
-
-      if (nextScale === currentScale) {
-        stopWheelInertia();
-        return;
-      }
-
       event.preventDefault();
       event.stopPropagation();
       userInteractionRef.current();
 
       isWheelZoomingRef.current = true;
-      lastWheelEventAtRef.current = performance.now();
-
-      zoomScaleRef.current = nextScale;
-      zoomScaleChangeRef.current(nextScale);
-
-      const entryMarkerId = getCountryEntryMarker(nextScale);
-      if (entryMarkerId) {
-        stopWheelInertia();
-        zoomIntoMarkerRef.current(entryMarkerId);
-        return;
+      if (wheelIdleTimerRef.current !== null) {
+        window.clearTimeout(wheelIdleTimerRef.current);
+        wheelIdleTimerRef.current = null;
       }
-
-      wheelMomentumRef.current = immediateStep * 0.28;
+      pendingWheelZoomRef.current += -delta * (event.ctrlKey ? 0.0048 : 0.0016);
 
       if (wheelFrameRef.current !== null) {
         return;
       }
 
-      wheelFrameRef.current = window.requestAnimationFrame(runWheelInertia);
+      wheelFrameRef.current = window.requestAnimationFrame(applyWheelZoom);
     };
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -793,7 +817,7 @@ export function GlobeStage({
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
-      stopWheelInertia();
+      stopWheelInput();
       setPinchActive(false);
       resetPinch();
     };
@@ -850,6 +874,7 @@ export function GlobeStage({
                 cameraFocusKey,
                 zoomScale,
               });
+              lastZoomScaleRef.current = zoomScale;
 
               const renderer = globeRef.current?.renderer();
               if (renderer) {

@@ -372,7 +372,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setCameraTargetId(targetCountry.id);
     setCameraFocusKey((current) => current + 1);
     setIsAutoRotateFrozen(true);
-    setZoomScale(ZOOM_SCALE.region);
+    setZoomScale(ZOOM_SCALE.world);
 
     if (shouldReduceMotion) {
       setDisplayZoomTier('world');
@@ -387,9 +387,6 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setIsLevelTransitioning(true);
     setTransitionDirection('exit');
     setDisplayZoomTier('world');
-    scheduleTransitionStep(() => {
-      setZoomScale(ZOOM_SCALE.world);
-    }, 40);
     scheduleTransitionStep(() => {
       setIsLevelTransitioning(false);
       setTransitionDirection(null);

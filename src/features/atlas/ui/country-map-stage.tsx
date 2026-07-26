@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { Minus, Plus } from 'lucide-react';
+import { LocateFixed, Minus, Plus } from 'lucide-react';
 import type {
   GeoJSONSource,
   Map as MapLibreMap,
@@ -193,6 +193,7 @@ function createLocationData(nodes: LocationNode[]) {
         coordinates: [node.lng, node.lat],
       },
       properties: {
+        count: node.posts.length,
         id: node.id,
         label: node.label,
       },
@@ -203,12 +204,14 @@ function createLocationData(nodes: LocationNode[]) {
 function createLocationLabelElement({
   node,
   placeOnLeft,
+  postCountLabel,
   onPointerEnter,
   onPointerLeave,
   onSelect,
 }: {
   node: LocationNode;
   placeOnLeft: boolean;
+  postCountLabel: string;
   onPointerEnter: () => void;
   onPointerLeave: () => void;
   onSelect: (element: HTMLButtonElement) => void;
@@ -216,12 +219,19 @@ function createLocationLabelElement({
   const element = document.createElement('button');
   const connector = document.createElement('span');
   const label = document.createElement('span');
+  const labelTitle = document.createElement('span');
+  const postCount = node.posts.length;
 
   element.type = 'button';
+  element.dataset.slot = 'atlas-map-label';
+  element.dataset.state = postCount > 1 ? 'collection' : 'single';
   element.dataset.atlasMapLabel = node.id;
   element.className =
     'group flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 text-left outline-none';
-  element.setAttribute('aria-label', node.label);
+  element.setAttribute(
+    'aria-label',
+    postCount > 1 ? `${node.label}, ${postCountLabel}` : node.label,
+  );
   element.addEventListener('pointerenter', onPointerEnter);
   element.addEventListener('pointerleave', onPointerLeave);
   element.addEventListener('click', (event) => {
@@ -230,15 +240,30 @@ function createLocationLabelElement({
     onSelect(element);
   });
 
-  label.textContent = node.label;
+  label.dataset.slot = 'atlas-map-label-card';
   label.className =
-    'block whitespace-nowrap rounded-[9px] border bg-[var(--atlas-card)] px-3 py-2 text-[13px] font-bold leading-none tracking-[0.01em] text-[var(--atlas-ink)] transition-[background-color,border-color,box-shadow,transform] group-hover:border-[var(--atlas-accent)] group-hover:bg-[var(--atlas-card-active)] group-active:translate-y-px group-focus-visible:ring-2 group-focus-visible:ring-[var(--atlas-accent)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[var(--atlas-bg)]';
+    'flex items-center gap-2 whitespace-nowrap rounded-[9px] border bg-[var(--atlas-card)] px-3 py-2 text-[13px] font-bold leading-none tracking-[0.01em] text-[var(--atlas-ink)] transition-[background-color,border-color,box-shadow,transform] group-hover:border-[var(--atlas-accent)] group-hover:bg-[var(--atlas-card-active)] group-active:translate-y-px group-focus-visible:ring-2 group-focus-visible:ring-[var(--atlas-accent)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[var(--atlas-bg)]';
   Object.assign(label.style, {
     borderColor: 'color-mix(in srgb, var(--atlas-ink) 38%, var(--atlas-card))',
     boxShadow: `${placeOnLeft ? 'inset -3px 0 0 var(--atlas-accent)' : 'inset 3px 0 0 var(--atlas-accent)'}, 0 1px 0 color-mix(in srgb, var(--atlas-ink) 14%, transparent), 0 10px 28px color-mix(in srgb, var(--atlas-ink) 30%, transparent)`,
   });
 
+  labelTitle.dataset.slot = 'atlas-map-label-title';
+  labelTitle.textContent = node.label;
+  label.appendChild(labelTitle);
+
+  if (postCount > 1) {
+    const countBadge = document.createElement('span');
+    countBadge.dataset.slot = 'atlas-map-label-count';
+    countBadge.setAttribute('aria-hidden', 'true');
+    countBadge.className =
+      'inline-grid h-5 min-w-5 place-items-center rounded-full bg-[var(--atlas-accent)] px-1 text-[10px] font-extrabold leading-none text-[var(--atlas-on-accent)] shadow-[0_2px_8px_var(--atlas-shadow)]';
+    countBadge.textContent = String(postCount);
+    label.appendChild(countBadge);
+  }
+
   connector.setAttribute('aria-hidden', 'true');
+  connector.dataset.slot = 'atlas-map-label-connector';
   connector.className =
     'pointer-events-none h-0.5 w-2.5 flex-none bg-[var(--atlas-accent)]';
   Object.assign(connector.style, {
@@ -277,6 +302,9 @@ export function CountryMapStage({
   const activeMarkerIdRef = useRef(activeMarkerId);
   const hoveredMarkerIdRef = useRef<string | null>(null);
   const selectMarkerRef = useRef(onSelectMarker);
+  const formatPostCountRef = useRef((count: number) =>
+    t('locationPostCount', { count }),
+  );
   const exitToWorldRef = useRef(onExitToWorld);
   const hasRequestedWorldExitRef = useRef(false);
   const worldExitZoomRef = useRef(1);
@@ -312,6 +340,11 @@ export function CountryMapStage({
   useEffect(() => {
     selectMarkerRef.current = onSelectMarker;
   }, [onSelectMarker]);
+
+  useEffect(() => {
+    formatPostCountRef.current = (count: number) =>
+      t('locationPostCount', { count });
+  }, [t]);
 
   useEffect(() => {
     exitToWorldRef.current = onExitToWorld;
@@ -438,7 +471,17 @@ export function CountryMapStage({
                 paint: {
                   'circle-color': accentColor,
                   'circle-opacity': 0.2,
-                  'circle-radius': 13,
+                  'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'count'],
+                    1,
+                    13,
+                    2,
+                    16,
+                    6,
+                    20,
+                  ],
                 },
               },
               {
@@ -459,7 +502,17 @@ export function CountryMapStage({
                 filter: ['!', ['has', 'point_count']],
                 paint: {
                   'circle-color': accentColor,
-                  'circle-radius': 5.5,
+                  'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'count'],
+                    1,
+                    5.5,
+                    2,
+                    7,
+                    6,
+                    9,
+                  ],
                   'circle-stroke-color': '#eef6f3',
                   'circle-stroke-opacity': 0.9,
                   'circle-stroke-width': 1.25,
@@ -472,7 +525,17 @@ export function CountryMapStage({
                 filter: ['==', ['get', 'id'], activeMarkerIdRef.current ?? ''],
                 paint: {
                   'circle-color': accentColor,
-                  'circle-radius': 8,
+                  'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'count'],
+                    1,
+                    8,
+                    2,
+                    9.5,
+                    6,
+                    12,
+                  ],
                   'circle-stroke-color': '#eef6f3',
                   'circle-stroke-width': 2,
                 },
@@ -623,6 +686,7 @@ export function CountryMapStage({
             element: createLocationLabelElement({
               node,
               placeOnLeft,
+              postCountLabel: formatPostCountRef.current(node.posts.length),
               onPointerEnter: () => {
                 window.clearTimeout(hoverClearTimer);
                 setHoveredLocation(node.id);
@@ -896,6 +960,36 @@ export function CountryMapStage({
               title={t('zoomOut')}
             >
               <Minus className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={cn(
+                COUNTRY_MAP_CONTROL_CLASSNAME,
+                'rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] shadow-lg backdrop-blur-md sm:rounded-none sm:border-y-0 sm:border-l-0 sm:bg-transparent sm:shadow-none',
+              )}
+              onClick={() => {
+                const map = mapRef.current;
+                const activeNode = nodesRef.current.find(
+                  (node) => node.id === activeMarkerIdRef.current,
+                );
+                if (!map || !activeNode) {
+                  return;
+                }
+
+                const targetZoom =
+                  map.getContainer().clientWidth < 640 ? 9 : 10;
+                map.stop();
+                map.easeTo({
+                  center: [activeNode.lng, activeNode.lat],
+                  zoom: Math.max(map.getZoom(), targetZoom),
+                  duration: reduceMotion ? 0 : 420,
+                });
+              }}
+              disabled={!activeMarkerId}
+              aria-label={t('focusPostLocation')}
+              title={t('focusPostLocation')}
+            >
+              <LocateFixed className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"

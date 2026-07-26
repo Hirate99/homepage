@@ -214,13 +214,13 @@ function createLocationLabelElement({
   onSelect: (element: HTMLButtonElement) => void;
 }) {
   const element = document.createElement('button');
+  const connector = document.createElement('span');
   const label = document.createElement('span');
 
   element.type = 'button';
   element.dataset.atlasMapLabel = node.id;
-  element.className = placeOnLeft
-    ? 'group flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 pr-2 text-left outline-none'
-    : 'group flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 pl-2 text-left outline-none';
+  element.className =
+    'group flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 text-left outline-none';
   element.setAttribute('aria-label', node.label);
   element.addEventListener('pointerenter', onPointerEnter);
   element.addEventListener('pointerleave', onPointerLeave);
@@ -232,11 +232,26 @@ function createLocationLabelElement({
 
   label.textContent = node.label;
   label.className =
-    'block whitespace-nowrap rounded-[10px] border border-[var(--atlas-rule)] bg-[var(--atlas-card)]/92 px-[11px] py-2 text-[13px] font-semibold text-[var(--atlas-ink)] shadow-[0_10px_28px_var(--atlas-shadow)] backdrop-blur-[14px] transition-[background-color,box-shadow] group-hover:bg-[var(--atlas-card)] group-focus-visible:ring-2 group-focus-visible:ring-[var(--atlas-accent)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-transparent';
+    'block whitespace-nowrap rounded-[9px] border bg-[var(--atlas-card)] px-3 py-2 text-[13px] font-bold leading-none tracking-[0.01em] text-[var(--atlas-ink)] transition-[background-color,border-color,box-shadow,transform] group-hover:border-[var(--atlas-accent)] group-hover:bg-[var(--atlas-card-active)] group-active:translate-y-px group-focus-visible:ring-2 group-focus-visible:ring-[var(--atlas-accent)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[var(--atlas-bg)]';
   Object.assign(label.style, {
-    backdropFilter: 'blur(14px)',
+    borderColor: 'color-mix(in srgb, var(--atlas-ink) 38%, var(--atlas-card))',
+    boxShadow: `${placeOnLeft ? 'inset -3px 0 0 var(--atlas-accent)' : 'inset 3px 0 0 var(--atlas-accent)'}, 0 1px 0 color-mix(in srgb, var(--atlas-ink) 14%, transparent), 0 10px 28px color-mix(in srgb, var(--atlas-ink) 30%, transparent)`,
   });
-  element.appendChild(label);
+
+  connector.setAttribute('aria-hidden', 'true');
+  connector.className =
+    'pointer-events-none h-0.5 w-2.5 flex-none bg-[var(--atlas-accent)]';
+  Object.assign(connector.style, {
+    boxShadow: '0 0 0 1px var(--atlas-card), 0 2px 8px var(--atlas-shadow)',
+  });
+
+  if (placeOnLeft) {
+    element.appendChild(label);
+    element.appendChild(connector);
+  } else {
+    element.appendChild(connector);
+    element.appendChild(label);
+  }
 
   return element;
 }
@@ -515,10 +530,7 @@ export function CountryMapStage({
             map.getMaxZoom(),
           );
 
-          if (
-            levelRef.current === 'region' &&
-            nextZoom <= worldExitZoomRef.current
-          ) {
+          if (nextZoom <= worldExitZoomRef.current) {
             requestWorldExit();
             return;
           }

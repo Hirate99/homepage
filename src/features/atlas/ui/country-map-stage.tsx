@@ -217,11 +217,21 @@ function createLocationLabelElement({
 }) {
   const root = document.createElement('div');
   const element = document.createElement('button');
+  const connector = document.createElementNS(
+    'http://www.w3.org/2000/svg',
+    'svg',
+  );
+  const connectorPath = document.createElementNS(
+    'http://www.w3.org/2000/svg',
+    'path',
+  );
   const label = document.createElement('span');
   const labelTitle = document.createElement('span');
   const postCount = node.posts.length;
 
   root.dataset.slot = 'atlas-map-label-anchor';
+  root.dataset.occluded = 'false';
+  root.dataset.state = 'idle';
   root.className = 'pointer-events-none relative h-px w-px overflow-visible';
 
   element.type = 'button';
@@ -262,13 +272,73 @@ function createLocationLabelElement({
     label.appendChild(countBadge);
   }
 
+  connector.dataset.slot = 'atlas-map-label-connector';
+  connector.dataset.displaced = 'false';
+  connector.setAttribute('aria-hidden', 'true');
+  connector.setAttribute('height', '1');
+  connector.setAttribute('width', '1');
+  connector.classList.add(
+    'pointer-events-none',
+    'absolute',
+    'left-0',
+    'top-0',
+    'overflow-visible',
+    'transition-opacity',
+    'duration-150',
+  );
+  Object.assign(connector.style, {
+    color: 'color-mix(in srgb, var(--atlas-ink) 52%, transparent)',
+    opacity: '0',
+  });
+
+  connectorPath.setAttribute('fill', 'none');
+  connectorPath.setAttribute('stroke', 'currentColor');
+  connectorPath.setAttribute('stroke-linecap', 'round');
+  connectorPath.setAttribute('stroke-width', '1.15');
+  connectorPath.setAttribute('vector-effect', 'non-scaling-stroke');
+  connector.appendChild(connectorPath);
+
+  root.appendChild(connector);
   element.appendChild(label);
   root.appendChild(element);
 
+  const updateConnectorAppearance = () => {
+    const state = element.dataset.state;
+    const isVisible =
+      connector.dataset.displaced === 'true' &&
+      element.dataset.occluded !== 'true';
+
+    connector.style.color =
+      state === 'active' || state === 'hover'
+        ? 'var(--atlas-accent)'
+        : 'color-mix(in srgb, var(--atlas-ink) 52%, transparent)';
+    connector.style.opacity = isVisible
+      ? state === 'active'
+        ? '0.92'
+        : state === 'hover'
+          ? '0.72'
+          : '0.38'
+      : '0';
+    connectorPath.setAttribute(
+      'stroke-width',
+      state === 'active' ? '1.5' : '1.15',
+    );
+  };
+
   const setPlacement = (side: 'left' | 'right', verticalOffset: number) => {
+    const horizontalOffset = side === 'right' ? 10 : -10;
+    const isDisplaced = Math.abs(verticalOffset) >= 4;
+
     element.style.left = side === 'right' ? '10px' : '';
     element.style.right = side === 'left' ? '10px' : '';
     element.style.transform = `translateY(calc(-50% + ${verticalOffset}px))`;
+    connector.dataset.displaced = String(isDisplaced);
+    connectorPath.setAttribute(
+      'd',
+      isDisplaced
+        ? `M 0 0 C ${horizontalOffset * 0.42} 0, ${horizontalOffset * 0.58} ${verticalOffset}, ${horizontalOffset} ${verticalOffset}`
+        : '',
+    );
     Object.assign(label.style, {
       borderColor:
         element.dataset.state === 'active'
@@ -279,9 +349,36 @@ function createLocationLabelElement({
           ? '0 0 0 1px var(--atlas-accent), 0 6px 18px color-mix(in srgb, var(--atlas-ink) 28%, transparent)'
           : '0 4px 14px color-mix(in srgb, var(--atlas-ink) 24%, transparent)',
     });
+    updateConnectorAppearance();
   };
 
-  return { button: element, label, root, setPlacement };
+  const setOccluded = (occluded: boolean) => {
+    root.dataset.occluded = String(occluded);
+    element.dataset.occluded = String(occluded);
+    if (occluded) {
+      element.setAttribute('aria-hidden', 'true');
+      element.tabIndex = -1;
+    } else {
+      element.removeAttribute('aria-hidden');
+      element.removeAttribute('tabindex');
+    }
+    updateConnectorAppearance();
+  };
+
+  const setState = (state: 'active' | 'hover' | 'idle') => {
+    root.dataset.state = state;
+    element.dataset.state = state;
+    updateConnectorAppearance();
+  };
+
+  return {
+    button: element,
+    label,
+    root,
+    setOccluded,
+    setPlacement,
+    setState,
+  };
 }
 
 export function CountryMapStage({
@@ -688,14 +785,7 @@ export function CountryMapStage({
           handle: ReturnType<typeof createLocationLabelElement>,
           occluded: boolean,
         ) => {
-          handle.button.dataset.occluded = String(occluded);
-          if (occluded) {
-            handle.button.setAttribute('aria-hidden', 'true');
-            handle.button.tabIndex = -1;
-          } else {
-            handle.button.removeAttribute('aria-hidden');
-            handle.button.removeAttribute('tabindex');
-          }
+          handle.setOccluded(occluded);
         };
 
         const positionLocationLabels = () => {
@@ -703,8 +793,14 @@ export function CountryMapStage({
           const compact = clientWidth < 640;
           const topBoundary = compact ? 58 : 68;
           const bottomBoundary = clientHeight - (compact ? 60 : 22);
-          const verticalStep = compact ? 14 : 16;
-          const verticalOffsets = [0, -verticalStep, verticalStep];
+          const verticalStep = compact ? 20 : 22;
+          const verticalOffsets = [
+            0,
+            -verticalStep,
+            verticalStep,
+            -verticalStep * 2,
+            verticalStep * 2,
+          ];
           const placedBoxes: Array<{
             left: number;
             right: number;
@@ -820,7 +916,7 @@ export function CountryMapStage({
                 : node.id === hoveredMarkerIdRef.current
                   ? 'hover'
                   : 'idle';
-            handle.button.dataset.state = state;
+            handle.setState(state);
             if (state === 'active') {
               handle.button.setAttribute('aria-current', 'location');
             } else {

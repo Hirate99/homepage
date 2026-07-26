@@ -55,6 +55,8 @@
     "zoomOut": "Zoom out",
     "zoomIn": "Zoom in",
     "focusPostLocation": "Center and zoom to the selected post location",
+    "focusPostLocationShort": "Center place",
+    "focusItemLocation": "Center and zoom to {place}",
     "resetView": "Reset atlas view",
     "locationPostCount": "{count, plural, one {# post} other {# posts}}",
     "dockMeta": "{placeCount, plural, one {# place} other {# places}} · {postCount, plural, one {# post} other {# posts}}",

@@ -55,6 +55,8 @@
     "zoomOut": "缩小",
     "zoomIn": "放大",
     "focusPostLocation": "居中并放大所选作品位置",
+    "focusPostLocationShort": "定位地点",
+    "focusItemLocation": "居中并放大 {place} 的位置",
     "resetView": "重置图集视角",
     "locationPostCount": "{count} 组作品",
     "dockMeta": "{placeCount} 个地点 · {postCount} 组作品",

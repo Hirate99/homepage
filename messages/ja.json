@@ -55,6 +55,8 @@
     "zoomOut": "縮小",
     "zoomIn": "拡大",
     "focusPostLocation": "選択した作品の場所を中央に拡大表示",
+    "focusPostLocationShort": "場所を表示",
+    "focusItemLocation": "{place}の場所を中央に拡大表示",
     "resetView": "アトラスの表示をリセット",
     "locationPostCount": "{count}件",
     "dockMeta": "{placeCount}か所 · {postCount}件",

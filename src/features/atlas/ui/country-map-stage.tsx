@@ -217,7 +217,6 @@ function createLocationLabelElement({
 }) {
   const root = document.createElement('div');
   const element = document.createElement('button');
-  const connector = document.createElement('span');
   const label = document.createElement('span');
   const labelTitle = document.createElement('span');
   const postCount = node.posts.length;
@@ -228,10 +227,11 @@ function createLocationLabelElement({
   element.type = 'button';
   element.dataset.slot = 'atlas-map-label';
   element.dataset.kind = postCount > 1 ? 'collection' : 'single';
+  element.dataset.occluded = 'false';
   element.dataset.state = 'idle';
   element.dataset.atlasMapLabel = node.id;
   element.className =
-    'group pointer-events-auto absolute top-0 z-10 flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 text-left outline-none transition-opacity duration-150 data-[state=idle]:opacity-90 data-[state=hover]:opacity-100 data-[state=active]:opacity-100';
+    'group pointer-events-auto absolute top-0 z-10 flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 text-left outline-none transition-opacity duration-150 data-[occluded=true]:invisible data-[occluded=true]:pointer-events-none data-[state=idle]:opacity-90 data-[state=hover]:opacity-100 data-[state=active]:opacity-100';
   element.setAttribute(
     'aria-label',
     postCount > 1 ? `${node.label}, ${postCountLabel}` : node.label,
@@ -262,39 +262,26 @@ function createLocationLabelElement({
     label.appendChild(countBadge);
   }
 
-  connector.setAttribute('aria-hidden', 'true');
-  connector.dataset.slot = 'atlas-map-label-connector';
-  connector.className =
-    'pointer-events-none absolute left-0 top-0 h-0.5 bg-[var(--atlas-accent)]';
-  Object.assign(connector.style, {
-    boxShadow: '0 0 0 1px var(--atlas-card), 0 2px 8px var(--atlas-shadow)',
-    transformOrigin: '0 50%',
-  });
-
   element.appendChild(label);
-  root.appendChild(connector);
   root.appendChild(element);
 
   const setPlacement = (side: 'left' | 'right', verticalOffset: number) => {
-    const horizontalOffset = side === 'left' ? -12 : 12;
-    const connectorLength = Math.hypot(horizontalOffset, verticalOffset);
-    const connectorAngle = Math.atan2(verticalOffset, horizontalOffset);
-
-    element.style.left = side === 'right' ? '12px' : '';
-    element.style.right = side === 'left' ? '12px' : '';
+    element.style.left = side === 'right' ? '10px' : '';
+    element.style.right = side === 'left' ? '10px' : '';
     element.style.transform = `translateY(calc(-50% + ${verticalOffset}px))`;
-    connector.style.width = `${connectorLength}px`;
-    connector.style.transform = `translateY(-50%) rotate(${connectorAngle}rad)`;
     Object.assign(label.style, {
       borderColor:
         element.dataset.state === 'active'
           ? 'var(--atlas-accent)'
           : 'color-mix(in srgb, var(--atlas-ink) 38%, var(--atlas-card))',
-      boxShadow: `${side === 'left' ? 'inset -3px 0 0 var(--atlas-accent)' : 'inset 3px 0 0 var(--atlas-accent)'}, 0 1px 0 color-mix(in srgb, var(--atlas-ink) 14%, transparent), 0 8px 22px color-mix(in srgb, var(--atlas-ink) 28%, transparent)`,
+      boxShadow:
+        element.dataset.state === 'active'
+          ? '0 0 0 1px var(--atlas-accent), 0 6px 18px color-mix(in srgb, var(--atlas-ink) 28%, transparent)'
+          : '0 4px 14px color-mix(in srgb, var(--atlas-ink) 24%, transparent)',
     });
   };
 
-  return { button: element, connector, label, root, setPlacement };
+  return { button: element, label, root, setPlacement };
 }
 
 export function CountryMapStage({
@@ -697,21 +684,27 @@ export function CountryMapStage({
           locationLabels.clear();
         };
 
+        const setLocationLabelOccluded = (
+          handle: ReturnType<typeof createLocationLabelElement>,
+          occluded: boolean,
+        ) => {
+          handle.button.dataset.occluded = String(occluded);
+          if (occluded) {
+            handle.button.setAttribute('aria-hidden', 'true');
+            handle.button.tabIndex = -1;
+          } else {
+            handle.button.removeAttribute('aria-hidden');
+            handle.button.removeAttribute('tabindex');
+          }
+        };
+
         const positionLocationLabels = () => {
           const { clientHeight, clientWidth } = map.getContainer();
           const compact = clientWidth < 640;
           const topBoundary = compact ? 58 : 68;
           const bottomBoundary = clientHeight - (compact ? 60 : 22);
-          const verticalStep = compact ? 42 : 46;
-          const verticalOffsets = [
-            0,
-            -verticalStep,
-            verticalStep,
-            -verticalStep * 2,
-            verticalStep * 2,
-            -verticalStep * 3,
-            verticalStep * 3,
-          ];
+          const verticalStep = compact ? 14 : 16;
+          const verticalOffsets = [0, -verticalStep, verticalStep];
           const placedBoxes: Array<{
             left: number;
             right: number;
@@ -747,6 +740,8 @@ export function CountryMapStage({
                   side: 'left' | 'right';
                   verticalOffset: number;
                   box: (typeof placedBoxes)[number];
+                  outside: number;
+                  overlaps: number;
                   score: number;
                 }
               | undefined;
@@ -754,7 +749,7 @@ export function CountryMapStage({
             for (const side of sides) {
               for (const verticalOffset of verticalOffsets) {
                 const left =
-                  side === 'right' ? point.x + 12 : point.x - 12 - labelWidth;
+                  side === 'right' ? point.x + 10 : point.x - 10 - labelWidth;
                 const top = point.y + verticalOffset - labelHeight / 2;
                 const box = {
                   left,
@@ -785,6 +780,8 @@ export function CountryMapStage({
                     side,
                     verticalOffset,
                     box,
+                    outside,
+                    overlaps,
                     score,
                   };
                 }
@@ -792,18 +789,16 @@ export function CountryMapStage({
             }
 
             if (!bestPlacement) {
-              handle.button.hidden = true;
+              setLocationLabelOccluded(handle, true);
               continue;
             }
 
             const isPriorityLabel =
               node.id === activeId || node.id === hoveredId;
             const shouldHide =
-              bestPlacement.score >= 10000 &&
-              locationLabels.size > (compact ? 8 : 16) &&
+              (bestPlacement.overlaps > 0 || bestPlacement.outside > 0) &&
               !isPriorityLabel;
-            handle.button.hidden = shouldHide;
-            handle.connector.hidden = shouldHide;
+            setLocationLabelOccluded(handle, shouldHide);
             if (shouldHide) {
               continue;
             }

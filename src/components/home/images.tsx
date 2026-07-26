@@ -3,13 +3,14 @@ import {
   type CSSProperties,
   type MouseEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
 import useEmblaCarousel from 'embla-carousel-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -189,6 +190,7 @@ export function ExpandedPost({
   originRect: CardRect;
 }) {
   const t = useTranslations('Gallery');
+  const shouldReduceMotion = Boolean(useReducedMotion());
   const initialSlideIndex = useMemo(() => {
     const idx = post.images.indexOf(post.cover);
     return idx >= 0 ? idx : 0;
@@ -202,8 +204,10 @@ export function ExpandedPost({
   });
   const [selectedIndex, setSelectedIndex] = useState(initialSlideIndex);
   const [loadedSlideMap, setLoadedSlideMap] = useState<Record<number, boolean>>(
-    () => ({ [initialSlideIndex]: true }),
+    {},
   );
+  const [isEntranceComplete, setIsEntranceComplete] =
+    useState(shouldReduceMotion);
   const [viewport, setViewport] = useState(() => ({
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
@@ -220,19 +224,29 @@ export function ExpandedPost({
       }),
     [originRect, viewport.height, viewport.width],
   );
-  const originTransform = useMemo(
-    () => ({
-      x: originRect.x - targetRect.x,
-      y: originRect.y - targetRect.y,
-      scaleX: clamp(originRect.width / Math.max(targetRect.width, 1), 0.08, 1),
-      scaleY: clamp(
-        originRect.height / Math.max(targetRect.height, 1),
-        0.08,
-        1,
+  const imageRequestWidth = useMemo(
+    () =>
+      clamp(
+        Math.ceil(
+          targetRect.width *
+            (typeof window === 'undefined'
+              ? 1
+              : Math.min(window.devicePixelRatio, 2)),
+        ),
+        1280,
+        2160,
       ),
-    }),
-    [originRect, targetRect],
+    [targetRect.width],
   );
+
+  useLayoutEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -247,19 +261,9 @@ export function ExpandedPost({
       }
     };
 
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [emblaApi, onClose]);
@@ -349,36 +353,31 @@ export function ExpandedPost({
       />
       <motion.div
         className={cn(
-          'absolute overflow-hidden rounded-[2rem] bg-[#0f1013] text-white will-change-transform',
+          'absolute overflow-hidden rounded-[2rem] bg-[#0f1013] text-white will-change-[transform,opacity]',
           'border border-white/20 shadow-[0_20px_80px_rgba(0,0,0,0.65)]',
         )}
         initial={{
-          x: originTransform.x,
-          y: originTransform.y,
-          scaleX: originTransform.scaleX,
-          scaleY: originTransform.scaleY,
-          borderRadius: 24,
-          opacity: 0.72,
+          y: shouldReduceMotion ? 0 : 12,
+          scale: shouldReduceMotion ? 1 : 0.985,
+          opacity: shouldReduceMotion ? 1 : 0,
         }}
         animate={{
-          x: 0,
           y: 0,
-          scaleX: 1,
-          scaleY: 1,
-          borderRadius: 32,
+          scale: 1,
           opacity: 1,
         }}
         exit={{
-          x: originTransform.x,
-          y: originTransform.y,
-          scaleX: originTransform.scaleX,
-          scaleY: originTransform.scaleY,
-          borderRadius: 24,
+          y: shouldReduceMotion ? 0 : 8,
+          scale: shouldReduceMotion ? 1 : 0.99,
           opacity: 0,
         }}
-        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        transition={{
+          duration: shouldReduceMotion ? 0 : 0.16,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        onAnimationComplete={() => setIsEntranceComplete(true)}
         style={{
-          contain: 'layout paint',
+          contain: 'layout paint style',
           height: targetRect.height,
           left: targetRect.x,
           top: targetRect.y,
@@ -386,11 +385,7 @@ export function ExpandedPost({
           width: targetRect.width,
         }}
       >
-        <motion.article
-          initial={{ opacity: 0.6 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.12, ease: 'easeOut' }}
+        <article
           className="relative flex h-full flex-col overflow-hidden bg-[#0f1013]"
           role="dialog"
           aria-modal="true"
@@ -428,44 +423,58 @@ export function ExpandedPost({
                     className="flex h-full min-h-0 min-w-0 flex-[0_0_100%] select-none overflow-hidden"
                   >
                     <div className="relative h-full min-h-0 w-full overflow-hidden">
-                      <div
-                        className={cn(
-                          'from-orange-100/16 via-orange-200/12 absolute inset-0 bg-gradient-to-br to-orange-50/10 transition-opacity',
-                          index === initialSlideIndex
-                            ? 'duration-0'
-                            : 'duration-1000',
-                          loadedSlideMap[index]
-                            ? 'pointer-events-none opacity-0'
-                            : 'opacity-70',
-                        )}
-                      />
-                      <img
-                        src={clipCDNImage(src, { width: 2560, quality: 82 })}
-                        alt={t('photoAlt', {
-                          city: post.city,
-                          number: index + 1,
-                        })}
-                        className={cn(
-                          'block h-full w-full object-contain transition-opacity',
-                          index === initialSlideIndex
-                            ? 'duration-0'
-                            : 'duration-1000',
-                          loadedSlideMap[index] ? 'opacity-100' : 'opacity-0',
-                        )}
-                        loading={index <= selectedIndex + 1 ? 'eager' : 'lazy'}
-                        decoding="async"
-                        referrerPolicy="no-referrer"
-                        onLoad={() => {
-                          setLoadedSlideMap((prev) =>
-                            prev[index] ? prev : { ...prev, [index]: true },
-                          );
-                        }}
-                        onError={() => {
-                          setLoadedSlideMap((prev) =>
-                            prev[index] ? prev : { ...prev, [index]: true },
-                          );
-                        }}
-                      />
+                      {(index === selectedIndex ||
+                        (isEntranceComplete &&
+                          Math.abs(index - selectedIndex) <= 1)) && (
+                        <>
+                          <div
+                            className={cn(
+                              'from-orange-100/16 via-orange-200/12 absolute inset-0 bg-gradient-to-br to-orange-50/10 transition-opacity',
+                              index === initialSlideIndex
+                                ? 'duration-0'
+                                : 'duration-500',
+                              loadedSlideMap[index]
+                                ? 'pointer-events-none opacity-0'
+                                : 'opacity-70',
+                            )}
+                          />
+                          <img
+                            src={clipCDNImage(src, {
+                              width: imageRequestWidth,
+                              quality: 82,
+                            })}
+                            alt={t('photoAlt', {
+                              city: post.city,
+                              number: index + 1,
+                            })}
+                            className={cn(
+                              'block h-full w-full object-contain transition-opacity',
+                              index === initialSlideIndex
+                                ? 'duration-0'
+                                : 'duration-500',
+                              loadedSlideMap[index]
+                                ? 'opacity-100'
+                                : 'opacity-0',
+                            )}
+                            loading={index === selectedIndex ? 'eager' : 'lazy'}
+                            fetchPriority={
+                              index === selectedIndex ? 'high' : 'auto'
+                            }
+                            decoding="async"
+                            referrerPolicy="no-referrer"
+                            onLoad={() => {
+                              setLoadedSlideMap((prev) =>
+                                prev[index] ? prev : { ...prev, [index]: true },
+                              );
+                            }}
+                            onError={() => {
+                              setLoadedSlideMap((prev) =>
+                                prev[index] ? prev : { ...prev, [index]: true },
+                              );
+                            }}
+                          />
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -543,7 +552,7 @@ export function ExpandedPost({
               </div>
             </div>
           </footer>
-        </motion.article>
+        </article>
       </motion.div>
     </div>
   );

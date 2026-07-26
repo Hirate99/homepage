@@ -95,6 +95,15 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     () => buildCountryNodes(locationNodes),
     [locationNodes],
   );
+  const resetCountry = useMemo(
+    () =>
+      countryNodes.find((country) =>
+        ['united states', 'united states of america', 'usa'].includes(
+          country.label.trim().toLocaleLowerCase(),
+        ),
+      ) ?? countryNodes[0],
+    [countryNodes],
+  );
   const initialPost = focusSeedPost ?? atlasPosts[0] ?? null;
   const initialCountryId = useMemo(
     () =>
@@ -353,8 +362,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   const returnToWorld = (resetSelection = false) => {
     clearTransitionTimers();
     const targetCountry = resetSelection
-      ? (countryNodes.find((country) => country.id === initialCountryId) ??
-        selectedCountry)
+      ? (resetCountry ?? selectedCountry)
       : selectedCountry;
 
     if (resetSelection) {
@@ -363,9 +371,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         targetCountry.locations[0]?.id ?? initialLocationId,
       );
       setActivePostId(
-        targetCountry.locations[0]?.posts[0]?.id ??
-          initialPost?.id ??
-          atlasPosts[0].id,
+        targetCountry.locations[0]?.posts[0]?.id ?? atlasPosts[0].id,
       );
     }
 
@@ -377,8 +383,8 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     if (shouldReduceMotion) {
       setDisplayZoomTier('world');
       setZoomScale(ZOOM_SCALE.world);
-      setCameraTargetId(resetSelection ? initialCountryId : targetCountry.id);
-      setIsAutoRotateFrozen(false);
+      setCameraTargetId(targetCountry.id);
+      setIsAutoRotateFrozen(resetSelection);
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
       return;
@@ -391,9 +397,11 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
     }, 580);
-    scheduleTransitionStep(() => {
-      setIsAutoRotateFrozen(false);
-    }, 760);
+    if (!resetSelection) {
+      scheduleTransitionStep(() => {
+        setIsAutoRotateFrozen(false);
+      }, 760);
+    }
   };
 
   const handleCountrySelection = (markerId: string) => {
@@ -457,15 +465,19 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   };
 
   const resetAtlasView = () => {
+    const targetCountry = resetCountry ?? selectedCountry;
+    const targetLocation = targetCountry.locations[0] ?? selectedLocation;
+    const targetPost = targetLocation.posts[0] ?? activePost;
+
     if (displayZoomTier === 'world') {
       clearTransitionTimers();
-      setSelectedCountryId(initialCountryId);
-      setSelectedLocationId(initialLocationId);
-      setActivePostId(initialPost?.id ?? atlasPosts[0].id);
-      setCameraTargetId(null);
+      setSelectedCountryId(targetCountry.id);
+      setSelectedLocationId(targetLocation.id);
+      setActivePostId(targetPost.id);
+      setCameraTargetId(targetCountry.id);
       setCameraFocusKey((current) => current + 1);
       setZoomScale(ZOOM_SCALE.world);
-      setIsAutoRotateFrozen(false);
+      setIsAutoRotateFrozen(true);
       setIsLevelTransitioning(false);
       setTransitionDirection(null);
       return;
@@ -547,7 +559,9 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             active: location.id === selectedLocation.id,
             image: location.cover,
             title: location.label,
-            meta: location.region,
+            meta: `${location.region} · ${t('locationPostCount', {
+              count: location.posts.length,
+            })}`,
             onSelect: (element) =>
               handleLocationSelection(location.id, element),
           }))
@@ -617,7 +631,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             </p>
           </header>
 
-          <div className="mx-3 grid min-w-0 gap-3 bg-transparent sm:mx-0 lg:h-[min(74svh,720px)] lg:min-h-[600px] lg:grid-cols-[minmax(0,1fr)_352px] lg:gap-0 lg:overflow-hidden lg:rounded-[24px] lg:border lg:border-[var(--atlas-rule)] lg:bg-[var(--atlas-panel)]">
+          <div className="mx-3 grid min-w-0 gap-3 bg-transparent sm:mx-0 lg:h-[clamp(640px,82svh,880px)] lg:grid-cols-[minmax(0,1fr)_352px] lg:gap-0 lg:overflow-hidden lg:rounded-[24px] lg:border lg:border-[var(--atlas-rule)] lg:bg-[var(--atlas-panel)]">
             <div
               ref={atlasViewportRef}
               className="relative isolate h-[min(49svh,440px)] min-h-[340px] min-w-0 overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] sm:h-[min(58svh,560px)] lg:h-full lg:rounded-none lg:border-0"
@@ -747,12 +761,12 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                 )}
               </AnimatePresence>
 
-              <div className="bg-[var(--atlas-card)]/88 lg:bg-[var(--atlas-panel)]/88 pointer-events-none absolute inset-x-2 top-2 z-40 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-[var(--atlas-rule)] px-1.5 shadow-lg shadow-[var(--atlas-shadow)] backdrop-blur-xl sm:inset-x-3 sm:px-2 lg:inset-x-0 lg:top-0 lg:min-h-14 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:px-3 lg:py-1.5 lg:shadow-none">
+              <div className="pointer-events-none absolute inset-x-2 top-2 z-40 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-[var(--atlas-rule)] bg-[var(--atlas-card)] px-1.5 shadow-lg shadow-[var(--atlas-shadow)] sm:inset-x-3 sm:px-2 lg:inset-x-0 lg:top-0 lg:min-h-14 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:px-4 lg:py-1.5 lg:shadow-[0_8px_24px_var(--atlas-shadow)]">
                 <nav
                   aria-label={t('locationNavigation')}
                   className="pointer-events-auto max-w-[calc(100%_-_50px)] overflow-hidden sm:max-w-[76%]"
                 >
-                  <ol className="flex min-h-11 min-w-0 items-center text-xs font-semibold uppercase tracking-[0.1em] text-[var(--atlas-ink)] sm:text-sm">
+                  <ol className="flex min-h-11 min-w-0 items-center text-[13px] font-bold uppercase tracking-[0.08em] text-[var(--atlas-ink)] sm:text-[15px] sm:tracking-[0.09em]">
                     <li
                       className={cn(
                         'min-w-0',
@@ -762,14 +776,14 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       {displayZoomTier === 'world' ? (
                         <span
                           aria-current="page"
-                          className="block truncate px-1.5 py-2 sm:px-2.5"
+                          className="block truncate rounded-md bg-[var(--atlas-card-active)] px-2 py-2 shadow-[inset_0_0_0_1px_var(--atlas-rule)] sm:px-3"
                         >
                           {t('world')}
                         </span>
                       ) : (
                         <button
                           type="button"
-                          className="block min-h-11 truncate rounded-lg px-1.5 py-2 text-[var(--atlas-muted)] outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-2.5"
+                          className="block min-h-11 truncate rounded-lg px-2 py-2 text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-card-active)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-3"
                           onClick={() => navigateToAtlasLevel('world')}
                           disabled={isLevelTransitioning}
                         >
@@ -783,7 +797,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                         <li
                           aria-hidden="true"
                           className={cn(
-                            'shrink-0 text-[var(--atlas-muted)]',
+                            'shrink-0 text-[var(--atlas-accent)]',
                             displayZoomTier === 'place' && 'hidden sm:block',
                           )}
                         >
@@ -793,14 +807,14 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                           {displayZoomTier === 'region' ? (
                             <span
                               aria-current="page"
-                              className="block truncate px-1.5 py-2 sm:px-2.5"
+                              className="block truncate rounded-md bg-[var(--atlas-card-active)] px-2 py-2 shadow-[inset_0_0_0_1px_var(--atlas-rule)] sm:px-3"
                             >
                               {selectedCountry.label}
                             </span>
                           ) : (
                             <button
                               type="button"
-                              className="block min-h-11 truncate rounded-lg px-1.5 py-2 text-[var(--atlas-muted)] outline-none transition-colors hover:text-[var(--atlas-ink)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-2.5"
+                              className="block min-h-11 truncate rounded-lg px-2 py-2 text-[var(--atlas-ink)] outline-none transition-colors hover:bg-[var(--atlas-card-active)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:px-3"
                               onClick={() => navigateToAtlasLevel('region')}
                             >
                               {selectedCountry.label}
@@ -814,14 +828,14 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       <>
                         <li
                           aria-hidden="true"
-                          className="shrink-0 text-[var(--atlas-muted)]"
+                          className="shrink-0 text-[var(--atlas-accent)]"
                         >
                           <ChevronRight className="h-3.5 w-3.5" />
                         </li>
                         <li className="min-w-0">
                           <span
                             aria-current="page"
-                            className="block truncate px-1.5 py-2 sm:px-2.5"
+                            className="block truncate rounded-md bg-[var(--atlas-card-active)] px-2 py-2 shadow-[inset_0_0_0_1px_var(--atlas-rule)] sm:px-3"
                           >
                             {selectedLocation.label}
                           </span>

@@ -31,6 +31,7 @@ interface CountryMapStageProps {
   };
   accentColor: string;
   activeMarkerId: string | null;
+  focusMarkerKey: number;
   onHoverMarker: (id: string | null) => void;
   onSelectMarker: (id: string, element?: HTMLButtonElement) => void;
   onExitToWorld: () => void;
@@ -203,31 +204,34 @@ function createLocationData(nodes: LocationNode[]) {
 
 function createLocationLabelElement({
   node,
-  placeOnLeft,
   postCountLabel,
   onPointerEnter,
   onPointerLeave,
   onSelect,
 }: {
   node: LocationNode;
-  placeOnLeft: boolean;
   postCountLabel: string;
   onPointerEnter: () => void;
   onPointerLeave: () => void;
   onSelect: (element: HTMLButtonElement) => void;
 }) {
+  const root = document.createElement('div');
   const element = document.createElement('button');
   const connector = document.createElement('span');
   const label = document.createElement('span');
   const labelTitle = document.createElement('span');
   const postCount = node.posts.length;
 
+  root.dataset.slot = 'atlas-map-label-anchor';
+  root.className = 'pointer-events-none relative h-px w-px overflow-visible';
+
   element.type = 'button';
   element.dataset.slot = 'atlas-map-label';
-  element.dataset.state = postCount > 1 ? 'collection' : 'single';
+  element.dataset.kind = postCount > 1 ? 'collection' : 'single';
+  element.dataset.state = 'idle';
   element.dataset.atlasMapLabel = node.id;
   element.className =
-    'group flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 text-left outline-none';
+    'group pointer-events-auto absolute top-0 z-10 flex min-h-11 touch-manipulation items-center border-0 bg-transparent p-0 text-left outline-none transition-opacity duration-150 data-[state=idle]:opacity-90 data-[state=hover]:opacity-100 data-[state=active]:opacity-100';
   element.setAttribute(
     'aria-label',
     postCount > 1 ? `${node.label}, ${postCountLabel}` : node.label,
@@ -242,11 +246,7 @@ function createLocationLabelElement({
 
   label.dataset.slot = 'atlas-map-label-card';
   label.className =
-    'flex items-center gap-2 whitespace-nowrap rounded-[9px] border bg-[var(--atlas-card)] px-3 py-2 text-[13px] font-bold leading-none tracking-[0.01em] text-[var(--atlas-ink)] transition-[background-color,border-color,box-shadow,transform] group-hover:border-[var(--atlas-accent)] group-hover:bg-[var(--atlas-card-active)] group-active:translate-y-px group-focus-visible:ring-2 group-focus-visible:ring-[var(--atlas-accent)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[var(--atlas-bg)]';
-  Object.assign(label.style, {
-    borderColor: 'color-mix(in srgb, var(--atlas-ink) 38%, var(--atlas-card))',
-    boxShadow: `${placeOnLeft ? 'inset -3px 0 0 var(--atlas-accent)' : 'inset 3px 0 0 var(--atlas-accent)'}, 0 1px 0 color-mix(in srgb, var(--atlas-ink) 14%, transparent), 0 10px 28px color-mix(in srgb, var(--atlas-ink) 30%, transparent)`,
-  });
+    'flex items-center gap-2 whitespace-nowrap rounded-[9px] border bg-[var(--atlas-card)] px-2.5 py-2 text-[12px] font-bold leading-none tracking-[0.01em] text-[var(--atlas-ink)] transition-[background-color,border-color,box-shadow,transform] group-data-[state=active]:bg-[var(--atlas-card-active)] group-hover:border-[var(--atlas-accent)] group-hover:bg-[var(--atlas-card-active)] group-active:translate-y-px group-focus-visible:ring-2 group-focus-visible:ring-[var(--atlas-accent)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[var(--atlas-bg)] sm:px-3 sm:text-[13px]';
 
   labelTitle.dataset.slot = 'atlas-map-label-title';
   labelTitle.textContent = node.label;
@@ -265,20 +265,36 @@ function createLocationLabelElement({
   connector.setAttribute('aria-hidden', 'true');
   connector.dataset.slot = 'atlas-map-label-connector';
   connector.className =
-    'pointer-events-none h-0.5 w-2.5 flex-none bg-[var(--atlas-accent)]';
+    'pointer-events-none absolute left-0 top-0 h-0.5 bg-[var(--atlas-accent)]';
   Object.assign(connector.style, {
     boxShadow: '0 0 0 1px var(--atlas-card), 0 2px 8px var(--atlas-shadow)',
+    transformOrigin: '0 50%',
   });
 
-  if (placeOnLeft) {
-    element.appendChild(label);
-    element.appendChild(connector);
-  } else {
-    element.appendChild(connector);
-    element.appendChild(label);
-  }
+  element.appendChild(label);
+  root.appendChild(connector);
+  root.appendChild(element);
 
-  return element;
+  const setPlacement = (side: 'left' | 'right', verticalOffset: number) => {
+    const horizontalOffset = side === 'left' ? -12 : 12;
+    const connectorLength = Math.hypot(horizontalOffset, verticalOffset);
+    const connectorAngle = Math.atan2(verticalOffset, horizontalOffset);
+
+    element.style.left = side === 'right' ? '12px' : '';
+    element.style.right = side === 'left' ? '12px' : '';
+    element.style.transform = `translateY(calc(-50% + ${verticalOffset}px))`;
+    connector.style.width = `${connectorLength}px`;
+    connector.style.transform = `translateY(-50%) rotate(${connectorAngle}rad)`;
+    Object.assign(label.style, {
+      borderColor:
+        element.dataset.state === 'active'
+          ? 'var(--atlas-accent)'
+          : 'color-mix(in srgb, var(--atlas-ink) 38%, var(--atlas-card))',
+      boxShadow: `${side === 'left' ? 'inset -3px 0 0 var(--atlas-accent)' : 'inset 3px 0 0 var(--atlas-accent)'}, 0 1px 0 color-mix(in srgb, var(--atlas-ink) 14%, transparent), 0 8px 22px color-mix(in srgb, var(--atlas-ink) 28%, transparent)`,
+    });
+  };
+
+  return { button: element, connector, label, root, setPlacement };
 }
 
 export function CountryMapStage({
@@ -288,6 +304,7 @@ export function CountryMapStage({
   detailRaster,
   accentColor,
   activeMarkerId,
+  focusMarkerKey,
   onHoverMarker,
   onSelectMarker,
   onExitToWorld,
@@ -296,7 +313,6 @@ export function CountryMapStage({
   const t = useTranslations('Atlas');
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const labelMarkerRef = useRef<MapLibreMarker | null>(null);
   const syncLocationLabelRef = useRef<(() => void) | null>(null);
   const nodesRef = useRef(nodes);
   const activeMarkerIdRef = useRef(activeMarkerId);
@@ -402,9 +418,7 @@ export function CountryMapStage({
               [LOCATION_SOURCE_ID]: {
                 type: 'geojson',
                 data: createLocationData(nodesRef.current),
-                cluster: true,
-                clusterMaxZoom: 10,
-                clusterRadius: 32,
+                cluster: false,
               },
             },
             layers: [
@@ -667,25 +681,165 @@ export function CountryMapStage({
           isUserZoom = false;
         });
 
-        const syncLocationLabel = () => {
-          labelMarkerRef.current?.remove();
-          labelMarkerRef.current = null;
-
-          const markerId =
-            hoveredMarkerIdRef.current ?? activeMarkerIdRef.current;
-          const node = nodesRef.current.find((item) => item.id === markerId);
-          if (!node) {
-            return;
+        const locationLabels = new Map<
+          string,
+          {
+            marker: MapLibreMarker;
+            node: LocationNode;
+            handle: ReturnType<typeof createLocationLabelElement>;
           }
+        >();
 
-          const placeOnLeft =
-            map.project([node.lng, node.lat]).x >
-            map.getContainer().clientWidth - 170;
+        const clearLocationLabels = () => {
+          for (const { marker } of locationLabels.values()) {
+            marker.remove();
+          }
+          locationLabels.clear();
+        };
 
-          labelMarkerRef.current = new maplibre.Marker({
-            element: createLocationLabelElement({
+        const positionLocationLabels = () => {
+          const { clientHeight, clientWidth } = map.getContainer();
+          const compact = clientWidth < 640;
+          const topBoundary = compact ? 58 : 68;
+          const bottomBoundary = clientHeight - (compact ? 60 : 22);
+          const verticalStep = compact ? 42 : 46;
+          const verticalOffsets = [
+            0,
+            -verticalStep,
+            verticalStep,
+            -verticalStep * 2,
+            verticalStep * 2,
+            -verticalStep * 3,
+            verticalStep * 3,
+          ];
+          const placedBoxes: Array<{
+            left: number;
+            right: number;
+            top: number;
+            bottom: number;
+          }> = [];
+          const activeId = activeMarkerIdRef.current;
+          const hoveredId = hoveredMarkerIdRef.current;
+          const orderedLabels = [...locationLabels.values()].sort((a, b) => {
+            const priority = (node: LocationNode) =>
+              node.id === activeId
+                ? 3
+                : node.id === hoveredId
+                  ? 2
+                  : node.posts.length > 1
+                    ? 1
+                    : 0;
+            return priority(b.node) - priority(a.node);
+          });
+
+          for (const { handle, node } of orderedLabels) {
+            const point = map.project([node.lng, node.lat]);
+            const labelWidth = Math.max(handle.button.offsetWidth, 64);
+            const labelHeight = Math.max(handle.button.offsetHeight, 36);
+            const preferredSide =
+              point.x > clientWidth * 0.58 ? 'left' : 'right';
+            const sides = [
+              preferredSide,
+              preferredSide === 'left' ? 'right' : 'left',
+            ] as const;
+            let bestPlacement:
+              | {
+                  side: 'left' | 'right';
+                  verticalOffset: number;
+                  box: (typeof placedBoxes)[number];
+                  score: number;
+                }
+              | undefined;
+
+            for (const side of sides) {
+              for (const verticalOffset of verticalOffsets) {
+                const left =
+                  side === 'right' ? point.x + 12 : point.x - 12 - labelWidth;
+                const top = point.y + verticalOffset - labelHeight / 2;
+                const box = {
+                  left,
+                  right: left + labelWidth,
+                  top,
+                  bottom: top + labelHeight,
+                };
+                const outside =
+                  Math.max(0, 8 - box.left) +
+                  Math.max(0, box.right - (clientWidth - 8)) +
+                  Math.max(0, topBoundary - box.top) +
+                  Math.max(0, box.bottom - bottomBoundary);
+                const overlaps = placedBoxes.filter(
+                  (placed) =>
+                    box.left < placed.right + 6 &&
+                    box.right > placed.left - 6 &&
+                    box.top < placed.bottom + 6 &&
+                    box.bottom > placed.top - 6,
+                ).length;
+                const score =
+                  overlaps * 10000 +
+                  outside * 100 +
+                  Math.abs(verticalOffset) +
+                  (side === preferredSide ? 0 : 16);
+
+                if (!bestPlacement || score < bestPlacement.score) {
+                  bestPlacement = {
+                    side,
+                    verticalOffset,
+                    box,
+                    score,
+                  };
+                }
+              }
+            }
+
+            if (!bestPlacement) {
+              handle.button.hidden = true;
+              continue;
+            }
+
+            const isPriorityLabel =
+              node.id === activeId || node.id === hoveredId;
+            const shouldHide =
+              bestPlacement.score >= 10000 &&
+              locationLabels.size > (compact ? 8 : 16) &&
+              !isPriorityLabel;
+            handle.button.hidden = shouldHide;
+            handle.connector.hidden = shouldHide;
+            if (shouldHide) {
+              continue;
+            }
+
+            handle.setPlacement(
+              bestPlacement.side,
+              bestPlacement.verticalOffset,
+            );
+            handle.root.style.zIndex = isPriorityLabel ? '20' : '10';
+            placedBoxes.push(bestPlacement.box);
+          }
+        };
+
+        const updateLocationLabelStates = () => {
+          for (const { handle, node } of locationLabels.values()) {
+            const state =
+              node.id === activeMarkerIdRef.current
+                ? 'active'
+                : node.id === hoveredMarkerIdRef.current
+                  ? 'hover'
+                  : 'idle';
+            handle.button.dataset.state = state;
+            if (state === 'active') {
+              handle.button.setAttribute('aria-current', 'location');
+            } else {
+              handle.button.removeAttribute('aria-current');
+            }
+          }
+        };
+
+        const rebuildLocationLabels = () => {
+          clearLocationLabels();
+
+          for (const node of nodesRef.current) {
+            const handle = createLocationLabelElement({
               node,
-              placeOnLeft,
               postCountLabel: formatPostCountRef.current(node.posts.length),
               onPointerEnter: () => {
                 window.clearTimeout(hoverClearTimer);
@@ -699,16 +853,38 @@ export function CountryMapStage({
                 );
               },
               onSelect: (element) => {
+                map.stop();
                 selectMarkerRef.current(node.id, element);
               },
-            }),
-            anchor: placeOnLeft ? 'right' : 'left',
-          })
-            .setLngLat([node.lng, node.lat])
-            .addTo(map);
+            });
+            const marker = new maplibre.Marker({
+              element: handle.root,
+              anchor: 'center',
+            })
+              .setLngLat([node.lng, node.lat])
+              .addTo(map);
+            handle.root.removeAttribute('aria-label');
+            handle.root.removeAttribute('role');
+            handle.root.removeAttribute('tabindex');
+
+            locationLabels.set(node.id, { handle, marker, node });
+          }
         };
 
-        syncLocationLabelRef.current = syncLocationLabel;
+        const syncLocationLabels = () => {
+          const nextNodeIds = new Set(nodesRef.current.map((node) => node.id));
+          const needsRebuild =
+            nextNodeIds.size !== locationLabels.size ||
+            [...nextNodeIds].some((id) => !locationLabels.has(id));
+
+          if (needsRebuild) {
+            rebuildLocationLabels();
+          }
+          updateLocationLabelStates();
+          positionLocationLabels();
+        };
+
+        syncLocationLabelRef.current = syncLocationLabels;
 
         const setHoveredLocation = (id: string | null) => {
           window.clearTimeout(hoverClearTimer);
@@ -720,7 +896,7 @@ export function CountryMapStage({
 
           hoveredMarkerIdRef.current = id;
           hoverMarkerRef.current(id);
-          syncLocationLabel();
+          syncLocationLabels();
         };
 
         map.on('mouseenter', LOCATION_POINT_HIT_LAYER_ID, (event) => {
@@ -785,10 +961,11 @@ export function CountryMapStage({
               map.getMinZoom() + 0.05,
               entryZoom - COUNTRY_EXIT_ZOOM_DELTA,
             );
-            syncLocationLabel();
+            syncLocationLabels();
             setIsLoaded(true);
           });
         });
+        map.on('moveend', positionLocationLabels);
 
         const resizeObserver = new ResizeObserver(() => {
           window.cancelAnimationFrame(resizeFrame);
@@ -830,8 +1007,6 @@ export function CountryMapStage({
       window.clearTimeout(hoverClearTimer);
       detachInputHandlers?.();
       syncLocationLabelRef.current = null;
-      labelMarkerRef.current?.remove();
-      labelMarkerRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
     };
@@ -847,9 +1022,27 @@ export function CountryMapStage({
     map.easeTo({
       center: [activeNode.lng, activeNode.lat],
       zoom: Math.max(map.getZoom(), 9),
-      duration: reduceMotion ? 0 : 700,
+      duration: reduceMotion ? 0 : 240,
     });
   }, [activeMarkerId, level, nodes, reduceMotion]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const activeNode = nodes.find((node) => node.id === activeMarkerId);
+    if (!focusMarkerKey || !map || !activeNode) {
+      return;
+    }
+
+    map.stop();
+    map.easeTo({
+      center: [activeNode.lng, activeNode.lat],
+      zoom: Math.max(
+        map.getZoom(),
+        map.getContainer().clientWidth < 640 ? 9 : 10,
+      ),
+      duration: reduceMotion ? 0 : 240,
+    });
+  }, [activeMarkerId, focusMarkerKey, nodes, reduceMotion]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -929,43 +1122,11 @@ export function CountryMapStage({
         </div>
 
         <div className="pointer-events-auto flex shrink-0 flex-col items-end">
-          <div className="sm:bg-[var(--atlas-card)]/88 flex gap-1 sm:gap-0 sm:overflow-hidden sm:rounded-xl sm:border sm:border-[var(--atlas-rule)] sm:shadow-lg sm:shadow-[var(--atlas-shadow)] sm:backdrop-blur-md">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               className={cn(
-                COUNTRY_MAP_CONTROL_CLASSNAME,
-                'rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] shadow-lg backdrop-blur-md sm:rounded-none sm:border-y-0 sm:border-l-0 sm:bg-transparent sm:shadow-none',
-              )}
-              onClick={() => {
-                const map = mapRef.current;
-                if (!map) {
-                  return;
-                }
-
-                const nextZoom = Math.max(map.getZoom() - 1, map.getMinZoom());
-                if (nextZoom <= worldExitZoomRef.current) {
-                  if (!hasRequestedWorldExitRef.current) {
-                    hasRequestedWorldExitRef.current = true;
-                    exitToWorldRef.current();
-                  }
-                  return;
-                }
-
-                map.easeTo({
-                  zoom: nextZoom,
-                  duration: reduceMotion ? 0 : 360,
-                });
-              }}
-              aria-label={t('zoomOut')}
-              title={t('zoomOut')}
-            >
-              <Minus className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={cn(
-                COUNTRY_MAP_CONTROL_CLASSNAME,
-                'rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] shadow-lg backdrop-blur-md sm:rounded-none sm:border-y-0 sm:border-l-0 sm:bg-transparent sm:shadow-none',
+                'flex h-11 touch-manipulation items-center gap-2 rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] px-3 text-[12px] font-bold text-[var(--atlas-ink)] shadow-lg shadow-[var(--atlas-shadow)] outline-none transition-colors hover:border-[var(--atlas-accent)] hover:bg-[var(--atlas-card-active)] focus-visible:ring-2 focus-visible:ring-[var(--atlas-accent)] disabled:cursor-not-allowed disabled:opacity-45 sm:px-3.5 sm:text-[13px]',
               )}
               onClick={() => {
                 const map = mapRef.current;
@@ -982,7 +1143,7 @@ export function CountryMapStage({
                 map.easeTo({
                   center: [activeNode.lng, activeNode.lat],
                   zoom: Math.max(map.getZoom(), targetZoom),
-                  duration: reduceMotion ? 0 : 420,
+                  duration: reduceMotion ? 0 : 240,
                 });
               }}
               disabled={!activeMarkerId}
@@ -990,35 +1151,71 @@ export function CountryMapStage({
               title={t('focusPostLocation')}
             >
               <LocateFixed className="h-4 w-4" aria-hidden="true" />
+              <span>{t('focusPostLocationShort')}</span>
             </button>
-            <button
-              type="button"
-              className={cn(
-                COUNTRY_MAP_CONTROL_CLASSNAME,
-                'rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] shadow-lg backdrop-blur-md sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none',
-              )}
-              onClick={() => {
-                const map = mapRef.current;
-                if (!map) {
-                  return;
-                }
+            <div className="flex overflow-hidden rounded-full border border-[var(--atlas-rule)] bg-[var(--atlas-card)] shadow-lg shadow-[var(--atlas-shadow)] sm:rounded-xl">
+              <button
+                type="button"
+                className={cn(
+                  COUNTRY_MAP_CONTROL_CLASSNAME,
+                  'border-r border-[var(--atlas-rule)]',
+                )}
+                onClick={() => {
+                  const map = mapRef.current;
+                  if (!map) {
+                    return;
+                  }
 
-                const activeNode = nodesRef.current.find(
-                  (node) => node.id === activeMarkerIdRef.current,
-                );
-                map.easeTo({
-                  center: activeNode
-                    ? [activeNode.lng, activeNode.lat]
-                    : map.getCenter(),
-                  zoom: Math.min(map.getZoom() + 1, map.getMaxZoom()),
-                  duration: reduceMotion ? 0 : 360,
-                });
-              }}
-              aria-label={t('zoomIn')}
-              title={t('zoomIn')}
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            </button>
+                  const nextZoom = Math.max(
+                    map.getZoom() - 1,
+                    map.getMinZoom(),
+                  );
+                  if (nextZoom <= worldExitZoomRef.current) {
+                    if (!hasRequestedWorldExitRef.current) {
+                      hasRequestedWorldExitRef.current = true;
+                      exitToWorldRef.current();
+                    }
+                    return;
+                  }
+
+                  map.stop();
+                  map.easeTo({
+                    zoom: nextZoom,
+                    duration: reduceMotion ? 0 : 240,
+                  });
+                }}
+                aria-label={t('zoomOut')}
+                title={t('zoomOut')}
+              >
+                <Minus className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className={COUNTRY_MAP_CONTROL_CLASSNAME}
+                onClick={() => {
+                  const map = mapRef.current;
+                  if (!map) {
+                    return;
+                  }
+
+                  const activeNode = nodesRef.current.find(
+                    (node) => node.id === activeMarkerIdRef.current,
+                  );
+                  map.stop();
+                  map.easeTo({
+                    center: activeNode
+                      ? [activeNode.lng, activeNode.lat]
+                      : map.getCenter(),
+                    zoom: Math.min(map.getZoom() + 1, map.getMaxZoom()),
+                    duration: reduceMotion ? 0 : 240,
+                  });
+                }}
+                aria-label={t('zoomIn')}
+                title={t('zoomIn')}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

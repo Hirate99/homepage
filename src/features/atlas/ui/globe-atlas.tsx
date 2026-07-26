@@ -136,6 +136,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     initialCountryId || null,
   );
   const [cameraFocusKey, setCameraFocusKey] = useState(0);
+  const [mapFocusKey, setMapFocusKey] = useState(0);
   const [isAutoRotateFrozen, setIsAutoRotateFrozen] = useState(false);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [viewerState, setViewerState] = useState<{
@@ -182,7 +183,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   }, [displayZoomTier, isLevelTransitioning]);
 
   useEffect(() => {
-    if (displayZoomTier === 'place') {
+    if (displayZoomTier !== 'world') {
       void loadExpandedPostModule().catch(() => undefined);
     }
   }, [displayZoomTier]);
@@ -436,7 +437,12 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
   };
 
   const handleCenteredMarkerChange = (markerId: string | null) => {
-    if (!markerId || !isAutoRotateFrozen) {
+    if (
+      !markerId ||
+      !isAutoRotateFrozen ||
+      isLevelTransitioning ||
+      displayZoomTier !== 'world'
+    ) {
       return;
     }
 
@@ -515,6 +521,18 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     openViewer(post.id, element);
   };
 
+  const focusLocationOnMap = (location: LocationNode, post?: CityPost) => {
+    const parentCountryId =
+      countryNodes.find((node) => node.label === location.country)?.id ??
+      selectedCountry.id;
+
+    setIsAutoRotateFrozen(true);
+    setSelectedCountryId(parentCountryId);
+    setSelectedLocationId(location.id);
+    setActivePostId(post?.id ?? location.posts[0]?.id ?? activePost.id);
+    setMapFocusKey((current) => current + 1);
+  };
+
   const handleLocationSelection = (
     markerId: string,
     element?: HTMLButtonElement,
@@ -564,6 +582,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             })}`,
             onSelect: (element) =>
               handleLocationSelection(location.id, element),
+            locateLabel: t('focusItemLocation', {
+              place: location.label,
+            }),
+            onLocate: () => focusLocationOnMap(location),
           }))
         : selectedLocation.posts.map((post) => ({
             id: post.id,
@@ -572,6 +594,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             title: post.city,
             meta: post.location?.region ?? selectedLocation.region,
             onSelect: (element) => handlePostSelection(post, element),
+            locateLabel: t('focusItemLocation', {
+              place: post.city,
+            }),
+            onLocate: () => focusLocationOnMap(selectedLocation, post),
           }));
 
   const browserTitle =
@@ -752,6 +778,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
                       activeMarkerId={
                         displayZoomTier === 'world' ? null : activeMarkerId
                       }
+                      focusMarkerKey={mapFocusKey}
                       onHoverMarker={setHoveredMarkerId}
                       onSelectMarker={handleLocationSelection}
                       onExitToWorld={() => returnToWorld()}

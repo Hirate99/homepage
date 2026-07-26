@@ -220,6 +220,19 @@ export function ExpandedPost({
       }),
     [originRect, viewport.height, viewport.width],
   );
+  const originTransform = useMemo(
+    () => ({
+      x: originRect.x - targetRect.x,
+      y: originRect.y - targetRect.y,
+      scaleX: clamp(originRect.width / Math.max(targetRect.width, 1), 0.08, 1),
+      scaleY: clamp(
+        originRect.height / Math.max(targetRect.height, 1),
+        0.08,
+        1,
+      ),
+    }),
+    [originRect, targetRect],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -326,50 +339,58 @@ export function ExpandedPost({
     <div className="fixed inset-0 z-[120]">
       <motion.button
         type="button"
-        className="absolute inset-0 cursor-pointer bg-black/75 backdrop-blur-[4px]"
+        className="absolute inset-0 cursor-pointer bg-black/80"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
+        transition={{ duration: 0.14, ease: 'easeOut' }}
         aria-label={t('closeExpandedPost')}
         onClick={onClose}
       />
       <motion.div
         className={cn(
-          'absolute overflow-hidden rounded-[2rem] bg-[#0f1013] text-white',
+          'absolute overflow-hidden rounded-[2rem] bg-[#0f1013] text-white will-change-transform',
           'border border-white/20 shadow-[0_20px_80px_rgba(0,0,0,0.65)]',
         )}
         initial={{
-          x: originRect.x,
-          y: originRect.y,
-          width: originRect.width,
-          height: originRect.height,
+          x: originTransform.x,
+          y: originTransform.y,
+          scaleX: originTransform.scaleX,
+          scaleY: originTransform.scaleY,
           borderRadius: 24,
-          opacity: 1,
+          opacity: 0.72,
         }}
         animate={{
-          x: targetRect.x,
-          y: targetRect.y,
-          width: targetRect.width,
-          height: targetRect.height,
+          x: 0,
+          y: 0,
+          scaleX: 1,
+          scaleY: 1,
           borderRadius: 32,
           opacity: 1,
         }}
         exit={{
-          x: originRect.x,
-          y: originRect.y,
-          width: originRect.width,
-          height: originRect.height,
+          x: originTransform.x,
+          y: originTransform.y,
+          scaleX: originTransform.scaleX,
+          scaleY: originTransform.scaleY,
           borderRadius: 24,
           opacity: 0,
         }}
-        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        style={{
+          contain: 'layout paint',
+          height: targetRect.height,
+          left: targetRect.x,
+          top: targetRect.y,
+          transformOrigin: 'top left',
+          width: targetRect.width,
+        }}
       >
         <motion.article
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 8 }}
-          transition={{ duration: 0.2, delay: 0.08, ease: 'easeOut' }}
+          initial={{ opacity: 0.6 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.12, ease: 'easeOut' }}
           className="relative flex h-full flex-col overflow-hidden bg-[#0f1013]"
           role="dialog"
           aria-modal="true"

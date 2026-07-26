@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ArrowUpRight, Search } from 'lucide-react';
+import { ArrowUpRight, LocateFixed, Search } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,8 @@ export interface AtlasBrowserItem {
   title: string;
   meta: string;
   onSelect: (element: HTMLButtonElement) => void;
+  locateLabel?: string;
+  onLocate?: () => void;
 }
 
 interface AtlasBrowserProps {
@@ -132,57 +134,75 @@ export function AtlasBrowser({
               ref={item.active ? activeItemRef : undefined}
               className="min-w-0 bg-[var(--atlas-panel)] [contain-intrinsic-size:92px] [content-visibility:auto]"
             >
-              <button
-                type="button"
-                data-atlas-browser-item={item.id}
+              <div
+                data-slot="atlas-browser-item"
                 data-state={item.active ? 'active' : 'idle'}
                 className={cn(
-                  'group relative grid min-h-[92px] w-full touch-manipulation grid-cols-[112px_minmax(0,1fr)_28px] items-center gap-0 bg-[var(--atlas-panel)] text-left outline-none transition-[background-color,color] duration-200 hover:bg-[var(--atlas-card)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:grid-cols-[132px_minmax(0,1fr)_32px] lg:grid-cols-[104px_minmax(0,1fr)_28px]',
+                  'relative flex min-h-[92px] w-full items-stretch bg-[var(--atlas-panel)] transition-[background-color,color] duration-200 hover:bg-[var(--atlas-card)]',
                   item.active &&
                     'bg-[var(--atlas-card-active)] shadow-[inset_3px_0_0_var(--atlas-accent)]',
                 )}
-                onClick={(event) => item.onSelect(event.currentTarget)}
-                aria-current={item.active ? 'true' : undefined}
               >
-                <span className="relative block h-[92px] overflow-hidden bg-[var(--atlas-panel-strong)]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.image}
-                    alt=""
-                    width={264}
-                    height={184}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035] motion-reduce:transition-none"
-                    loading={index < 6 ? 'eager' : 'lazy'}
-                    decoding="async"
-                  />
-                  <span
-                    aria-hidden="true"
+                <button
+                  type="button"
+                  data-atlas-browser-item={item.id}
+                  className="group grid min-w-0 flex-1 touch-manipulation grid-cols-[112px_minmax(0,1fr)_28px] items-center text-left outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)] sm:grid-cols-[132px_minmax(0,1fr)_32px] lg:grid-cols-[104px_minmax(0,1fr)_28px]"
+                  onClick={(event) => item.onSelect(event.currentTarget)}
+                  aria-current={item.active ? 'true' : undefined}
+                >
+                  <span className="relative block h-[92px] overflow-hidden bg-[var(--atlas-panel-strong)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.image}
+                      alt=""
+                      width={264}
+                      height={184}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035] motion-reduce:transition-none"
+                      loading={index < 6 ? 'eager' : 'lazy'}
+                      decoding="async"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'absolute inset-0 border-r border-transparent transition-colors',
+                        item.active
+                          ? 'border-[var(--atlas-accent)]'
+                          : 'border-[var(--atlas-rule)]',
+                      )}
+                    />
+                  </span>
+
+                  <span className="min-w-0 px-3.5 py-2 sm:px-4">
+                    <span className="block truncate text-[15px] font-semibold leading-tight text-[var(--atlas-ink)]">
+                      {item.title}
+                    </span>
+                    <span className="mt-1.5 block truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--atlas-muted)] lg:text-[10px]">
+                      {item.meta}
+                    </span>
+                  </span>
+
+                  <ArrowUpRight
                     className={cn(
-                      'absolute inset-0 border-r border-transparent transition-colors',
-                      item.active
-                        ? 'border-[var(--atlas-accent)]'
-                        : 'border-[var(--atlas-rule)]',
+                      'h-4 w-4 text-[var(--atlas-muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--atlas-accent)]',
+                      item.active && 'text-[var(--atlas-accent)]',
                     )}
+                    aria-hidden="true"
                   />
-                </span>
+                </button>
 
-                <span className="min-w-0 px-3.5 py-2 sm:px-4">
-                  <span className="block truncate text-[15px] font-semibold leading-tight text-[var(--atlas-ink)]">
-                    {item.title}
-                  </span>
-                  <span className="mt-1.5 block truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--atlas-muted)] lg:text-[10px]">
-                    {item.meta}
-                  </span>
-                </span>
-
-                <ArrowUpRight
-                  className={cn(
-                    'h-4 w-4 text-[var(--atlas-muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--atlas-accent)]',
-                    item.active && 'text-[var(--atlas-accent)]',
-                  )}
-                  aria-hidden="true"
-                />
-              </button>
+                {item.onLocate && item.locateLabel && (
+                  <button
+                    type="button"
+                    data-slot="atlas-browser-item-locate"
+                    className="grid w-11 shrink-0 touch-manipulation place-items-center border-l border-[var(--atlas-rule)] text-[var(--atlas-muted)] outline-none transition-colors hover:bg-[var(--atlas-accent)] hover:text-[var(--atlas-on-accent)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--atlas-accent)]"
+                    onClick={item.onLocate}
+                    aria-label={item.locateLabel}
+                    title={item.locateLabel}
+                  >
+                    <LocateFixed className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

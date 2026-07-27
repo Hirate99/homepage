@@ -551,6 +551,7 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
     setActivePostId(locationNode.posts[0]?.id ?? activePost.id);
 
     if (locationNode.posts.length === 1) {
+      setMapFocusKey((current) => current + 1);
       handlePostSelection(locationNode.posts[0], element);
       return;
     }

@@ -401,6 +401,7 @@ export function CountryMapStage({
   const nodesRef = useRef(nodes);
   const activeMarkerIdRef = useRef(activeMarkerId);
   const hoveredMarkerIdRef = useRef<string | null>(null);
+  const handledFocusMarkerKeyRef = useRef(focusMarkerKey);
   const selectMarkerRef = useRef(onSelectMarker);
   const formatPostCountRef = useRef((count: number) =>
     t('locationPostCount', { count }),
@@ -1120,10 +1121,16 @@ export function CountryMapStage({
   useEffect(() => {
     const map = mapRef.current;
     const activeNode = nodes.find((node) => node.id === activeMarkerId);
-    if (!focusMarkerKey || !map || !activeNode) {
+    if (
+      !isLoaded ||
+      focusMarkerKey === handledFocusMarkerKeyRef.current ||
+      !map ||
+      !activeNode
+    ) {
       return;
     }
 
+    handledFocusMarkerKeyRef.current = focusMarkerKey;
     map.stop();
     map.easeTo({
       center: [activeNode.lng, activeNode.lat],
@@ -1133,7 +1140,7 @@ export function CountryMapStage({
       ),
       duration: reduceMotion ? 0 : 240,
     });
-  }, [activeMarkerId, focusMarkerKey, nodes, reduceMotion]);
+  }, [activeMarkerId, focusMarkerKey, isLoaded, nodes, reduceMotion]);
 
   useEffect(() => {
     const map = mapRef.current;

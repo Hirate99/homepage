@@ -81,6 +81,15 @@ function formatSlideNumber(value: number) {
   return value.toString().padStart(2, '0');
 }
 
+function getCircularSlideDistance(
+  index: number,
+  selectedIndex: number,
+  slideCount: number,
+) {
+  const directDistance = Math.abs(index - selectedIndex);
+  return Math.min(directDistance, slideCount - directDistance);
+}
+
 function PostCard({
   post,
   onOpen,
@@ -199,8 +208,9 @@ export function ExpandedPost({
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'center',
     dragFree: false,
-    loop: false,
+    loop: post.images.length > 1,
     startIndex: initialSlideIndex,
+    watchDrag: post.images.length > 1,
   });
   const [selectedIndex, setSelectedIndex] = useState(initialSlideIndex);
   const [loadedSlideMap, setLoadedSlideMap] = useState<Record<number, boolean>>(
@@ -425,7 +435,11 @@ export function ExpandedPost({
                     <div className="relative h-full min-h-0 w-full overflow-hidden">
                       {(index === selectedIndex ||
                         (isEntranceComplete &&
-                          Math.abs(index - selectedIndex) <= 1)) && (
+                          getCircularSlideDistance(
+                            index,
+                            selectedIndex,
+                            post.images.length,
+                          ) <= 1)) && (
                         <>
                           <div
                             className={cn(

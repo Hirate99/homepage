@@ -16,6 +16,7 @@ import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
 import { LyricsSceneLoader } from './lyrics-scene-loader';
 import { LanguageSwitcher } from './language-switcher';
+import { DepthEntrance } from './motion';
 import { RoleTicker } from './role-ticker';
 
 export function IntroHero({ intro }: { intro: string }) {
@@ -40,52 +41,61 @@ export function IntroHero({ intro }: { intro: string }) {
       <LyricsSceneLoader />
 
       <div className="pointer-events-none relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] sm:px-8 lg:px-12">
-        <header className="pointer-events-auto flex h-20 shrink-0 items-center">
-          <Link
-            href="#top"
-            className="text-sm font-bold uppercase text-[var(--hero-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hero-accent)]"
+        <header className="h-20 shrink-0">
+          <DepthEntrance
+            depth="front"
+            delay={0.06}
+            className="pointer-events-auto flex h-full items-center"
           >
-            HN / 2026
-          </Link>
-          <p className="ml-8 hidden text-xs uppercase text-[var(--hero-ink)] opacity-55 md:block">
-            Los Angeles · 34.05° N
-          </p>
-          <TooltipProvider delayDuration={150}>
-            <nav
-              className="ml-auto flex items-center gap-3 sm:gap-4"
-              aria-label={t('primaryNavigation')}
+            <Link
+              href="#top"
+              className="text-sm font-bold uppercase text-[var(--hero-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hero-accent)]"
             >
-              <ActionTooltip label={t('resume')}>
-                <Link
-                  className={heroActionClass}
-                  href={cdn('bXNreXVyaW5hLWN2.pdf')}
-                  target="_blank"
-                  aria-label={t('openResume')}
-                >
-                  <FileText className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t('resume')}</span>
-                </Link>
-              </ActionTooltip>
-              <ActionTooltip label={t('email')}>
-                <Link
-                  className={heroActionClass}
-                  href="mailto:haonan.su@outlook.com"
-                  aria-label={t('emailHaonan')}
-                >
-                  <Mail className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t('email')}</span>
-                </Link>
-              </ActionTooltip>
-              <LanguageSwitcher />
-              <AboutDrawer intro={intro} />
-            </nav>
-          </TooltipProvider>
+              HN / 2026
+            </Link>
+            <p className="ml-8 hidden text-xs uppercase text-[var(--hero-ink)] opacity-55 md:block">
+              Los Angeles · 34.05° N
+            </p>
+            <TooltipProvider delayDuration={150}>
+              <nav
+                className="ml-auto flex items-center gap-3 sm:gap-4"
+                aria-label={t('primaryNavigation')}
+              >
+                <ActionTooltip label={t('resume')}>
+                  <Link
+                    className={heroActionClass}
+                    href={cdn('bXNreXVyaW5hLWN2.pdf')}
+                    target="_blank"
+                    aria-label={t('openResume')}
+                  >
+                    <FileText className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">{t('resume')}</span>
+                  </Link>
+                </ActionTooltip>
+                <ActionTooltip label={t('email')}>
+                  <Link
+                    className={heroActionClass}
+                    href="mailto:haonan.su@outlook.com"
+                    aria-label={t('emailHaonan')}
+                  >
+                    <Mail className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">{t('email')}</span>
+                  </Link>
+                </ActionTooltip>
+                <LanguageSwitcher />
+                <AboutDrawer intro={intro} />
+              </nav>
+            </TooltipProvider>
+          </DepthEntrance>
         </header>
 
         <div className="pointer-events-none absolute inset-0">
-          <p className="absolute left-5 top-[15%] text-xs font-semibold uppercase text-[var(--hero-accent)] opacity-80 sm:left-8 sm:top-[17%] sm:text-sm lg:left-12">
-            {t('greeting')}
-          </p>
+          <DepthEntrance
+            delay={0.18}
+            className="absolute left-5 top-[15%] text-xs font-semibold uppercase text-[var(--hero-accent)] opacity-80 sm:left-8 sm:top-[17%] sm:text-sm lg:left-12"
+          >
+            <p>{t('greeting')}</p>
+          </DepthEntrance>
           <h1
             id="hero-title"
             className={cn(
@@ -94,14 +104,20 @@ export function IntroHero({ intro }: { intro: string }) {
             )}
             aria-label="Haonan Su"
           >
-            <span
+            <DepthEntrance
+              as="span"
+              depth="surface"
+              delay={0.22}
               aria-hidden="true"
               className="absolute left-5 top-[18%] text-[4.6rem] text-[var(--hero-ink)] sm:left-8 sm:top-[20%] sm:text-[8.25rem] lg:left-12 lg:text-[9.25rem]"
               style={{ textShadow: '0 0 24px var(--hero-bg)' }}
             >
               Haonan
-            </span>
-            <span
+            </DepthEntrance>
+            <DepthEntrance
+              as="span"
+              depth="back"
+              delay={0.3}
               aria-hidden="true"
               className="absolute right-5 top-[24%] text-[4.75rem] text-transparent opacity-80 sm:right-8 sm:top-[31%] sm:text-[9.25rem] lg:right-12 lg:text-[10.25rem]"
               style={{
@@ -110,9 +126,12 @@ export function IntroHero({ intro }: { intro: string }) {
               }}
             >
               Su<span className="text-[var(--hero-accent)]">.</span>
-            </span>
+            </DepthEntrance>
           </h1>
-          <p
+          <DepthEntrance
+            as="span"
+            depth="front"
+            delay={0.38}
             className={cn(
               'absolute left-5 top-[43%] flex items-center gap-2 text-sm font-semibold text-[var(--hero-accent)] [text-orientation:mixed] [writing-mode:horizontal-tb] sm:left-auto sm:right-8 sm:top-[52%] sm:block sm:[text-orientation:upright] sm:[writing-mode:vertical-rl] lg:right-12',
               notoSerif.className,
@@ -122,12 +141,14 @@ export function IntroHero({ intro }: { intro: string }) {
             <span className="font-sans text-[0.62rem] font-medium uppercase opacity-65 sm:mt-3">
               {song.artist}
             </span>
-          </p>
+          </DepthEntrance>
         </div>
 
         <div className="min-h-0 flex-1" />
 
-        <div
+        <DepthEntrance
+          depth="front"
+          delay={0.46}
           className={cn(
             'flex shrink-0 items-end justify-between gap-6',
             song.theme === 'rain-night' && 'sm:pb-28 lg:pb-32',
@@ -141,7 +162,7 @@ export function IntroHero({ intro }: { intro: string }) {
             {t('atlas')}
             <ArrowDown className="h-4 w-4" aria-hidden="true" />
           </a>
-        </div>
+        </DepthEntrance>
       </div>
     </section>
   );

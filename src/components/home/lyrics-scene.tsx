@@ -10,7 +10,8 @@ import { useHomeStoryMotion } from './motion';
 
 export function LyricsScene() {
   const song = useSongStore((state) => state.song);
-  const { heroProgress } = useHomeStoryMotion();
+  const { entryProgress, heroProgress, notifySceneReady } =
+    useHomeStoryMotion();
   const containerRef = useRef<HTMLDivElement>(null);
   const fontProbeRef = useRef<HTMLSpanElement>(null);
 
@@ -18,6 +19,8 @@ export function LyricsScene() {
     containerRef,
     fontProbeRef,
     song,
+    entryProgress,
+    onReady: notifySceneReady,
     storyProgress: heroProgress,
   });
 

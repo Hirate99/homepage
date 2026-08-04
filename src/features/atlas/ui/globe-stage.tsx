@@ -827,7 +827,7 @@ export function GlobeStage({
     <div
       ref={containerRef}
       data-slot="atlas-globe-stage"
-      className="relative h-full min-h-[430px] w-full cursor-grab touch-pan-y overflow-hidden active:cursor-grabbing"
+      className="relative h-full min-h-0 w-full cursor-grab touch-pan-y overflow-hidden active:cursor-grabbing"
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       onPointerDown={handlePointerDown}

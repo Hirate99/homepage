@@ -5,13 +5,16 @@ import {
   type AriaAttributes,
   type CSSProperties,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 
 import {
+  animate,
   type MotionValue,
   type MotionStyle,
   motion,
@@ -23,13 +26,18 @@ import {
   useTransform,
 } from 'framer-motion';
 
+import { cn } from '@/lib/utils';
+
 import type { SongThemeId } from '../songs';
 
 import {
   DEPTH_ENTRY_PRESETS,
-  HOME_ENTRY_TRANSITION,
-  HOME_MOTION_EASE,
+  HOME_ENTRY_CUES,
+  HOME_ENTRY_DURATION,
+  HOME_ENTRY_REVEALS,
   HOME_MOTION_SPRING,
+  type HomeEntryCue,
+  type HomeEntryReveal,
   STORY_PARALLAX_PRESETS,
   STORY_PARALLAX_STOPS,
 } from './motion-tokens';
@@ -41,7 +49,9 @@ type StoryParallaxLayer = keyof typeof STORY_PARALLAX_PRESETS;
 
 interface HomeMotionContextValue {
   atlasProgress: MotionValue<number>;
+  entryProgress: MotionValue<number>;
   heroProgress: MotionValue<number>;
+  notifySceneReady: () => void;
   reduceMotion: boolean;
 }
 
@@ -65,13 +75,54 @@ export function HomeMotionRoot({
   const reduceMotion = Boolean(useReducedMotion());
   const heroProgress = useMotionValue(0);
   const atlasProgress = useMotionValue(0);
+  const entryProgress = useMotionValue(reduceMotion ? 1 : 0);
+  const entryHasStarted = useRef(false);
+  const [sceneReady, setSceneReady] = useState(false);
+  const notifySceneReady = useCallback(() => setSceneReady(true), []);
+
+  useEffect(() => {
+    if (reduceMotion || sceneReady) {
+      return;
+    }
+
+    const fallbackTimer = window.setTimeout(() => setSceneReady(true), 1_200);
+    return () => window.clearTimeout(fallbackTimer);
+  }, [reduceMotion, sceneReady]);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      entryHasStarted.current = true;
+      entryProgress.set(1);
+      return;
+    }
+    if (!sceneReady || entryHasStarted.current) {
+      return;
+    }
+
+    entryHasStarted.current = true;
+    entryProgress.set(0);
+    const controls = animate(entryProgress, 1, {
+      duration: HOME_ENTRY_DURATION,
+      ease: 'linear',
+    });
+    return () => controls.stop();
+  }, [entryProgress, reduceMotion, sceneReady]);
+
   const contextValue = useMemo(
     () => ({
       atlasProgress,
+      entryProgress,
       heroProgress,
+      notifySceneReady,
       reduceMotion,
     }),
-    [atlasProgress, heroProgress, reduceMotion],
+    [
+      atlasProgress,
+      entryProgress,
+      heroProgress,
+      notifySceneReady,
+      reduceMotion,
+    ],
   );
 
   return (
@@ -79,6 +130,7 @@ export function HomeMotionRoot({
       <div
         className="relative isolate [perspective-origin:50%_38svh] [perspective:1600px]"
         data-motion={reduceMotion ? 'reduced' : 'full'}
+        data-scene-ready={sceneReady ? 'true' : 'false'}
         data-story-theme={theme}
       >
         {!reduceMotion && (
@@ -99,7 +151,8 @@ export function ScrollDepthSection({
   children: ReactNode;
   variant: SectionDepthVariant;
 }) {
-  const { atlasProgress, heroProgress, reduceMotion } = useHomeStoryMotion();
+  const { atlasProgress, entryProgress, heroProgress, reduceMotion } =
+    useHomeStoryMotion();
   const sectionRef = useRef<HTMLDivElement>(null);
   const offset: ['start start', 'end start'] | ['start 92%', 'start 40%'] =
     variant === 'hero'
@@ -154,6 +207,26 @@ export function ScrollDepthSection({
       'inset(0% 0% 0% 0% round 0px)',
     ],
   );
+  const entryScale = useTransform(
+    entryProgress,
+    [0, 0.18, 0.52, 1],
+    [0.975, 0.99, 1.004, 1],
+  );
+  const entryZ = useTransform(
+    entryProgress,
+    [0, 0.2, 0.58, 1],
+    [-160, -64, 10, 0],
+  );
+  const entryRotateX = useTransform(
+    entryProgress,
+    [0, 0.2, 0.58, 1],
+    [5, 2, -0.35, 0],
+  );
+  const entryFilter = useTransform(
+    entryProgress,
+    [0, 0.2, 0.56, 1],
+    ['blur(3px)', 'blur(1px)', 'blur(0px)', 'blur(0px)'],
+  );
 
   const scrollStyle = reduceMotion
     ? undefined
@@ -185,18 +258,18 @@ export function ScrollDepthSection({
             ? 'h-full min-h-0 [transform-style:preserve-3d] lg:h-auto'
             : '[transform-style:preserve-3d]'
         }
-        initial={
+        style={
           reduceMotion || variant !== 'hero'
-            ? false
+            ? undefined
             : {
-                opacity: 0,
-                scale: 0.975,
-                rotateX: 6,
-                z: -120,
+                filter: entryFilter,
+                rotateX: entryRotateX,
+                scale: entryScale,
+                transformOrigin: '50% 42%',
+                willChange: 'filter, opacity, transform',
+                z: entryZ,
               }
         }
-        animate={{ opacity: 1, scale: 1, rotateX: 0, z: 0 }}
-        transition={HOME_ENTRY_TRANSITION}
       >
         {children}
       </motion.div>
@@ -259,8 +332,9 @@ export function StoryParallax({
 export interface DepthEntranceProps {
   children: ReactNode;
   as?: 'div' | 'span';
+  cue?: HomeEntryCue;
   depth?: DepthPreset;
-  delay?: number;
+  reveal?: HomeEntryReveal;
   className?: string;
   style?: CSSProperties;
   'aria-hidden'?: AriaAttributes['aria-hidden'];
@@ -269,29 +343,81 @@ export interface DepthEntranceProps {
 export function DepthEntrance({
   children,
   as = 'div',
+  cue = 'titlePrimary',
   depth = 'surface',
-  delay = 0,
+  reveal = 'none',
   className,
   style,
   'aria-hidden': ariaHidden,
 }: DepthEntranceProps) {
-  const { reduceMotion } = useHomeStoryMotion();
+  const { entryProgress, reduceMotion } = useHomeStoryMotion();
+  const preset = DEPTH_ENTRY_PRESETS[depth];
+  const [start, end] = HOME_ENTRY_CUES[cue];
+  const span = end - start;
+  const entranceStops = [start, start + span * 0.62, start + span * 0.88, end];
+  const settleY = preset.y < 0 ? 2.5 : -2.5;
+  const opacity = useTransform(entryProgress, entranceStops, [
+    preset.opacity,
+    0.86,
+    1,
+    1,
+  ]);
+  const y = useTransform(entryProgress, entranceStops, [
+    preset.y,
+    preset.y * 0.14,
+    settleY,
+    0,
+  ]);
+  const z = useTransform(entryProgress, entranceStops, [
+    preset.z,
+    preset.z * 0.12,
+    18,
+    0,
+  ]);
+  const scale = useTransform(entryProgress, entranceStops, [
+    preset.scale,
+    0.992,
+    1.018,
+    1,
+  ]);
+  const rotateX = useTransform(entryProgress, entranceStops, [
+    preset.rotateX,
+    preset.rotateX * 0.12,
+    -0.8,
+    0,
+  ]);
+  const filter = useTransform(entryProgress, entranceStops, [
+    preset.filter,
+    'blur(2px)',
+    'blur(0px)',
+    'blur(0px)',
+  ]);
+  const clipPath = useTransform(
+    entryProgress,
+    [start, start + span * 0.82, end],
+    [
+      HOME_ENTRY_REVEALS[reveal][0],
+      HOME_ENTRY_REVEALS[reveal][1],
+      HOME_ENTRY_REVEALS[reveal][1],
+    ],
+  );
+  const entranceStyle: MotionStyle | undefined = reduceMotion
+    ? style
+    : {
+        ...style,
+        clipPath,
+        filter,
+        opacity,
+        rotateX,
+        scale,
+        transformStyle: 'preserve-3d',
+        willChange: 'clip-path, filter, opacity, transform',
+        y,
+        z,
+      };
   const motionProps = {
-    className,
-    style,
-    initial: reduceMotion ? false : DEPTH_ENTRY_PRESETS[depth],
-    animate: {
-      opacity: 1,
-      y: 0,
-      z: 0,
-      rotateX: 0,
-      filter: 'blur(0px)',
-    },
-    transition: {
-      duration: 0.9,
-      delay,
-      ease: HOME_MOTION_EASE,
-    },
+    className: cn(as === 'span' && 'inline-block', className),
+    style: entranceStyle,
     'aria-hidden': ariaHidden,
   } as const;
 

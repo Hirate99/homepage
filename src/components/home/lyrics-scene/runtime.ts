@@ -31,14 +31,18 @@ import type { LyricMesh } from './types';
 
 export interface LyricsSceneRuntimeOptions {
   containerRef: RefObject<HTMLDivElement | null>;
+  entryProgress: MotionValue<number>;
   fontProbeRef: RefObject<HTMLSpanElement | null>;
+  onReady: () => void;
   song: SongDefinition;
   storyProgress: MotionValue<number>;
 }
 
 export function useLyricsSceneRuntime({
   containerRef,
+  entryProgress,
   fontProbeRef,
+  onReady,
   song,
   storyProgress,
 }: LyricsSceneRuntimeOptions) {
@@ -529,10 +533,14 @@ export function useLyricsSceneRuntime({
           reducedMotion ? 0 : storyProgress.get(),
         );
         const entranceElapsed = time - entranceStartedAt;
+        const entryTimelineProgress = reducedMotion
+          ? 1
+          : MathUtils.clamp(entryProgress.get(), 0, 1);
         const backdropEntrance = reducedMotion
           ? 1
-          : MathUtils.clamp(entranceElapsed / 1_050, 0, 1);
-        const arrivalDepth = 1 - backdropEntrance;
+          : MathUtils.smoothstep(entryTimelineProgress, 0.02, 0.5);
+        const arrivalDepth =
+          1 - MathUtils.smoothstep(entryTimelineProgress, 0.04, 0.7);
         const compactStoryScale = camera.aspect < 0.72 ? 0.55 : 1;
         const storyJourney = story.journey * compactStoryScale;
         const storyDeparture = story.departure * compactStoryScale;
@@ -627,6 +635,14 @@ export function useLyricsSceneRuntime({
             ? 'hovered'
             : 'idle';
         renderer.domElement.dataset.storyPhase = story.phase;
+        renderer.domElement.dataset.entryPhase =
+          entryTimelineProgress < 0.16
+            ? 'dormant'
+            : entryTimelineProgress < 0.48
+              ? 'awakening'
+              : entryTimelineProgress < 0.84
+                ? 'assembling'
+                : 'settled';
         renderer.domElement.style.cursor =
           hoveredEnvironmentTarget ||
           (theme.interaction.activation !== 'none' &&
@@ -788,12 +804,13 @@ export function useLyricsSceneRuntime({
           const mobileOrder = mobileLyricOrder.indexOf(index);
           const entranceOrder =
             camera.aspect < 0.72 ? Math.max(mobileOrder, 0) : index;
+          const entranceStart = 0.24 + entranceOrder * 0.035;
           const entranceProgress = reducedMotion
             ? 1
-            : MathUtils.clamp(
-                (entranceElapsed - entranceOrder * 70) / 720,
-                0,
-                1,
+            : MathUtils.smoothstep(
+                entryTimelineProgress,
+                entranceStart,
+                Math.min(entranceStart + 0.34, 0.94),
               );
           const entranceEase = 1 - Math.pow(1 - entranceProgress, 3);
           const entranceOffset = 1 - entranceEase;
@@ -823,7 +840,7 @@ export function useLyricsSceneRuntime({
                 sequenceVisibility =
                   MathUtils.smoothstep(sequencePhase, -0.62, -0.5) *
                   (1 - MathUtils.smoothstep(sequencePhase, 0.48, 0.66));
-                if (entranceElapsed < 700) {
+                if (entryTimelineProgress < 0.28) {
                   revealProgress = 0;
                   sequenceVisibility = 0;
                 }
@@ -1105,6 +1122,7 @@ export function useLyricsSceneRuntime({
       entranceStartedAt = performance.now();
       hasStartedAnimation = true;
       syncAnimation();
+      onReady();
 
       cleanup = () => {
         if (frameId !== 0) {
@@ -1157,5 +1175,5 @@ export function useLyricsSceneRuntime({
       disposed = true;
       cleanup();
     };
-  }, [containerRef, fontProbeRef, song, storyProgress]);
+  }, [containerRef, entryProgress, fontProbeRef, onReady, song, storyProgress]);
 }

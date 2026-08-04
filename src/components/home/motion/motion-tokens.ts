@@ -1,15 +1,30 @@
-export const HOME_MOTION_EASE = [0.16, 1, 0.3, 1] as const;
-
 export const HOME_MOTION_SPRING = {
   stiffness: 150,
   damping: 30,
   mass: 0.28,
 } as const;
 
-export const HOME_ENTRY_TRANSITION = {
-  duration: 1.15,
-  ease: HOME_MOTION_EASE,
+export const HOME_ENTRY_DURATION = 2.35;
+
+export const HOME_ENTRY_CUES = {
+  greeting: [0.3, 0.57],
+  titlePrimary: [0.4, 0.72],
+  titleSecondary: [0.5, 0.81],
+  soundtrack: [0.58, 0.86],
+  navigation: [0.66, 0.93],
+  footer: [0.74, 1],
 } as const;
+
+export type HomeEntryCue = keyof typeof HOME_ENTRY_CUES;
+
+export const HOME_ENTRY_REVEALS = {
+  none: ['inset(0% 0% 0% 0%)', 'inset(0% 0% 0% 0%)'],
+  up: ['inset(100% 0% 0% 0%)', 'inset(0% 0% 0% 0%)'],
+  down: ['inset(0% 0% 100% 0%)', 'inset(0% 0% 0% 0%)'],
+  left: ['inset(0% 100% 0% 0%)', 'inset(0% 0% 0% 0%)'],
+} as const;
+
+export type HomeEntryReveal = keyof typeof HOME_ENTRY_REVEALS;
 
 export const STORY_PARALLAX_STOPS = [0, 0.42, 0.76, 1];
 
@@ -37,23 +52,26 @@ export const STORY_PARALLAX_PRESETS = {
 export const DEPTH_ENTRY_PRESETS = {
   back: {
     opacity: 0,
-    y: 34,
-    z: -180,
+    y: 48,
+    z: -220,
+    scale: 0.91,
     rotateX: 12,
-    filter: 'blur(8px)',
+    filter: 'blur(11px)',
   },
   surface: {
     opacity: 0,
-    y: 24,
-    z: -90,
-    rotateX: 7,
-    filter: 'blur(5px)',
+    y: 36,
+    z: -120,
+    scale: 0.955,
+    rotateX: 8,
+    filter: 'blur(7px)',
   },
   front: {
     opacity: 0,
-    y: -18,
-    z: 90,
-    rotateX: -6,
-    filter: 'blur(4px)',
+    y: -28,
+    z: 140,
+    scale: 1.045,
+    rotateX: -7,
+    filter: 'blur(5px)',
   },
 } as const;

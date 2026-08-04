@@ -16,7 +16,7 @@ import { ActionTooltip } from './action-tooltip';
 import { heroActionClass } from './hero-styles';
 import { LyricsSceneLoader } from './lyrics-scene-loader';
 import { LanguageSwitcher } from './language-switcher';
-import { DepthEntrance, StoryParallax } from './motion';
+import { DepthEntrance, HeroEntryStage, StoryParallax } from './motion';
 import { RoleTicker } from './role-ticker';
 
 export function IntroHero({ intro }: { intro: string }) {
@@ -39,13 +39,15 @@ export function IntroHero({ intro }: { intro: string }) {
       style={themeStyle}
     >
       <LyricsSceneLoader />
+      <HeroEntryStage theme={song.theme} />
 
       <div className="pointer-events-none relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] sm:px-8 lg:px-12">
         <header className="h-20 shrink-0">
           <StoryParallax layer="far" className="h-full">
             <DepthEntrance
+              cue="navigation"
               depth="front"
-              delay={0.06}
+              reveal="down"
               className="pointer-events-auto flex h-full items-center"
             >
               <Link
@@ -96,7 +98,7 @@ export function IntroHero({ intro }: { intro: string }) {
             layer="far"
             className="absolute left-5 top-[15%] text-xs font-semibold uppercase text-[var(--hero-accent)] opacity-80 sm:left-8 sm:top-[17%] sm:text-sm lg:left-12"
           >
-            <DepthEntrance delay={0.18}>
+            <DepthEntrance cue="greeting" reveal="left">
               <p>{t('greeting')}</p>
             </DepthEntrance>
           </StoryParallax>
@@ -116,8 +118,9 @@ export function IntroHero({ intro }: { intro: string }) {
             >
               <DepthEntrance
                 as="span"
-                depth="surface"
-                delay={0.22}
+                cue="titlePrimary"
+                depth="front"
+                reveal="up"
                 aria-hidden="true"
               >
                 Haonan
@@ -134,8 +137,9 @@ export function IntroHero({ intro }: { intro: string }) {
             >
               <DepthEntrance
                 as="span"
+                cue="titleSecondary"
                 depth="back"
-                delay={0.3}
+                reveal="down"
                 aria-hidden="true"
               >
                 Su<span className="text-[var(--hero-accent)]">.</span>
@@ -150,7 +154,12 @@ export function IntroHero({ intro }: { intro: string }) {
               notoSerif.className,
             )}
           >
-            <DepthEntrance as="span" depth="front" delay={0.38}>
+            <DepthEntrance
+              as="span"
+              cue="soundtrack"
+              depth="surface"
+              reveal="left"
+            >
               <span>{song.title}</span>
               <span className="font-sans text-[0.62rem] font-medium uppercase opacity-65 sm:mt-3">
                 {song.artist}
@@ -163,8 +172,9 @@ export function IntroHero({ intro }: { intro: string }) {
 
         <StoryParallax layer="near" className="shrink-0">
           <DepthEntrance
+            cue="footer"
             depth="front"
-            delay={0.46}
+            reveal="up"
             className={cn(
               'flex items-end justify-between gap-6',
               song.theme === 'rain-night' && 'sm:pb-28 lg:pb-32',

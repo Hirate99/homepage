@@ -28,12 +28,14 @@ export function createCaliforniaAfterimageEnvironment(
       overpass.resize(compact);
       ghost.resize(compact);
     },
-    update: ({ time, entrance, reducedMotion }) => {
+    update: ({ time, entrance, reducedMotion, story }) => {
       kit.applyEntrance(entrance);
       horizon.update(time, reducedMotion);
-      freeway.update(time, reducedMotion);
+      freeway.update(time, reducedMotion, story.departure);
       overpass.update();
       ghost.update(time, reducedMotion);
+
+      kit.group.rotation.x = reducedMotion ? 0 : story.handoff * 0.035;
     },
     dispose: kit.dispose,
   };

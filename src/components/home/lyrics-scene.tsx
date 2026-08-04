@@ -6,13 +6,20 @@ import { notoSerif } from '@/fonts';
 import { useSongStore } from '@/providers/song-store-provider';
 
 import { useLyricsSceneRuntime } from './lyrics-scene/runtime';
+import { useHomeStoryMotion } from './motion';
 
 export function LyricsScene() {
   const song = useSongStore((state) => state.song);
+  const { heroProgress } = useHomeStoryMotion();
   const containerRef = useRef<HTMLDivElement>(null);
   const fontProbeRef = useRef<HTMLSpanElement>(null);
 
-  useLyricsSceneRuntime({ containerRef, fontProbeRef, song });
+  useLyricsSceneRuntime({
+    containerRef,
+    fontProbeRef,
+    song,
+    storyProgress: heroProgress,
+  });
 
   return (
     <div

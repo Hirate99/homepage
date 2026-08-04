@@ -16,11 +16,15 @@ export function HomeShell({ children }: HomeShellProps) {
     backgroundColor: song.colors.background,
     '--motion-accent': song.colors.accent,
     '--motion-glow': `${song.colors.accent}22`,
+    '--story-coordinate': song.colors.accent,
+    '--story-glow': `${song.colors.signal}52`,
+    '--story-line': song.colors.rule,
+    '--story-signal': song.colors.signal,
   } as CSSProperties;
 
   return (
     <main className="min-w-[280px] overflow-hidden" style={shellStyle}>
-      <HomeMotionRoot>{children}</HomeMotionRoot>
+      <HomeMotionRoot theme={song.theme}>{children}</HomeMotionRoot>
     </main>
   );
 }

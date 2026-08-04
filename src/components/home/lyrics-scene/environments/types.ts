@@ -1,5 +1,7 @@
 import type { Group, Object3D, Vector2 } from 'three';
 
+import type { HomeStoryFrame } from '../../motion/story-model';
+
 export interface LyricActivationFrame {
   index: number;
   age: number;
@@ -12,6 +14,7 @@ export interface EnvironmentFrame {
   reducedMotion: boolean;
   pointer: Vector2;
   activation: LyricActivationFrame | null;
+  story: HomeStoryFrame;
 }
 
 export interface EnvironmentInteractionTarget {

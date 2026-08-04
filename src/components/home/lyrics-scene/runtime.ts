@@ -2,6 +2,7 @@
 
 import { type RefObject, useEffect } from 'react';
 
+import type { MotionValue } from 'framer-motion';
 import {
   Color,
   Fog,
@@ -19,6 +20,8 @@ import {
 } from 'three';
 
 import type { SongDefinition } from '../songs';
+import { getHomeStoryFrame } from '../motion/story-model';
+import { getHomeSceneStoryProfile } from '../motion/story-profiles';
 
 import { createMobileLayout, getLyricCues } from './layout';
 import { createLyricMesh } from './lyric-mesh';
@@ -30,12 +33,14 @@ export interface LyricsSceneRuntimeOptions {
   containerRef: RefObject<HTMLDivElement | null>;
   fontProbeRef: RefObject<HTMLSpanElement | null>;
   song: SongDefinition;
+  storyProgress: MotionValue<number>;
 }
 
 export function useLyricsSceneRuntime({
   containerRef,
   fontProbeRef,
   song,
+  storyProgress,
 }: LyricsSceneRuntimeOptions) {
   useEffect(() => {
     const container = containerRef.current;
@@ -68,13 +73,15 @@ export function useLyricsSceneRuntime({
         createMobileLayout(song, lyricCues);
       const scene = new Scene();
       scene.background = new Color(song.colors.background);
-      scene.fog = new Fog(
+      const sceneFog = new Fog(
         song.colors.background,
         theme.fog.near,
         theme.fog.far,
       );
+      scene.fog = sceneFog;
       const camera = new PerspectiveCamera(43, 1, 0.1, 100);
       camera.position.set(0, 0, 12);
+      const storyProfile = getHomeSceneStoryProfile(theme.id);
 
       const renderer = new WebGLRenderer({
         antialias: true,
@@ -98,7 +105,9 @@ export function useLyricsSceneRuntime({
       const lyricGroup = new Group();
       const airLyricGroup = new Group();
       lyricGroup.add(airLyricGroup);
-      scene.add(lyricGroup);
+      const storyWorld = new Group();
+      storyWorld.add(lyricGroup);
+      scene.add(storyWorld);
 
       const atmosphere = createAtmosphere(song, theme);
       scene.add(atmosphere.mesh);
@@ -114,7 +123,7 @@ export function useLyricsSceneRuntime({
             .join('. ')}. Press Enter or Space to activate.`,
         );
       }
-      scene.add(environment.group);
+      storyWorld.add(environment.group);
       const groundLyricGroup = environment.lyricSurface ?? new Group();
       if (!environment.lyricSurface) {
         lyricGroup.add(groundLyricGroup);
@@ -231,6 +240,7 @@ export function useLyricsSceneRuntime({
       let documentIsVisible = document.visibilityState === 'visible';
       let lastIsCompact: boolean | null = null;
       let lastLyricScale: number | null = null;
+      let lastCameraFov = camera.fov;
 
       const hitTest = (event: PointerEvent) => {
         if (!containerRef.current) {
@@ -515,15 +525,57 @@ export function useLyricsSceneRuntime({
       const animate = (time: number) => {
         frameId = 0;
         const reducedMotion = prefersReducedMotion.matches;
+        const story = getHomeStoryFrame(
+          reducedMotion ? 0 : storyProgress.get(),
+        );
+        const entranceElapsed = time - entranceStartedAt;
+        const backdropEntrance = reducedMotion
+          ? 1
+          : MathUtils.clamp(entranceElapsed / 1_050, 0, 1);
+        const arrivalDepth = 1 - backdropEntrance;
+        const compactStoryScale = camera.aspect < 0.72 ? 0.55 : 1;
+        const storyJourney = story.journey * compactStoryScale;
+        const storyDeparture = story.departure * compactStoryScale;
+        const storyHandoff = story.handoff * compactStoryScale;
+        const baseCameraFov = camera.aspect < 0.72 ? 55 : 43;
+        const cameraFov =
+          baseCameraFov +
+          arrivalDepth * 4.5 -
+          storyJourney * 1.6 +
+          storyProfile.camera.fov * storyDeparture;
+        camera.position.y =
+          storyJourney * -0.18 + storyProfile.camera.y * storyDeparture;
+        camera.position.z =
+          12 - storyJourney * 0.28 + storyProfile.camera.z * storyDeparture;
+        if (Math.abs(lastCameraFov - cameraFov) > 0.01) {
+          camera.fov = cameraFov;
+          camera.updateProjectionMatrix();
+          lastCameraFov = cameraFov;
+        }
+        storyWorld.position.set(
+          0,
+          storyJourney * 0.16 + storyProfile.world.y * storyDeparture,
+          arrivalDepth * -3.2 +
+            storyJourney * 0.82 +
+            storyProfile.world.z * storyDeparture,
+        );
+        storyWorld.rotation.set(
+          storyJourney * -0.035 + storyProfile.world.rotateX * storyDeparture,
+          storyProfile.world.rotateY * storyHandoff,
+          0,
+        );
+        const storyScale =
+          MathUtils.lerp(0.92, 1, backdropEntrance) *
+          MathUtils.lerp(1, storyProfile.world.scale, storyDeparture);
+        storyWorld.scale.setScalar(storyScale);
+        sceneFog.near = theme.fog.near + storyProfile.fog.near * storyDeparture;
+        sceneFog.far = theme.fog.far + storyProfile.fog.far * storyDeparture;
+        atmosphere.material.uniforms.uStory.value = story.progress;
         pointer.lerp(pointerTarget, reducedMotion ? 1 : 0.065);
         atmosphere.material.uniforms.uTime.value = reducedMotion
           ? 0
           : time * 0.001;
         atmosphere.material.uniforms.uPointer.value.copy(pointer);
-        const entranceElapsed = time - entranceStartedAt;
-        const backdropEntrance = reducedMotion
-          ? 1
-          : MathUtils.clamp(entranceElapsed / 900, 0, 1);
         const rippleAge = time - rippleStartedAt;
         const isRippleActive =
           rippleIndex !== null &&
@@ -542,6 +594,7 @@ export function useLyricsSceneRuntime({
           entrance: backdropEntrance,
           reducedMotion,
           pointer,
+          story,
           activation:
             isRippleActive && rippleIndex !== null
               ? {
@@ -573,6 +626,7 @@ export function useLyricsSceneRuntime({
           : hoveredEnvironmentTarget
             ? 'hovered'
             : 'idle';
+        renderer.domElement.dataset.storyPhase = story.phase;
         renderer.domElement.style.cursor =
           hoveredEnvironmentTarget ||
           (theme.interaction.activation !== 'none' &&
@@ -687,7 +741,11 @@ export function useLyricsSceneRuntime({
 
         airLyricGroup.rotation.x = MathUtils.lerp(
           airLyricGroup.rotation.x,
-          reducedMotion || camera.aspect < 0.72 ? 0 : -pointer.y * 0.16,
+          reducedMotion || camera.aspect < 0.72
+            ? 0
+            : -pointer.y * 0.16 +
+                storyJourney * -0.04 +
+                storyProfile.lyrics.rotateX * storyHandoff,
           0.07,
         );
         airLyricGroup.rotation.y = MathUtils.lerp(
@@ -698,9 +756,15 @@ export function useLyricsSceneRuntime({
         airLyricGroup.rotation.z = reducedMotion
           ? 0
           : Math.sin(time * 0.00016) * 0.018;
-        airLyricGroup.position.z = reducedMotion
-          ? 0
-          : Math.sin(time * 0.00022) * 0.24;
+        airLyricGroup.position.y = MathUtils.lerp(
+          airLyricGroup.position.y,
+          storyJourney * -0.12 + storyProfile.lyrics.y * storyDeparture,
+          0.08,
+        );
+        airLyricGroup.position.z =
+          (reducedMotion ? 0 : Math.sin(time * 0.00022) * 0.24) +
+          storyJourney * 0.38 +
+          storyProfile.lyrics.z * storyDeparture;
         const sequencePosition =
           theme.sequence && !reducedMotion
             ? ((((Math.max(entranceElapsed - 700, 0) /
@@ -850,7 +914,8 @@ export function useLyricsSceneRuntime({
             (isActive ? 1 : data.baseOpacity) *
             entranceEase *
             sequenceVisibility *
-            (data.surface === 'ground' ? 0.94 + groundRainStrength * 0.22 : 1);
+            (data.surface === 'ground' ? 0.94 + groundRainStrength * 0.22 : 1) *
+            MathUtils.lerp(1, storyProfile.lyrics.opacity, story.handoff);
           const targetTextScale =
             (camera.aspect < 0.72 ? theme.compact.textScale : 1) *
             (data.surface === 'ground' ? 0.96 : 1) *
@@ -1092,5 +1157,5 @@ export function useLyricsSceneRuntime({
       disposed = true;
       cleanup();
     };
-  }, [containerRef, fontProbeRef, song]);
+  }, [containerRef, fontProbeRef, song, storyProgress]);
 }

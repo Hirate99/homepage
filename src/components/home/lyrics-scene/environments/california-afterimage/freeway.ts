@@ -253,12 +253,15 @@ export function createCaliforniaFreeway(kit: SceneKit, colors: SongColors) {
       group.scale.set(compact ? 0.9 : 1, 1, compact ? 0.95 : 1);
       group.position.y = compact ? 0.16 : 0;
     },
-    update: (time: number, reducedMotion: boolean) => {
+    update: (time: number, reducedMotion: boolean, storyTravel = 0) => {
       trafficLayers.forEach((layer, layerIndex) => {
         layer.vehicles.forEach((vehicle, index) => {
           const travel = reducedMotion
             ? vehicle.offset
-            : (vehicle.offset + time * vehicle.speed) % 1;
+            : (vehicle.offset +
+                time * vehicle.speed +
+                storyTravel * (0.12 + layerIndex * 0.018)) %
+              1;
           const directedTravel = vehicle.direction === 1 ? travel : 1 - travel;
           const x = MathUtils.lerp(ROAD_START_X, ROAD_END_X, directedTravel);
           const y = ROAD_SURFACE_Y + 0.055 + (index % 3) * 0.002;

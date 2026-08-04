@@ -53,13 +53,23 @@ export function createRainNightEnvironment(
       worldPivot.rotation.x = compact ? 0.62 : 0.78;
       worldPivot.rotation.z = compact ? -0.015 : -0.035;
     },
-    update: ({ time, entrance, reducedMotion, pointer }) => {
+    update: ({ time, entrance, reducedMotion, pointer, story }) => {
       kit.applyEntrance(entrance);
       city.update(time, reducedMotion);
       train.update(time, reducedMotion);
       intersection.update(time, reducedMotion);
       traffic.update(time, reducedMotion);
       weather.update(time, entrance, reducedMotion);
+      weather.group.rotation.z = MathUtils.lerp(
+        weather.group.rotation.z,
+        reducedMotion ? 0 : story.handoff * -0.09,
+        0.06,
+      );
+      weather.group.position.y = MathUtils.lerp(
+        weather.group.position.y,
+        reducedMotion ? 0 : story.departure * 0.24,
+        0.06,
+      );
 
       const shimmer = reducedMotion ? 1 : 0.9 + Math.sin(time * 0.0021) * 0.1;
       kit.glowMaterials.forEach((material) => {
@@ -89,12 +99,15 @@ export function createRainNightEnvironment(
       worldPivot.rotation.x = MathUtils.lerp(
         worldPivot.rotation.x,
         (isCompact ? 0.62 : 0.78) +
-          (reducedMotion || isCompact ? 0 : pointer.y * -0.018),
+          (reducedMotion || isCompact ? 0 : pointer.y * -0.018) +
+          (reducedMotion ? 0 : story.handoff * 0.1),
         0.04,
       );
       worldPivot.rotation.y = MathUtils.lerp(
         worldPivot.rotation.y,
-        reducedMotion || isCompact ? 0 : pointer.x * 0.012,
+        reducedMotion || isCompact
+          ? 0
+          : pointer.x * 0.012 - story.handoff * 0.016,
         0.04,
       );
     },

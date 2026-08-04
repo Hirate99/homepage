@@ -15,6 +15,7 @@ export function createAtmosphere(song: SongDefinition, theme: SongSceneTheme) {
       uBackground: { value: new Color(song.colors.background) },
       uAccent: { value: new Color(song.colors.accent) },
       uSignal: { value: new Color(song.colors.signal) },
+      uStory: { value: 0 },
     },
     vertexShader: `
       void main() {
@@ -30,6 +31,7 @@ export function createAtmosphere(song: SongDefinition, theme: SongSceneTheme) {
       uniform vec3 uBackground;
       uniform vec3 uAccent;
       uniform vec3 uSignal;
+      uniform float uStory;
 
       float hash21(vec2 value) {
         value = fract(value * vec2(123.34, 345.45));
@@ -87,6 +89,10 @@ export function createAtmosphere(song: SongDefinition, theme: SongSceneTheme) {
           lowerHaze * 0.08
         );
         color = mix(color, californiaColor, uCalifornia);
+        float storyHandoff = smoothstep(0.58, 0.96, uStory);
+        float storyHorizon = exp(-abs(uv.y - mix(0.42, 0.12, storyHandoff)) * 18.0);
+        color += mix(uAccent, uSignal, storyHandoff) * storyHorizon * storyHandoff * 0.1;
+        color *= 1.0 - storyHandoff * smoothstep(0.18, 0.9, length(centered)) * 0.08;
         color += (grain - 0.5) * mix(0.012, 0.018, max(uRain, uCalifornia));
 
         gl_FragColor = vec4(color, 1.0);

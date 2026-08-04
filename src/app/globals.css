@@ -78,6 +78,7 @@
 
   html {
     height: -webkit-fill-available;
+    position: relative;
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
   }

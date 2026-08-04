@@ -6,88 +6,89 @@ import {
   type CSSProperties,
   type ReactNode,
   useContext,
+  useEffect,
+  useMemo,
   useRef,
 } from 'react';
 
 import {
+  type MotionValue,
+  type MotionStyle,
   motion,
+  useMotionValue,
+  useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
 } from 'framer-motion';
 
+import type { SongThemeId } from '../songs';
+
 import {
   DEPTH_ENTRY_PRESETS,
   HOME_ENTRY_TRANSITION,
   HOME_MOTION_EASE,
   HOME_MOTION_SPRING,
+  STORY_PARALLAX_PRESETS,
+  STORY_PARALLAX_STOPS,
 } from './motion-tokens';
+import { SceneStoryBridge } from './story-bridge';
 
 type DepthPreset = keyof typeof DEPTH_ENTRY_PRESETS;
 type SectionDepthVariant = 'hero' | 'atlas';
+type StoryParallaxLayer = keyof typeof STORY_PARALLAX_PRESETS;
 
-const HomeMotionContext = createContext({ reduceMotion: false });
+interface HomeMotionContextValue {
+  atlasProgress: MotionValue<number>;
+  heroProgress: MotionValue<number>;
+  reduceMotion: boolean;
+}
 
-export function HomeMotionRoot({ children }: { children: ReactNode }) {
+const HomeMotionContext = createContext<HomeMotionContextValue | null>(null);
+
+export function useHomeStoryMotion() {
+  const context = useContext(HomeMotionContext);
+  if (!context) {
+    throw new Error('useHomeStoryMotion must be used within HomeMotionRoot');
+  }
+  return context;
+}
+
+export function HomeMotionRoot({
+  children,
+  theme,
+}: {
+  children: ReactNode;
+  theme: SongThemeId;
+}) {
   const reduceMotion = Boolean(useReducedMotion());
-  const { scrollYProgress } = useScroll();
-  const smoothProgress = useSpring(scrollYProgress, HOME_MOTION_SPRING);
+  const heroProgress = useMotionValue(0);
+  const atlasProgress = useMotionValue(0);
+  const contextValue = useMemo(
+    () => ({
+      atlasProgress,
+      heroProgress,
+      reduceMotion,
+    }),
+    [atlasProgress, heroProgress, reduceMotion],
+  );
 
   return (
-    <HomeMotionContext.Provider value={{ reduceMotion }}>
+    <HomeMotionContext.Provider value={contextValue}>
       <div
         className="relative isolate [perspective-origin:50%_38svh] [perspective:1600px]"
         data-motion={reduceMotion ? 'reduced' : 'full'}
+        data-story-theme={theme}
       >
-        {!reduceMotion && <AmbientDepthField progress={smoothProgress} />}
+        {!reduceMotion && (
+          <SceneStoryBridge progress={heroProgress} theme={theme} />
+        )}
         <div className="relative z-10 [transform-style:preserve-3d]">
           {children}
         </div>
       </div>
     </HomeMotionContext.Provider>
-  );
-}
-
-function AmbientDepthField({
-  progress,
-}: {
-  progress: ReturnType<typeof useSpring>;
-}) {
-  const orbitRotation = useTransform(progress, [0, 1], [8, 210]);
-  const orbitY = useTransform(progress, [0, 1], [-80, 260]);
-  const railRotation = useTransform(progress, [0, 1], [-9, 16]);
-  const railY = useTransform(progress, [0, 1], [120, -180]);
-
-  return (
-    <div
-      className="pointer-events-none fixed inset-0 z-20 overflow-hidden"
-      aria-hidden="true"
-    >
-      <motion.div
-        className="absolute -right-[19rem] top-[7svh] h-[34rem] w-[34rem] rounded-full border border-[var(--motion-accent)] opacity-[0.12] [box-shadow:0_0_80px_var(--motion-glow),inset_0_0_80px_var(--motion-glow)] [transform-style:preserve-3d]"
-        style={{
-          y: orbitY,
-          rotateX: 72,
-          rotateY: 12,
-          rotateZ: orbitRotation,
-        }}
-      >
-        <div className="absolute inset-[18%] rounded-full border border-[var(--motion-accent)]" />
-        <div className="absolute inset-[38%] rounded-full border border-[var(--motion-accent)]" />
-        <div className="absolute left-1/2 top-0 h-full w-px bg-[var(--motion-accent)]" />
-        <div className="absolute left-0 top-1/2 h-px w-full bg-[var(--motion-accent)]" />
-      </motion.div>
-
-      <motion.div
-        className="absolute -left-28 top-[46svh] h-[42svh] w-52 border-y border-[var(--motion-accent)] opacity-[0.1] [background:repeating-linear-gradient(90deg,var(--motion-accent)_0_1px,transparent_1px_34px)] [mask-image:linear-gradient(to_right,transparent,black_55%,transparent)]"
-        style={{
-          y: railY,
-          rotateY: 64,
-          rotateZ: railRotation,
-        }}
-      />
-    </div>
   );
 }
 
@@ -98,7 +99,7 @@ export function ScrollDepthSection({
   children: ReactNode;
   variant: SectionDepthVariant;
 }) {
-  const { reduceMotion } = useContext(HomeMotionContext);
+  const { atlasProgress, heroProgress, reduceMotion } = useHomeStoryMotion();
   const sectionRef = useRef<HTMLDivElement>(null);
   const offset: ['start start', 'end start'] | ['start 92%', 'start 40%'] =
     variant === 'hero'
@@ -109,31 +110,49 @@ export function ScrollDepthSection({
     offset,
   });
   const progress = useSpring(scrollYProgress, HOME_MOTION_SPRING);
+  const sharedProgress = variant === 'hero' ? heroProgress : atlasProgress;
+
+  useMotionValueEvent(progress, 'change', (value) => {
+    sharedProgress.set(value);
+  });
+
+  useEffect(() => {
+    sharedProgress.set(progress.get());
+  }, [progress, sharedProgress]);
 
   const rotateX = useTransform(
     progress,
-    [0, 1],
-    variant === 'hero' ? [0, 10] : [11, 0],
+    variant === 'hero' ? [0, 0.42, 0.76, 1] : [0, 0.46, 1],
+    variant === 'hero' ? [0, 0, 4, 14] : [18, 8, 0],
   );
   const y = useTransform(
     progress,
-    [0, 1],
-    variant === 'hero' ? [0, 112] : [96, 0],
+    variant === 'hero' ? [0, 0.44, 0.78, 1] : [0, 0.48, 1],
+    variant === 'hero' ? [0, 0, 58, 176] : [148, 52, 0],
   );
   const z = useTransform(
     progress,
-    [0, 1],
-    variant === 'hero' ? [0, -180] : [-150, 0],
+    variant === 'hero' ? [0, 0.44, 0.78, 1] : [0, 0.46, 1],
+    variant === 'hero' ? [0, 0, -88, -280] : [-260, -82, 0],
   );
   const scale = useTransform(
     progress,
-    [0, 1],
-    variant === 'hero' ? [1, 0.94] : [0.955, 1],
+    variant === 'hero' ? [0, 0.44, 0.8, 1] : [0, 0.5, 1],
+    variant === 'hero' ? [1, 1, 0.96, 0.89] : [0.9, 0.97, 1],
   );
   const opacity = useTransform(
     progress,
-    [0, 1],
-    variant === 'hero' ? [1, 0.78] : [0.64, 1],
+    variant === 'hero' ? [0, 0.48, 0.82, 1] : [0, 0.42, 1],
+    variant === 'hero' ? [1, 1, 0.86, 0.12] : [0.16, 0.72, 1],
+  );
+  const clipPath = useTransform(
+    progress,
+    [0, 0.52, 1],
+    [
+      'inset(10% 4% 12% 4% round 36px)',
+      'inset(3% 1.5% 4% 1.5% round 18px)',
+      'inset(0% 0% 0% 0% round 0px)',
+    ],
   );
 
   const scrollStyle = reduceMotion
@@ -146,12 +165,17 @@ export function ScrollDepthSection({
         opacity,
         transformOrigin: variant === 'hero' ? '50% 100%' : '50% 0%',
         willChange: 'transform, opacity',
+        ...(variant === 'atlas' ? { clipPath } : {}),
       };
 
   return (
     <motion.div
       ref={sectionRef}
-      className="relative [transform-style:preserve-3d]"
+      className={
+        variant === 'atlas'
+          ? 'relative min-h-[720px] [transform-style:preserve-3d] lg:min-h-screen'
+          : 'relative [transform-style:preserve-3d]'
+      }
       style={scrollStyle}
       data-depth-section={variant}
     >
@@ -176,6 +200,58 @@ export function ScrollDepthSection({
   );
 }
 
+export interface StoryParallaxProps {
+  children: ReactNode;
+  as?: 'div' | 'span';
+  className?: string;
+  layer?: StoryParallaxLayer;
+  style?: CSSProperties;
+}
+
+export function StoryParallax({
+  children,
+  as = 'div',
+  className,
+  layer = 'middle',
+  style,
+}: StoryParallaxProps) {
+  const { heroProgress, reduceMotion } = useHomeStoryMotion();
+  const preset = STORY_PARALLAX_PRESETS[layer];
+  const y = useTransform(heroProgress, STORY_PARALLAX_STOPS, preset.y);
+  const z = useTransform(heroProgress, STORY_PARALLAX_STOPS, preset.z);
+  const scale = useTransform(heroProgress, STORY_PARALLAX_STOPS, preset.scale);
+  const rotateX = useTransform(
+    heroProgress,
+    STORY_PARALLAX_STOPS,
+    preset.rotateX,
+  );
+  const parallaxStyle: MotionStyle | undefined = reduceMotion
+    ? style
+    : {
+        ...style,
+        rotateX,
+        scale,
+        y,
+        z,
+        transformStyle: 'preserve-3d',
+        willChange: 'transform',
+      };
+
+  if (as === 'span') {
+    return (
+      <motion.span className={className} style={parallaxStyle}>
+        {children}
+      </motion.span>
+    );
+  }
+
+  return (
+    <motion.div className={className} style={parallaxStyle}>
+      {children}
+    </motion.div>
+  );
+}
+
 export interface DepthEntranceProps {
   children: ReactNode;
   as?: 'div' | 'span';
@@ -195,7 +271,7 @@ export function DepthEntrance({
   style,
   'aria-hidden': ariaHidden,
 }: DepthEntranceProps) {
-  const { reduceMotion } = useContext(HomeMotionContext);
+  const { reduceMotion } = useHomeStoryMotion();
   const motionProps = {
     className,
     style,

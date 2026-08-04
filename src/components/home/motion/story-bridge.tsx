@@ -28,7 +28,20 @@ const FREEWAY_PATHS = [
   'M530 360 C588 520 738 710 946 1010',
 ] as const;
 
-function CoordinateGlobe({
+const ATLAS_GRID_PATHS = [
+  'M152 804 C344 786 656 786 848 804',
+  'M132 866 C336 850 664 850 868 866',
+  'M116 930 C330 918 670 918 884 930',
+  'M104 996 C326 988 674 988 896 996',
+  'M96 1064 C322 1060 678 1060 904 1064',
+  'M248 760 C286 856 302 972 296 1112',
+  'M372 750 C390 858 398 978 396 1112',
+  'M500 746 L500 1112',
+  'M628 750 C610 858 602 978 604 1112',
+  'M752 760 C714 856 698 972 704 1112',
+] as const;
+
+function AtlasGridHandoff({
   opacity,
   pathLength,
   y,
@@ -39,45 +52,18 @@ function CoordinateGlobe({
 }) {
   return (
     <motion.g style={{ opacity, y }}>
-      <motion.circle
-        cx="500"
-        cy="924"
-        r="188"
-        pathLength="1"
-        style={{ pathLength }}
-      />
-      {[786, 850, 924, 998, 1062].map((cy) => (
-        <motion.ellipse
-          key={cy}
-          cx="500"
-          cy={cy}
-          rx={Math.sqrt(Math.max(188 ** 2 - (cy - 924) ** 2, 0))}
-          ry="24"
+      {ATLAS_GRID_PATHS.map((path) => (
+        <motion.path
+          key={path}
+          d={path}
           pathLength="1"
           style={{ pathLength }}
         />
       ))}
-      <motion.ellipse
-        cx="500"
-        cy="924"
-        rx="72"
-        ry="188"
-        pathLength="1"
-        style={{ pathLength }}
-      />
-      <motion.ellipse
-        cx="500"
-        cy="924"
-        rx="132"
-        ry="188"
-        pathLength="1"
-        style={{ pathLength }}
-      />
-      <motion.ellipse
-        cx="500"
-        cy="924"
-        rx="188"
-        ry="58"
+      <motion.path
+        d="M472 930 H488 M512 930 H528 M500 902 V918 M500 942 V958"
+        stroke="var(--story-signal)"
+        strokeOpacity="0.72"
         pathLength="1"
         style={{ pathLength }}
       />
@@ -95,12 +81,13 @@ export function SceneStoryBridge({ progress, theme }: SceneStoryBridgeProps) {
   const pathLength = useTransform(progress, [0.52, 0.92], [0, 1]);
   const pathOffset = useTransform(progress, [0.5, 1], [0.18, 0]);
   const y = useTransform(progress, [0.48, 1], [80, -34]);
-  const globeOpacity = useTransform(
+  const gridOpacity = useTransform(
     progress,
-    [0.64, 0.78, 0.86, 0.92, 0.96, 1],
-    [0, 0.38, 0.82, 0.3, 0, 0],
+    [0.62, 0.74, 0.84, 0.91, 0.96, 1],
+    [0, 0.1, 0.3, 0.14, 0, 0],
   );
-  const globeY = useTransform(progress, [0.64, 1], [92, 0]);
+  const gridPathLength = useTransform(progress, [0.6, 0.9], [0, 1]);
+  const gridY = useTransform(progress, [0.62, 1], [72, -10]);
   const glowOpacity = useTransform(progress, [0.58, 0.8, 1], [0, 0.42, 0]);
   const signalY = useTransform(progress, [0.52, 0.96], [330, 900]);
 
@@ -109,6 +96,7 @@ export function SceneStoryBridge({ progress, theme }: SceneStoryBridgeProps) {
   return (
     <motion.div
       aria-hidden="true"
+      data-story-handoff="atlas-grid"
       className="pointer-events-none fixed inset-0 z-20 overflow-hidden"
       style={{ opacity }}
     >
@@ -142,14 +130,14 @@ export function SceneStoryBridge({ progress, theme }: SceneStoryBridgeProps) {
         <g
           fill="none"
           stroke="var(--story-coordinate)"
-          strokeOpacity="0.48"
+          strokeOpacity="0.42"
           strokeWidth="1"
           vectorEffect="non-scaling-stroke"
         >
-          <CoordinateGlobe
-            opacity={globeOpacity}
-            pathLength={pathLength}
-            y={globeY}
+          <AtlasGridHandoff
+            opacity={gridOpacity}
+            pathLength={gridPathLength}
+            y={gridY}
           />
         </g>
 
@@ -161,10 +149,10 @@ export function SceneStoryBridge({ progress, theme }: SceneStoryBridgeProps) {
         />
         <motion.circle
           cx="500"
-          r="17"
+          r="13"
           fill="none"
           stroke="var(--story-signal)"
-          strokeOpacity="0.36"
+          strokeOpacity="0.3"
           strokeWidth="1"
           style={{ cy: signalY }}
         />

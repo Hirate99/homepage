@@ -623,14 +623,14 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
         data-song={song.id}
         data-theme={song.theme}
         style={atlasTheme.cssVariables}
-        className="relative w-full scroll-mt-0 overflow-x-hidden bg-[var(--atlas-bg)] pb-20 pt-10 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
+        className="relative h-full min-h-0 w-full scroll-mt-0 overflow-hidden bg-[var(--atlas-bg)] pb-3 pt-3 text-[var(--atlas-ink)] transition-colors duration-700 sm:px-8 sm:pb-5 sm:pt-5 lg:h-auto lg:min-h-screen lg:overflow-x-hidden lg:px-12 lg:pb-24 lg:pt-16"
         aria-labelledby="atlas-title"
       >
-        <div className="relative mx-auto w-full max-w-[1280px]">
-          <header className="mx-4 flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-5 pt-4 sm:mx-0 sm:gap-8 sm:pb-9 sm:pt-7">
+        <div className="relative mx-auto flex h-full min-h-0 w-full max-w-[1280px] flex-col lg:block lg:h-auto">
+          <header className="mx-4 flex shrink-0 items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-3 pt-3 sm:mx-0 sm:gap-8 sm:pb-5 sm:pt-5 lg:pb-9 lg:pt-7">
             <h2
               id="atlas-title"
-              className="font-serif text-[clamp(3rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
+              className="font-serif text-[clamp(2.65rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
             >
               {t('title')}
             </h2>
@@ -658,10 +658,10 @@ export function GlobeAtlas({ posts }: GlobeAtlasProps) {
             </p>
           </header>
 
-          <div className="mx-3 grid min-w-0 gap-3 bg-transparent sm:mx-0 lg:h-[clamp(640px,82svh,880px)] lg:grid-cols-[minmax(0,1fr)_352px] lg:gap-0 lg:overflow-hidden lg:rounded-[24px] lg:border lg:border-[var(--atlas-rule)] lg:bg-[var(--atlas-panel)]">
+          <div className="mx-3 grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1.35fr)_minmax(0,0.9fr)] gap-3 bg-transparent sm:mx-0 sm:grid-rows-[minmax(0,1.5fr)_minmax(0,0.8fr)] lg:h-[clamp(640px,82svh,880px)] lg:flex-none lg:grid-cols-[minmax(0,1fr)_352px] lg:grid-rows-none lg:gap-0 lg:overflow-hidden lg:rounded-[24px] lg:border lg:border-[var(--atlas-rule)] lg:bg-[var(--atlas-panel)]">
             <div
               ref={atlasViewportRef}
-              className="relative isolate h-[min(49svh,440px)] min-h-[340px] min-w-0 overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] sm:h-[min(58svh,560px)] lg:h-full lg:rounded-none lg:border-0"
+              className="relative isolate min-h-0 min-w-0 overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] lg:h-full lg:rounded-none lg:border-0"
             >
               <div
                 aria-hidden="true"

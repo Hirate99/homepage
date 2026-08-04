@@ -57,15 +57,15 @@ export function AtlasShell({ posts = [], status, onRetry }: AtlasShellProps) {
       data-song={song.id}
       data-theme={song.theme}
       style={theme.cssVariables}
-      className="relative min-h-[720px] w-full scroll-mt-0 bg-[var(--atlas-bg)] px-4 pb-20 pt-12 text-[var(--atlas-ink)] sm:px-8 sm:pb-24 sm:pt-16 lg:min-h-screen lg:px-12"
+      className="relative h-full min-h-0 w-full scroll-mt-0 overflow-hidden bg-[var(--atlas-bg)] px-4 pb-3 pt-3 text-[var(--atlas-ink)] sm:px-8 sm:pb-5 sm:pt-5 lg:h-auto lg:min-h-screen lg:px-12 lg:pb-24 lg:pt-16"
       aria-labelledby="atlas-title"
       aria-busy={status === 'loading'}
     >
-      <div className="relative mx-auto w-full max-w-[1240px]">
-        <header className="flex items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-7 pt-5 sm:gap-8 sm:pb-9 sm:pt-7">
+      <div className="relative mx-auto flex h-full min-h-0 w-full max-w-[1240px] flex-col lg:h-auto">
+        <header className="flex shrink-0 items-end justify-between gap-5 border-t border-[var(--atlas-rule)] pb-3 pt-3 sm:gap-8 sm:pb-5 sm:pt-5 lg:pb-9 lg:pt-7">
           <h2
             id="atlas-title"
-            className="font-serif text-[clamp(3.25rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
+            className="font-serif text-[clamp(2.65rem,7vw,6.4rem)] leading-[0.88] tracking-[-0.055em]"
           >
             {t('title')}
           </h2>
@@ -92,7 +92,7 @@ export function AtlasShell({ posts = [], status, onRetry }: AtlasShellProps) {
         <div
           data-slot="atlas-placeholder"
           data-state={status ?? 'idle'}
-          className="relative mx-auto h-[min(72svh,570px)] min-h-[430px] w-full overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] shadow-[0_32px_90px_-58px_var(--atlas-shadow)] sm:h-[620px] sm:rounded-[28px] lg:h-[min(68vh,700px)]"
+          className="relative mx-auto min-h-0 w-full flex-1 overflow-hidden rounded-[20px] border border-[var(--atlas-rule)] bg-[var(--atlas-panel)] shadow-[0_32px_90px_-58px_var(--atlas-shadow)] sm:rounded-[28px] lg:h-[min(68vh,700px)] lg:min-h-[430px] lg:flex-none"
         >
           <div
             aria-hidden="true"

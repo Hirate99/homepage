@@ -173,14 +173,18 @@ export function ScrollDepthSection({
       ref={sectionRef}
       className={
         variant === 'atlas'
-          ? 'relative min-h-[720px] [transform-style:preserve-3d] lg:min-h-screen'
+          ? 'relative h-[100svh] min-h-[560px] [transform-style:preserve-3d] lg:h-auto lg:min-h-screen'
           : 'relative [transform-style:preserve-3d]'
       }
       style={scrollStyle}
       data-depth-section={variant}
     >
       <motion.div
-        className="[transform-style:preserve-3d]"
+        className={
+          variant === 'atlas'
+            ? 'h-full min-h-0 [transform-style:preserve-3d] lg:h-auto'
+            : '[transform-style:preserve-3d]'
+        }
         initial={
           reduceMotion || variant !== 'hero'
             ? false

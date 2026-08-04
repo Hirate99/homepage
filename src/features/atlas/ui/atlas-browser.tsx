@@ -126,7 +126,7 @@ export function AtlasBrowser({
       {filteredItems.length > 0 ? (
         <ul
           ref={listRef}
-          className="min-h-0 flex-1 divide-y divide-[var(--atlas-rule)] lg:block lg:space-y-px lg:divide-y-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-color:var(--atlas-rule)_transparent] lg:[scrollbar-width:thin]"
+          className="min-h-0 flex-1 touch-pan-y divide-y divide-[var(--atlas-rule)] overflow-y-auto overscroll-contain [scrollbar-color:var(--atlas-rule)_transparent] [scrollbar-width:thin] lg:block lg:space-y-px lg:divide-y-0"
         >
           {filteredItems.map((item, index) => (
             <li

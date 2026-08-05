@@ -548,13 +548,11 @@ export function useLyricsSceneRuntime({
         const baseCameraFov = camera.aspect < 0.72 ? 55 : 43;
         const cameraFov =
           baseCameraFov +
-          arrivalDepth * 4.5 -
-          storyJourney * 1.6 +
+          arrivalDepth * 4.5 +
           storyProfile.camera.fov * storyDeparture;
         camera.position.y =
           storyJourney * -0.18 + storyProfile.camera.y * storyDeparture;
-        camera.position.z =
-          12 - storyJourney * 0.28 + storyProfile.camera.z * storyDeparture;
+        camera.position.z = 12 + storyProfile.camera.z * storyDeparture;
         if (Math.abs(lastCameraFov - cameraFov) > 0.01) {
           camera.fov = cameraFov;
           camera.updateProjectionMatrix();
@@ -563,9 +561,7 @@ export function useLyricsSceneRuntime({
         storyWorld.position.set(
           0,
           storyJourney * 0.16 + storyProfile.world.y * storyDeparture,
-          arrivalDepth * -3.2 +
-            storyJourney * 0.82 +
-            storyProfile.world.z * storyDeparture,
+          arrivalDepth * -3.2 + storyProfile.world.z * storyDeparture,
         );
         storyWorld.rotation.set(
           storyJourney * -0.035 + storyProfile.world.rotateX * storyDeparture,

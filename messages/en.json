@@ -84,13 +84,13 @@
     "openStory": "Open this story"
   },
   "NotFound": {
-    "eyebrow": "Lost signal / Error 404",
+    "eyebrow": "404 / Lost signal",
     "title": "This page drifted out of frame.",
-    "description": "The address may have moved, or perhaps it was never here. Return home to keep exploring photographs, places, and stories.",
+    "description": "Nothing is here. Return home or keep exploring the atlas.",
     "navigation": "404 page navigation",
     "returnHome": "Return home",
     "exploreAtlas": "Explore the atlas",
-    "footer": "The requested coordinate could not be found"
+    "footer": "Coordinate unavailable"
   },
   "Gallery": {
     "openPost": "Open photo post for {city}",

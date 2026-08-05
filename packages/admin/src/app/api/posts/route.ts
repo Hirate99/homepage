@@ -4,6 +4,8 @@ import {
   type UploadedImageInput,
 } from '@homepage/home-data';
 
+import { getHomeDataRuntime } from '@/lib/cloudflare-runtime';
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }
@@ -52,21 +54,24 @@ export async function POST(request: Request) {
   const images = await readImagesFromFormData(formData);
 
   try {
-    const result = await publishCollection({
-      title: String(formData.get('title') ?? ''),
-      content: parseOptionalString(formData.get('content')),
-      sortOrder: parseOptionalNumber(formData.get('sortOrder')),
-      coverIndex: parseOptionalNumber(formData.get('coverIndex')) ?? 0,
-      images,
-      location: {
-        latitude: parseOptionalNumber(formData.get('latitude')),
-        longitude: parseOptionalNumber(formData.get('longitude')),
-        locationName: parseOptionalString(formData.get('locationName')),
-        country: parseOptionalString(formData.get('country')),
-        region: parseOptionalString(formData.get('region')),
-        description: parseOptionalString(formData.get('description')),
+    const result = await publishCollection(
+      {
+        title: String(formData.get('title') ?? ''),
+        content: parseOptionalString(formData.get('content')),
+        sortOrder: parseOptionalNumber(formData.get('sortOrder')),
+        coverIndex: parseOptionalNumber(formData.get('coverIndex')) ?? 0,
+        images,
+        location: {
+          latitude: parseOptionalNumber(formData.get('latitude')),
+          longitude: parseOptionalNumber(formData.get('longitude')),
+          locationName: parseOptionalString(formData.get('locationName')),
+          country: parseOptionalString(formData.get('country')),
+          region: parseOptionalString(formData.get('region')),
+          description: parseOptionalString(formData.get('description')),
+        },
       },
-    });
+      getHomeDataRuntime(),
+    );
 
     return json({ result });
   } catch (error) {
@@ -81,7 +86,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const collections = await listCollectionsForAdmin();
+    const collections = await listCollectionsForAdmin(getHomeDataRuntime());
     return json({ collections });
   } catch (error) {
     return json(

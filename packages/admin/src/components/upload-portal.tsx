@@ -827,7 +827,7 @@ export function UploadPortal() {
         <section className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-orange-950/10 pb-5">
           <div className="max-w-2xl">
             <p className="font-sans text-sm uppercase tracking-[0.18em] text-[--orange-7]">
-              Local Admin
+              Homepage Admin
             </p>
             <h1 className="font-display mt-1 text-4xl font-medium leading-none text-[--orange-9]">
               Collections

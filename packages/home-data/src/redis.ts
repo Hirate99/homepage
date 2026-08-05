@@ -1,15 +1,14 @@
 import { Redis } from '@upstash/redis';
 
-import { getRedisEnv } from './env';
+import type { HomeDataRuntime } from './runtime';
 
-export function redis() {
-  const env = getRedisEnv();
-  if (!env) {
+export function redis(runtime: HomeDataRuntime) {
+  if (!runtime.redisUrl || !runtime.redisToken) {
     return null;
   }
 
   return new Redis({
-    url: env.url,
-    token: env.token,
+    url: runtime.redisUrl,
+    token: runtime.redisToken,
   });
 }

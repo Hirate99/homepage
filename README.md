@@ -8,7 +8,7 @@ A personal space for the music I love, the photographs I take, and the places I 
 - Three.js lyrics environments and a lazily loaded interactive globe
 - Photography collections backed by Cloudflare D1 and images served through R2/CDN
 - Cover aspect-ratio selection, randomized collection ordering, and optional Upstash Redis caching
-- Local admin app for creating, editing, and deleting collections and images
+- Cloudflare-hosted admin app for creating, editing, and deleting collections and images
 - WebP conversion, EXIF GPS extraction, and Google Places location lookup
 - OpenNext deployment to separate preview and production Cloudflare Workers
 
@@ -79,32 +79,32 @@ Open [http://localhost:3000](http://localhost:3000). Local D1 data is stored und
 
 ### Admin App
 
-Create `.env.local` in the repository root and add the D1 and R2 credentials required by the admin app. Then run:
+Log in to Wrangler so the admin app can use the configured remote D1 and R2 bindings, then run:
 
 ```bash
 bun run admin:dev
 ```
 
-Open [http://127.0.0.1:3001](http://127.0.0.1:3001). The admin app currently has no authentication and only listens on the loopback interface. Do not expose it directly to the public internet.
+Open [http://127.0.0.1:3001](http://127.0.0.1:3001). The production admin is deployed at [admin.mskyurina.top](https://admin.mskyurina.top) and protected by Cloudflare Access. Local development still relies on loopback binding instead of application-level authentication.
 
 ## Environment Variables
 
 Keep sensitive values in an uncommitted `.env.local`, `.env`, or Cloudflare secrets. `.dev.vars.example` contains only the non-sensitive example value used by local development.
 
-| Variable                       | Purpose                                   | Requirement                                              |
-| ------------------------------ | ----------------------------------------- | -------------------------------------------------------- |
-| `CLOUDFLARE_ACCOUNT_ID`        | Cloudflare account ID                     | Required by the admin app and remote maintenance scripts |
-| `CLOUDFLARE_DATABASE_ID`       | D1 database ID                            | Required by the admin app and remote maintenance scripts |
-| `CLOUDFLARE_D1_TOKEN`          | D1 API token                              | Required by the admin app and remote maintenance scripts |
-| `R2_ACCESS_KEY_ID`             | R2 S3 access key                          | Required for admin uploads and deletions                 |
-| `R2_SECRET_ACCESS_KEY`         | R2 S3 secret key                          | Required for admin uploads and deletions                 |
-| `R2_BUCKET` / `R2_BUCKET_NAME` | R2 bucket name                            | Optional; the code provides a default                    |
-| `R2_ENDPOINT`                  | R2 S3 endpoint                            | Optional; the code provides a default                    |
-| `R2_PUBLIC_BASE_URL`           | Public image base URL                     | Optional; the code provides a default                    |
-| `GOOGLE_MAP_API_KEY`           | Places, Place Details, and Geocoding APIs | Optional; EXIF coordinates still work without it         |
-| `UPSTASH_REDIS_REST_URL`       | Upstash REST URL                          | Optional collection cache                                |
-| `UPSTASH_REDIS_REST_TOKEN`     | Upstash REST token                        | Optional collection cache                                |
-| `DATABASE_URL`                 | Legacy Neon PostgreSQL connection string  | Used only by `scripts/migrate.mjs`                       |
+| Variable                       | Purpose                                   | Requirement                                      |
+| ------------------------------ | ----------------------------------------- | ------------------------------------------------ |
+| `CLOUDFLARE_ACCOUNT_ID`        | Cloudflare account ID                     | Required by remote maintenance scripts           |
+| `CLOUDFLARE_DATABASE_ID`       | D1 database ID                            | Required by remote maintenance scripts           |
+| `CLOUDFLARE_D1_TOKEN`          | D1 API token                              | Required by remote maintenance scripts           |
+| `R2_ACCESS_KEY_ID`             | R2 S3 access key                          | Required by legacy or remote maintenance scripts |
+| `R2_SECRET_ACCESS_KEY`         | R2 S3 secret key                          | Required by legacy or remote maintenance scripts |
+| `R2_BUCKET` / `R2_BUCKET_NAME` | R2 bucket name                            | Optional; the code provides a default            |
+| `R2_ENDPOINT`                  | R2 S3 endpoint                            | Optional; the code provides a default            |
+| `R2_PUBLIC_BASE_URL`           | Public image base URL                     | Optional; the code provides a default            |
+| `GOOGLE_MAP_API_KEY`           | Places, Place Details, and Geocoding APIs | Optional; EXIF coordinates still work without it |
+| `UPSTASH_REDIS_REST_URL`       | Upstash REST URL                          | Optional collection cache                        |
+| `UPSTASH_REDIS_REST_TOKEN`     | Upstash REST token                        | Optional collection cache                        |
+| `DATABASE_URL`                 | Legacy Neon PostgreSQL connection string  | Used only by `scripts/migrate.mjs`               |
 
 ## Scripts
 
@@ -112,6 +112,8 @@ Keep sensitive values in an uncommitted `.env.local`, `.env`, or Cloudflare secr
 | ---------------------------------------------------- | ------------------------------------------------------- |
 | `bun run dev`                                        | Start the public development server                     |
 | `bun run admin:dev`                                  | Start the local admin app                               |
+| `bun run admin:build`                                | Create the OpenNext Cloudflare admin build              |
+| `bun run admin:deploy`                               | Deploy the `homepage-admin` Worker                      |
 | `bun run build`                                      | Generate Prisma Client and build the Next.js app        |
 | `bun run lint`                                       | Run ESLint                                              |
 | `bun run cf:build`                                   | Create the OpenNext Cloudflare build                    |
@@ -144,6 +146,14 @@ Deploy to production:
 ```bash
 bun run deploy:production
 ```
+
+Deploy the admin Worker and its `admin.mskyurina.top` custom domain:
+
+```bash
+bun run admin:deploy
+```
+
+The admin Worker uses native D1, R2, and Cloudflare Images bindings. Image inputs are limited to 20 MB before conversion to WebP. Access policy and identity-provider configuration remain in the Cloudflare Zero Trust dashboard rather than this repository.
 
 The `preview` and `production` environments use different Worker names, but `wrangler.toml` currently binds both environments to the same D1 database. Separate the preview database before running tests that should not modify production data.
 

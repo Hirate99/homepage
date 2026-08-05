@@ -3,6 +3,8 @@ import {
   type UploadedImageInput,
 } from '@homepage/home-data';
 
+import { getHomeDataRuntime } from '@/lib/cloudflare-runtime';
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }
@@ -43,7 +45,11 @@ export async function POST(
     const formData = await request.formData();
     const images = await readImagesFromFormData(formData);
 
-    const collection = await appendImagesToCollection(collectionId, images);
+    const collection = await appendImagesToCollection(
+      collectionId,
+      images,
+      getHomeDataRuntime(),
+    );
     return json({ collection });
   } catch (error) {
     return json(

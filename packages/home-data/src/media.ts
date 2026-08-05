@@ -1,8 +1,7 @@
-import path from 'node:path';
-
-import sharp from 'sharp';
-
+import type { HomeDataRuntime } from './runtime';
 import type { UploadedImageInput } from './types';
+
+const CLOUDFLARE_IMAGE_INPUT_LIMIT = 20 * 1024 * 1024;
 
 export interface ProcessedImage {
   keyBase: string;
@@ -11,30 +10,39 @@ export interface ProcessedImage {
   height: number | null;
 }
 
-function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
-
 export async function convertImageToWebp(
   image: UploadedImageInput,
+  runtime: HomeDataRuntime,
 ): Promise<ProcessedImage> {
-  const baseName = path.parse(image.name).name || 'image';
-  const { data, info } = await sharp(image.buffer)
-    .rotate()
-    .webp({
-      quality: 88,
-      effort: 5,
-    })
-    .toBuffer({ resolveWithObject: true });
+  if (image.buffer.byteLength > CLOUDFLARE_IMAGE_INPUT_LIMIT) {
+    throw new Error(
+      'Images must be 20 MB or smaller for Cloudflare processing.',
+    );
+  }
+
+  const metadataStream = new Response(image.buffer)
+    .body! as unknown as Parameters<
+    HomeDataRuntime['imageProcessor']['info']
+  >[0];
+  const inputStream = new Response(image.buffer).body! as unknown as Parameters<
+    HomeDataRuntime['imageProcessor']['input']
+  >[0];
+  const metadata = await runtime.imageProcessor.info(metadataStream);
+  const transformed = await runtime.imageProcessor.input(inputStream).output({
+    format: 'image/webp',
+    quality: 88,
+    anim: false,
+  });
+  const output = Buffer.from(
+    await new Response(
+      transformed.image() as unknown as BodyInit,
+    ).arrayBuffer(),
+  );
 
   return {
-    keyBase: slugify(baseName) || 'image',
-    output: data,
-    width: typeof info.width === 'number' ? info.width : null,
-    height: typeof info.height === 'number' ? info.height : null,
+    keyBase: image.name,
+    output,
+    width: 'width' in metadata ? metadata.width : null,
+    height: 'height' in metadata ? metadata.height : null,
   };
 }

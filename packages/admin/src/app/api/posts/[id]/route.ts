@@ -1,5 +1,7 @@
 import { deleteCollection, updateCollection } from '@homepage/home-data';
 
+import { getHomeDataRuntime } from '@/lib/cloudflare-runtime';
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }
@@ -46,22 +48,25 @@ export async function PATCH(
     const collectionId = parseCollectionId(id);
     const body = (await request.json()) as Record<string, unknown>;
 
-    const collection = await updateCollection({
-      collectionId,
-      title: String(body.title ?? ''),
-      content: parseOptionalString(body.content),
-      sortOrder: parseOptionalNumber(body.sortOrder),
-      coverImageId: parseOptionalNumber(body.coverImageId),
-      imageOrder: parseImageOrder(body.imageOrder),
-      location: {
-        latitude: parseOptionalNumber(body.latitude),
-        longitude: parseOptionalNumber(body.longitude),
-        locationName: parseOptionalString(body.locationName),
-        country: parseOptionalString(body.country),
-        region: parseOptionalString(body.region),
-        description: parseOptionalString(body.description),
+    const collection = await updateCollection(
+      {
+        collectionId,
+        title: String(body.title ?? ''),
+        content: parseOptionalString(body.content),
+        sortOrder: parseOptionalNumber(body.sortOrder),
+        coverImageId: parseOptionalNumber(body.coverImageId),
+        imageOrder: parseImageOrder(body.imageOrder),
+        location: {
+          latitude: parseOptionalNumber(body.latitude),
+          longitude: parseOptionalNumber(body.longitude),
+          locationName: parseOptionalString(body.locationName),
+          country: parseOptionalString(body.country),
+          region: parseOptionalString(body.region),
+          description: parseOptionalString(body.description),
+        },
       },
-    });
+      getHomeDataRuntime(),
+    );
 
     return json({ collection });
   } catch (error) {
@@ -81,7 +86,7 @@ export async function DELETE(
   try {
     const { id } = await context.params;
     const collectionId = parseCollectionId(id);
-    await deleteCollection(collectionId);
+    await deleteCollection(collectionId, getHomeDataRuntime());
     return json({ ok: true });
   } catch (error) {
     return json(

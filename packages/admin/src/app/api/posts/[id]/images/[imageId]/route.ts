@@ -1,5 +1,7 @@
 import { deleteImageFromCollection } from '@homepage/home-data';
 
+import { getHomeDataRuntime } from '@/lib/cloudflare-runtime';
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }
@@ -25,6 +27,7 @@ export async function DELETE(
     const collection = await deleteImageFromCollection(
       collectionId,
       targetImageId,
+      getHomeDataRuntime(),
     );
 
     return json({ collection });

@@ -1,0 +1,50 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "homepage-admin",
+  "account_id": "86b08c843d8f0d3d7a372bb34d945a5c",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "preview_urls": false,
+  "workers_dev": false,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "routes": [
+    {
+      "pattern": "admin.mskyurina.top",
+      "custom_domain": true,
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "homepage",
+      "database_name": "homepage-db",
+      "database_id": "22351b35-c780-4984-a829-bdfc31ca846b",
+      "remote": true,
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGES_BUCKET",
+      "bucket_name": "msk-bucket-1",
+      "remote": true,
+    },
+  ],
+  "images": {
+    "binding": "IMAGES",
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true,
+    },
+  },
+  "cache": {
+    "enabled": true,
+  },
+}

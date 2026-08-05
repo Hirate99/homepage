@@ -1,4 +1,4 @@
-import { getGoogleMapsApiKey } from './env';
+import type { HomeDataRuntime } from './runtime';
 import type { LocationDraft } from './types';
 
 interface GoogleAddressComponent {
@@ -141,8 +141,9 @@ function mapPlaceDetailsToLocationDraft(
 export async function reverseGeocodeLocation(
   latitude: number,
   longitude: number,
+  runtime: HomeDataRuntime,
 ): Promise<LocationDraft | null> {
-  const apiKey = getGoogleMapsApiKey();
+  const apiKey = runtime.googleMapsApiKey;
   if (!apiKey) {
     return {
       latitude,
@@ -188,8 +189,9 @@ export async function reverseGeocodeLocation(
 
 export async function geocodeLocationQuery(
   queryText: string,
+  runtime: HomeDataRuntime,
 ): Promise<LocationDraft | null> {
-  const apiKey = getGoogleMapsApiKey();
+  const apiKey = runtime.googleMapsApiKey;
   const normalizedQuery = queryText.trim();
 
   if (!normalizedQuery) {
@@ -231,8 +233,9 @@ export async function geocodeLocationQuery(
 
 export async function autocompletePlaces(
   queryText: string,
+  runtime: HomeDataRuntime,
 ): Promise<PlaceAutocompleteSuggestion[]> {
-  const apiKey = getGoogleMapsApiKey();
+  const apiKey = runtime.googleMapsApiKey;
   const normalizedQuery = queryText.trim();
 
   if (!normalizedQuery || !apiKey) {
@@ -301,8 +304,9 @@ export async function autocompletePlaces(
 
 export async function resolvePlaceDetails(
   placeId: string,
+  runtime: HomeDataRuntime,
 ): Promise<LocationDraft | null> {
-  const apiKey = getGoogleMapsApiKey();
+  const apiKey = runtime.googleMapsApiKey;
   const normalizedPlaceId = placeId.trim();
 
   if (!normalizedPlaceId) {

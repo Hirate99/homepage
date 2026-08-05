@@ -133,7 +133,7 @@ const initialTasks: EditorTasks = {
 };
 
 const initialUi: EditorUiState = {
-  status: '选择图片开始。',
+  status: 'Choose images or select a collection to begin.',
   currentPage: 1,
   isDeletePostDialogOpen: false,
   imagePendingDelete: null,

@@ -18,7 +18,7 @@ const notoSans = Noto_Sans_SC({
 
 export const metadata: Metadata = {
   title: 'Homepage Admin',
-  description: 'Local publishing portal for homepage collections.',
+  description: 'Private publishing workspace for homepage collections.',
 };
 
 export default function RootLayout({

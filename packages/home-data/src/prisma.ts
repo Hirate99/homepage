@@ -1,15 +1,11 @@
-import { PrismaClient } from '@prisma/client';
 import { PrismaD1 } from '@prisma/adapter-d1';
 
-import { getDatabaseEnv } from './env';
+import { PrismaClient } from './generated/prisma/client';
 
-export function prisma() {
-  const env = getDatabaseEnv();
-  const adapter = new PrismaD1({
-    CLOUDFLARE_ACCOUNT_ID: env.accountId,
-    CLOUDFLARE_DATABASE_ID: env.databaseId,
-    CLOUDFLARE_D1_TOKEN: env.token,
-  });
+import type { HomeDataRuntime } from './runtime';
+
+export function prisma(runtime: HomeDataRuntime) {
+  const adapter = new PrismaD1(runtime.database);
 
   return new PrismaClient({ adapter });
 }

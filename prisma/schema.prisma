@@ -5,8 +5,14 @@ datasource db {
 }
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
+}
+
+generator workerClient {
+  provider   = "prisma-client"
+  output     = "../packages/home-data/src/generated/prisma"
+  engineType = "client"
+  runtime    = "cloudflare"
 }
 
 model Collection {

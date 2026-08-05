@@ -1,8 +1,8 @@
 import { convertImageToWebp } from './media';
-import { getR2Env } from './env';
 import { createCollectionImageObjectKey } from './object-key';
 import { deleteObjectFromR2 } from './r2';
 import { uploadWebpToR2 } from './r2';
+import type { HomeDataRuntime } from './runtime';
 import type {
   AdminCollectionRecord,
   LocationDraft,
@@ -23,8 +23,8 @@ function normalizeNumber(value: number | null | undefined) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-async function invalidateCollectionsCache() {
-  const client = redis();
+async function invalidateCollectionsCache(runtime: HomeDataRuntime) {
+  const client = redis(runtime);
   if (!client) {
     return;
   }
@@ -113,8 +113,11 @@ const adminCollectionSelect = {
   },
 };
 
-async function getAdminCollectionById(collectionId: number) {
-  const client = prisma();
+async function getAdminCollectionById(
+  collectionId: number,
+  runtime: HomeDataRuntime,
+) {
+  const client = prisma(runtime);
 
   try {
     const collection = await client.collection.findUnique({
@@ -128,10 +131,10 @@ async function getAdminCollectionById(collectionId: number) {
   }
 }
 
-export async function listCollectionsForAdmin(): Promise<
-  AdminCollectionRecord[]
-> {
-  const client = prisma();
+export async function listCollectionsForAdmin(
+  runtime: HomeDataRuntime,
+): Promise<AdminCollectionRecord[]> {
+  const client = prisma(runtime);
 
   try {
     const collections = await client.collection.findMany({
@@ -147,13 +150,14 @@ export async function listCollectionsForAdmin(): Promise<
 
 export async function updateCollection(
   input: UpdateCollectionInput,
+  runtime: HomeDataRuntime,
 ): Promise<AdminCollectionRecord> {
   const title = input.title.trim();
   if (!title) {
     throw new Error('Title is required.');
   }
 
-  const client = prisma();
+  const client = prisma(runtime);
 
   try {
     if (input.imageOrder) {
@@ -192,15 +196,15 @@ export async function updateCollection(
       select: adminCollectionSelect,
     });
 
-    await invalidateCollectionsCache();
+    await invalidateCollectionsCache(runtime);
     return serializeCollection(updated);
   } finally {
     await client.$disconnect();
   }
 }
 
-function extractR2Key(url: string) {
-  const publicBaseUrl = getR2Env().publicBaseUrl.replace(/\/$/, '');
+function extractR2Key(url: string, runtime: HomeDataRuntime) {
+  const publicBaseUrl = runtime.imagePublicBaseUrl.replace(/\/$/, '');
   if (!url.startsWith(publicBaseUrl)) {
     return null;
   }
@@ -211,12 +215,13 @@ function extractR2Key(url: string) {
 export async function appendImagesToCollection(
   collectionId: number,
   images: UploadedImageInput[],
+  runtime: HomeDataRuntime,
 ) {
   if (!images.length) {
     throw new Error('At least one image is required.');
   }
 
-  const client = prisma();
+  const client = prisma(runtime);
 
   try {
     const collection = await client.collection.findUnique({
@@ -245,9 +250,9 @@ export async function appendImagesToCollection(
       ) + 1;
 
     for (const image of images) {
-      const converted = await convertImageToWebp(image);
+      const converted = await convertImageToWebp(image, runtime);
       const key = createCollectionImageObjectKey(folderInput);
-      const url = await uploadWebpToR2(key, converted.output);
+      const url = await uploadWebpToR2(key, converted.output, runtime);
       uploaded.push({
         src: url,
         width: converted.width,
@@ -276,12 +281,12 @@ export async function appendImagesToCollection(
       });
     }
 
-    await invalidateCollectionsCache();
+    await invalidateCollectionsCache(runtime);
   } finally {
     await client.$disconnect();
   }
 
-  const updated = await getAdminCollectionById(collectionId);
+  const updated = await getAdminCollectionById(collectionId, runtime);
   if (!updated) {
     throw new Error('Collection not found after upload.');
   }
@@ -292,8 +297,9 @@ export async function appendImagesToCollection(
 export async function deleteImageFromCollection(
   collectionId: number,
   imageId: number,
+  runtime: HomeDataRuntime,
 ) {
-  const client = prisma();
+  const client = prisma(runtime);
   let imageSrc: string | null = null;
 
   try {
@@ -344,19 +350,19 @@ export async function deleteImageFromCollection(
       });
     }
 
-    await invalidateCollectionsCache();
+    await invalidateCollectionsCache(runtime);
   } finally {
     await client.$disconnect();
   }
 
   if (imageSrc) {
-    const key = extractR2Key(imageSrc);
+    const key = extractR2Key(imageSrc, runtime);
     if (key) {
-      await deleteObjectFromR2(key);
+      await deleteObjectFromR2(key, runtime);
     }
   }
 
-  const updated = await getAdminCollectionById(collectionId);
+  const updated = await getAdminCollectionById(collectionId, runtime);
   if (!updated) {
     throw new Error('Collection not found after delete.');
   }
@@ -364,8 +370,11 @@ export async function deleteImageFromCollection(
   return updated;
 }
 
-export async function deleteCollection(collectionId: number) {
-  const client = prisma();
+export async function deleteCollection(
+  collectionId: number,
+  runtime: HomeDataRuntime,
+) {
+  const client = prisma(runtime);
 
   try {
     const collection = await client.collection.findUnique({
@@ -393,16 +402,16 @@ export async function deleteCollection(collectionId: number) {
       where: { id: collectionId },
     });
 
-    await invalidateCollectionsCache();
+    await invalidateCollectionsCache(runtime);
 
     await Promise.allSettled(
       collection.images.map(async (image) => {
-        const key = extractR2Key(image.src);
+        const key = extractR2Key(image.src, runtime);
         if (!key) {
           return;
         }
 
-        await deleteObjectFromR2(key);
+        await deleteObjectFromR2(key, runtime);
       }),
     );
   } finally {

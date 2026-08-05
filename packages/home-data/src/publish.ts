@@ -11,6 +11,7 @@ import { createCollectionImageObjectKey } from './object-key';
 import { prisma } from './prisma';
 import { redis } from './redis';
 import { uploadWebpToR2 } from './r2';
+import type { HomeDataRuntime } from './runtime';
 
 const HOME_COLLECTIONS_CACHE_KEY = 'home:city-collections:v4';
 
@@ -23,8 +24,8 @@ function normalizeNumber(value: number | null | undefined) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-async function invalidateCollectionsCache() {
-  const client = redis();
+async function invalidateCollectionsCache(runtime: HomeDataRuntime) {
+  const client = redis(runtime);
   if (!client) {
     return;
   }
@@ -36,14 +37,17 @@ async function invalidateCollectionsCache() {
   }
 }
 
-async function detectLocation(images: PublishCollectionInput['images']) {
+async function detectLocation(
+  images: PublishCollectionInput['images'],
+  runtime: HomeDataRuntime,
+) {
   for (const image of images) {
     const gps = await extractGpsFromImage(image);
     if (!gps) {
       continue;
     }
 
-    return reverseGeocodeLocation(gps.latitude, gps.longitude);
+    return reverseGeocodeLocation(gps.latitude, gps.longitude, runtime);
   }
 
   return null;
@@ -101,12 +105,14 @@ function mergeLocation(
 
 export async function getLocationHint(
   images: PublishCollectionInput['images'],
+  runtime: HomeDataRuntime,
 ): Promise<LocationDraft | null> {
-  return detectLocation(images);
+  return detectLocation(images, runtime);
 }
 
 export async function publishCollection(
   input: PublishCollectionInput,
+  runtime: HomeDataRuntime,
 ): Promise<PublishCollectionResult> {
   const title = input.title.trim();
   if (!title) {
@@ -117,14 +123,14 @@ export async function publishCollection(
     throw new Error('At least one image is required.');
   }
 
-  const detectedLocation = await detectLocation(input.images);
+  const detectedLocation = await detectLocation(input.images, runtime);
   const effectiveLocation = mergeLocation(input.location, detectedLocation);
   const folderInput = effectiveLocation?.locationName ?? title;
   const processedImages = await Promise.all(
     input.images.map(async (image) => {
-      const converted = await convertImageToWebp(image);
+      const converted = await convertImageToWebp(image, runtime);
       const key = createCollectionImageObjectKey(folderInput);
-      const url = await uploadWebpToR2(key, converted.output);
+      const url = await uploadWebpToR2(key, converted.output, runtime);
 
       return {
         src: url,
@@ -141,7 +147,7 @@ export async function publishCollection(
       ? input.coverIndex
       : 0;
 
-  const client = prisma();
+  const client = prisma(runtime);
 
   try {
     const collection = await client.collection.create({
@@ -183,7 +189,7 @@ export async function publishCollection(
       });
     }
 
-    await invalidateCollectionsCache();
+    await invalidateCollectionsCache(runtime);
 
     return {
       collectionId: collection.id,

@@ -1,5 +1,7 @@
 import { getLocationHint, type UploadedImageInput } from '@homepage/home-data';
 
+import { getHomeDataRuntime } from '@/lib/cloudflare-runtime';
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const hint = await getLocationHint(images);
+    const hint = await getLocationHint(images, getHomeDataRuntime());
     return json({ hint });
   } catch (error) {
     return json(

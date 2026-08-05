@@ -14,10 +14,14 @@
 /.next/
 /admin/.next/
 /packages/admin/.next/
+/packages/admin/.open-next/
+/packages/admin/.wrangler/
+/packages/home-data/src/generated/prisma/
 /out/
 /.open-next/
 /.cf-worker-deploy/
 /.preview/
+/.tmp/
 
 # production
 /build

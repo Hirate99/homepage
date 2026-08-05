@@ -84,13 +84,13 @@
     "openStory": "打开这组作品"
   },
   "NotFound": {
-    "eyebrow": "信号丢失 / 错误 404",
-    "title": "这一页，暂时漂出了画面。",
-    "description": "它也许被移动了，也许从未存在。回到首页，继续浏览照片、地点与故事。",
+    "eyebrow": "404 / 信号丢失",
+    "title": "这一页，<break></break>暂时漂出了画面。",
+    "description": "这里没有页面。返回首页，或继续探索图集。",
     "navigation": "404 页面导航",
     "returnHome": "返回首页",
     "exploreAtlas": "探索图集",
-    "footer": "找不到请求的坐标"
+    "footer": "坐标未收录"
   },
   "Gallery": {
     "openPost": "打开{city}摄影作品",

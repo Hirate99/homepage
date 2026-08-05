@@ -41,7 +41,6 @@ import {
   STORY_PARALLAX_PRESETS,
   STORY_PARALLAX_STOPS,
 } from './motion-tokens';
-import { SceneStoryBridge } from './story-bridge';
 
 type DepthPreset = keyof typeof DEPTH_ENTRY_PRESETS;
 type SectionDepthVariant = 'hero' | 'atlas';
@@ -133,9 +132,6 @@ export function HomeMotionRoot({
         data-scene-ready={sceneReady ? 'true' : 'false'}
         data-story-theme={theme}
       >
-        {!reduceMotion && (
-          <SceneStoryBridge progress={heroProgress} theme={theme} />
-        )}
         <div className="relative z-10 [transform-style:preserve-3d]">
           {children}
         </div>

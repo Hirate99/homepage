@@ -1,8 +1,4 @@
-import {
-  listCollectionsForAdmin,
-  publishCollection,
-  type UploadedImageInput,
-} from '@homepage/home-data';
+import type { UploadedImageInput } from '@homepage/home-data';
 
 import { getHomeDataRuntime } from '@/lib/cloudflare-runtime';
 
@@ -50,10 +46,10 @@ function parseOptionalString(value: FormDataEntryValue | null) {
 }
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
-  const images = await readImagesFromFormData(formData);
-
   try {
+    const { publishCollection } = await import('@homepage/home-data');
+    const formData = await request.formData();
+    const images = await readImagesFromFormData(formData);
     const result = await publishCollection(
       {
         title: String(formData.get('title') ?? ''),
@@ -75,6 +71,7 @@ export async function POST(request: Request) {
 
     return json({ result });
   } catch (error) {
+    console.error('Failed to publish collection.', error);
     return json(
       {
         error: error instanceof Error ? error.message : 'Publishing failed.',
@@ -86,9 +83,11 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
+    const { listCollectionsForAdmin } = await import('@homepage/home-data');
     const collections = await listCollectionsForAdmin(getHomeDataRuntime());
     return json({ collections });
   } catch (error) {
+    console.error('Failed to load collections.', error);
     return json(
       {
         error: error instanceof Error ? error.message : 'Failed to load posts.',

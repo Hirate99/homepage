@@ -134,6 +134,29 @@ function formatUpdatedAt(value: string) {
   }
 }
 
+async function readApiResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (contentType.toLowerCase().includes('application/json')) {
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new Error(
+        'The admin service returned an invalid response. Refresh and try again.',
+      );
+    }
+  }
+
+  // Consume the response so the connection can be reused, but do not surface
+  // proxy pages or server internals in the editor.
+  await response.text();
+  throw new Error(
+    response.ok
+      ? 'The admin service returned an invalid response. Refresh and try again.'
+      : `The admin service is unavailable (${response.status}). Refresh and try again.`,
+  );
+}
+
 export function UploadPortal() {
   const mode = useCollectionEditorStore((state) => state.mode);
   const collections = useCollectionEditorStore((state) => state.collections);
@@ -234,10 +257,10 @@ export function UploadPortal() {
 
     try {
       const response = await fetch('/api/posts');
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         collections?: CollectionRecord[];
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok || !data.collections) {
         throw new Error(data.error ?? 'Failed to load posts.');
@@ -387,10 +410,10 @@ export function UploadPortal() {
         method: 'POST',
         body: payload,
       });
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         hint?: LocationFields | null;
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? 'Location lookup failed.');
@@ -442,10 +465,10 @@ export function UploadPortal() {
         },
         body: JSON.stringify({ query: normalizedQuery }),
       });
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         suggestions?: LocationSuggestion[];
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? 'Location search failed.');
@@ -505,10 +528,10 @@ export function UploadPortal() {
         },
         body: JSON.stringify({ placeId: suggestion.placeId }),
       });
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         hint?: LocationFields | null;
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? 'Place lookup failed.');
@@ -639,10 +662,10 @@ export function UploadPortal() {
         method: 'POST',
         body: payload,
       });
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         result?: { collectionId: number; uploadedCount: number };
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok || !data.result) {
         throw new Error(data.error ?? 'Publish failed.');
@@ -689,10 +712,10 @@ export function UploadPortal() {
           description: location.description,
         }),
       });
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         collection?: CollectionRecord;
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok || !data.collection) {
         throw new Error(data.error ?? 'Update failed.');
@@ -719,10 +742,10 @@ export function UploadPortal() {
       const response = await fetch(`/api/posts/${selectedCollectionId}`, {
         method: 'DELETE',
       });
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         ok?: boolean;
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? 'Delete failed.');
@@ -764,10 +787,10 @@ export function UploadPortal() {
           body: payload,
         },
       );
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         collection?: CollectionRecord;
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok || !data.collection) {
         throw new Error(data.error ?? 'Image upload failed.');
@@ -802,10 +825,10 @@ export function UploadPortal() {
           method: 'DELETE',
         },
       );
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         collection?: CollectionRecord;
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok || !data.collection) {
         throw new Error(data.error ?? 'Image delete failed.');

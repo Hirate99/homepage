@@ -5,6 +5,9 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "secrets": {
+    "required": ["GOOGLE_MAP_API_KEY"],
+  },
   "preview_urls": false,
   "workers_dev": false,
   "assets": {

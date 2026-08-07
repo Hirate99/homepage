@@ -21,6 +21,7 @@ interface GoogleGeocodeResult {
 interface GoogleGeocodeResponse {
   results?: GoogleGeocodeResult[];
   status?: string;
+  error_message?: string;
 }
 
 interface LegacyPlaceAutocompletePrediction {
@@ -61,6 +62,23 @@ export interface PlaceAutocompleteSuggestion {
   text: string;
   primaryText: string;
   secondaryText: string;
+}
+
+export class LocationServiceConfigurationError extends Error {
+  constructor() {
+    super('Google Maps is not configured.');
+    this.name = 'LocationServiceConfigurationError';
+  }
+}
+
+function requireGoogleMapsApiKey(runtime: HomeDataRuntime) {
+  const apiKey = runtime.googleMapsApiKey?.trim();
+
+  if (!apiKey) {
+    throw new LocationServiceConfigurationError();
+  }
+
+  return apiKey;
 }
 
 function pickAddressComponent(
@@ -143,7 +161,7 @@ export async function reverseGeocodeLocation(
   longitude: number,
   runtime: HomeDataRuntime,
 ): Promise<LocationDraft | null> {
-  const apiKey = runtime.googleMapsApiKey;
+  const apiKey = runtime.googleMapsApiKey?.trim();
   if (!apiKey) {
     return {
       latitude,
@@ -191,16 +209,13 @@ export async function geocodeLocationQuery(
   queryText: string,
   runtime: HomeDataRuntime,
 ): Promise<LocationDraft | null> {
-  const apiKey = runtime.googleMapsApiKey;
   const normalizedQuery = queryText.trim();
 
   if (!normalizedQuery) {
     throw new Error('Location query is required.');
   }
 
-  if (!apiKey) {
-    return null;
-  }
+  const apiKey = requireGoogleMapsApiKey(runtime);
 
   const query = new URLSearchParams({
     address: normalizedQuery,
@@ -222,6 +237,17 @@ export async function geocodeLocationQuery(
   }
 
   const payload = (await response.json()) as GoogleGeocodeResponse;
+
+  if (
+    payload.status &&
+    payload.status !== 'OK' &&
+    payload.status !== 'ZERO_RESULTS'
+  ) {
+    throw new Error(
+      payload.error_message ?? `Google geocoding returned ${payload.status}`,
+    );
+  }
+
   const result = payload.results?.[0];
 
   if (!result) {
@@ -235,12 +261,13 @@ export async function autocompletePlaces(
   queryText: string,
   runtime: HomeDataRuntime,
 ): Promise<PlaceAutocompleteSuggestion[]> {
-  const apiKey = runtime.googleMapsApiKey;
   const normalizedQuery = queryText.trim();
 
-  if (!normalizedQuery || !apiKey) {
+  if (!normalizedQuery) {
     return [];
   }
+
+  const apiKey = requireGoogleMapsApiKey(runtime);
 
   const query = new URLSearchParams({
     input: normalizedQuery,
@@ -306,16 +333,13 @@ export async function resolvePlaceDetails(
   placeId: string,
   runtime: HomeDataRuntime,
 ): Promise<LocationDraft | null> {
-  const apiKey = runtime.googleMapsApiKey;
   const normalizedPlaceId = placeId.trim();
 
   if (!normalizedPlaceId) {
     throw new Error('Place ID is required.');
   }
 
-  if (!apiKey) {
-    return null;
-  }
+  const apiKey = requireGoogleMapsApiKey(runtime);
 
   const query = new URLSearchParams({
     place_id: normalizedPlaceId,

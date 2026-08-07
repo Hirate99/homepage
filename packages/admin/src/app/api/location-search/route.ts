@@ -1,4 +1,8 @@
-import { autocompletePlaces, resolvePlaceDetails } from '@homepage/home-data';
+import {
+  autocompletePlaces,
+  LocationServiceConfigurationError,
+  resolvePlaceDetails,
+} from '@homepage/home-data';
 
 import { getHomeDataRuntime } from '@/lib/cloudflare-runtime';
 
@@ -18,18 +22,28 @@ export async function POST(request: Request) {
       return json({ hint });
     }
 
+    if (!body.query?.trim()) {
+      return json({ error: 'Enter a location to search.' }, { status: 400 });
+    }
+
     const suggestions = await autocompletePlaces(
-      body.query ?? '',
+      body.query,
       getHomeDataRuntime(),
     );
     return json({ suggestions });
   } catch (error) {
+    console.error('Location search failed.', error);
+
+    if (error instanceof LocationServiceConfigurationError) {
+      return json(
+        { error: 'Location search is temporarily unavailable.' },
+        { status: 503 },
+      );
+    }
+
     return json(
-      {
-        error:
-          error instanceof Error ? error.message : 'Location search failed.',
-      },
-      { status: 400 },
+      { error: 'Location search failed. Please try again.' },
+      { status: 502 },
     );
   }
 }

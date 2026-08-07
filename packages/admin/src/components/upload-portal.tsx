@@ -24,7 +24,6 @@ import {
   RefreshCw,
   Search,
   Settings2,
-  Smartphone,
   Sparkles,
   Star,
   Trash2,
@@ -56,6 +55,9 @@ import {
 
 const PAGE_SIZE = 8;
 const PREVIEW_MAX_EDGE = 720;
+const CLOUDFLARE_IMAGE_INPUT_LIMIT = 20 * 1024 * 1024;
+const OPTIMIZED_IMAGE_TARGET = 18 * 1024 * 1024;
+const OPTIMIZED_IMAGE_MAX_EDGE = 8192;
 
 const inputClassName =
   'w-full rounded-xl border border-black/10 bg-[#f7f7f7] px-4 py-3 text-[--studio-ink] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-black/35 focus:border-[--studio-accent] focus:bg-white focus:ring-4 focus:ring-[--studio-accent-soft]';
@@ -63,43 +65,123 @@ const inputClassName =
 const mutedInputClassName =
   'w-full rounded-xl border border-black/10 bg-[#f7f7f7] px-4 py-3 text-[--studio-ink] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-black/35 focus:border-[--studio-accent] focus:bg-white focus:ring-4 focus:ring-[--studio-accent-soft]';
 
-async function createPreviewItem(file: File): Promise<PreviewItem> {
-  const id = `${file.name}-${file.lastModified}-${crypto.randomUUID()}`;
+function canvasToWebp(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/webp', quality);
+  });
+}
 
-  if (typeof createImageBitmap !== 'function') {
-    return { id, file, url: URL.createObjectURL(file) };
-  }
+async function createOptimizedUploadFile(file: File, bitmap: ImageBitmap) {
+  const longestEdge = Math.max(bitmap.width, bitmap.height);
+  let scale = Math.min(1, OPTIMIZED_IMAGE_MAX_EDGE / longestEdge);
+  let latestBlob: Blob | null = null;
 
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(
-      1,
-      PREVIEW_MAX_EDGE / Math.max(bitmap.width, bitmap.height),
-    );
+  for (let attempt = 0; attempt < 7; attempt += 1) {
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const context = canvas.getContext('2d');
 
     if (!context) {
-      bitmap.close();
-      return { id, file, url: URL.createObjectURL(file) };
+      break;
     }
 
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
+    latestBlob = await canvasToWebp(
+      canvas,
+      Math.max(0.72, 0.92 - attempt * 0.04),
+    );
 
-    const thumbnail = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, 'image/webp', 0.82);
-    });
+    if (latestBlob && latestBlob.size <= OPTIMIZED_IMAGE_TARGET) {
+      break;
+    }
+
+    scale *= 0.82;
+  }
+
+  if (!latestBlob || latestBlob.size > CLOUDFLARE_IMAGE_INPUT_LIMIT) {
+    throw new Error(
+      `${file.name} is larger than 20 MB and could not be optimized for upload. Export it as a smaller JPEG or WebP and try again.`,
+    );
+  }
+
+  const outputName = file.name.replace(/\.[^.]+$/, '') || 'image';
+  return new File([latestBlob], `${outputName}.webp`, {
+    type: 'image/webp',
+    lastModified: file.lastModified,
+  });
+}
+
+async function createPreviewItem(file: File): Promise<PreviewItem> {
+  const id = `${file.name}-${file.lastModified}-${crypto.randomUUID()}`;
+
+  if (typeof createImageBitmap !== 'function') {
+    if (file.size > CLOUDFLARE_IMAGE_INPUT_LIMIT) {
+      throw new Error(
+        `${file.name} is larger than 20 MB and this browser cannot optimize it. Export it as a smaller JPEG or WebP and try again.`,
+      );
+    }
 
     return {
       id,
       file,
-      url: URL.createObjectURL(thumbnail ?? file),
+      uploadFile: file,
+      wasOptimized: false,
+      url: URL.createObjectURL(file),
     };
-  } catch {
-    return { id, file, url: URL.createObjectURL(file) };
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    try {
+      const uploadFile =
+        file.size > CLOUDFLARE_IMAGE_INPUT_LIMIT
+          ? await createOptimizedUploadFile(file, bitmap)
+          : file;
+      const scale = Math.min(
+        1,
+        PREVIEW_MAX_EDGE / Math.max(bitmap.width, bitmap.height),
+      );
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        return {
+          id,
+          file,
+          uploadFile,
+          wasOptimized: uploadFile !== file,
+          url: URL.createObjectURL(file),
+        };
+      }
+
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const thumbnail = await canvasToWebp(canvas, 0.82);
+
+      return {
+        id,
+        file,
+        uploadFile,
+        wasOptimized: uploadFile !== file,
+        url: URL.createObjectURL(thumbnail ?? file),
+      };
+    } finally {
+      bitmap.close();
+    }
+  } catch (error) {
+    if (file.size > CLOUDFLARE_IMAGE_INPUT_LIMIT) {
+      throw error;
+    }
+
+    return {
+      id,
+      file,
+      uploadFile: file,
+      wasOptimized: false,
+      url: URL.createObjectURL(file),
+    };
   }
 }
 
@@ -578,30 +660,43 @@ export function UploadPortal() {
     }
 
     setTask('prepareImages', 'pending');
-    setStatus(`Preparing ${files.length} preview(s)...`);
+    setStatus(`Preparing ${files.length} preview(s)…`);
     const nextItems: PreviewItem[] = [];
-    for (const file of files) {
-      nextItems.push(await createPreviewItem(file));
-    }
-    setTask('prepareImages', 'idle');
-    setPreviews((current) => [...current, ...nextItems]);
+    try {
+      for (const file of files) {
+        nextItems.push(await createPreviewItem(file));
+      }
+      setPreviews((current) => [...current, ...nextItems]);
 
-    if (mode !== 'edit' && !coverPreviewId) {
-      setCoverPreviewId(nextItems[0]?.id ?? null);
-    }
+      if (mode !== 'edit' && !coverPreviewId) {
+        setCoverPreviewId(nextItems[0]?.id ?? null);
+      }
 
-    if (mode === 'edit') {
+      const optimizedCount = nextItems.filter(
+        (item) => item.wasOptimized,
+      ).length;
+      const optimizationMessage = optimizedCount
+        ? ` ${optimizedCount} large image(s) optimized for upload.`
+        : '';
+
+      if (mode === 'edit') {
+        setStatus(
+          `${files.length} image(s) ready to append.${optimizationMessage}`,
+        );
+        return;
+      }
+
       setStatus(
-        files.length > 0
-          ? `${files.length} image(s) ready to append.`
-          : 'No new images selected.',
+        `${files.length} image(s) added.${optimizationMessage} Drag or use the arrow buttons to reorder.`,
       );
-      return;
+    } catch (error) {
+      nextItems.forEach((item) => URL.revokeObjectURL(item.url));
+      setStatus(
+        error instanceof Error ? error.message : 'Image preparation failed.',
+      );
+    } finally {
+      setTask('prepareImages', 'idle');
     }
-
-    setStatus(
-      `${files.length} image(s) added. Drag or use the arrow buttons to reorder.`,
-    );
   }
 
   function removePreview(previewId: string) {
@@ -628,7 +723,7 @@ export function UploadPortal() {
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const files = previews.map((item) => item.file);
+    const files = previews.map((item) => item.uploadFile);
     if (!files.length) {
       setStatus('Upload at least one image.');
       return;
@@ -770,7 +865,7 @@ export function UploadPortal() {
       return;
     }
 
-    const files = previews.map((item) => item.file);
+    const files = previews.map((item) => item.uploadFile);
     if (!files.length) {
       setStatus('Choose images to append first.');
       return;
@@ -979,14 +1074,6 @@ export function UploadPortal() {
     mode === 'create'
       ? previews.length
       : editingImages.length + previews.length;
-  const coverImageSrc =
-    mode === 'create'
-      ? (previews.find((item) => item.id === coverPreviewId) ?? previews[0])
-          ?.url
-      : (
-          editingImages.find((image) => image.id === editingCoverImageId) ??
-          editingImages[0]
-        )?.src;
   const locationLabel = [
     location.locationName,
     location.region,
@@ -994,11 +1081,6 @@ export function UploadPortal() {
   ]
     .filter(Boolean)
     .join(' / ');
-  const canSubmit =
-    !isBusy &&
-    Boolean(title.trim()) &&
-    (mode === 'edit' || previews.length > 0);
-
   useEffect(() => {
     if (!hasUnsavedChanges) {
       return;
@@ -1013,10 +1095,7 @@ export function UploadPortal() {
   }, [hasUnsavedChanges]);
 
   return (
-    <main
-      id="main-content"
-      className="min-h-screen bg-[--studio-canvas] pb-28 xl:pb-10"
-    >
+    <main id="main-content" className="min-h-screen bg-[--studio-canvas] pb-10">
       <a
         href="#collection-editor"
         className="sr-only z-50 rounded-full bg-[--studio-accent] px-4 py-2 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
@@ -1027,7 +1106,7 @@ export function UploadPortal() {
       <header className="sticky top-0 z-40 border-b border-black/5 bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1720px] items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[--studio-accent] text-sm font-black text-white shadow-[0_8px_24px_rgba(255,48,77,0.24)]">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[--studio-accent] text-sm font-black text-white shadow-[0_8px_24px_rgba(223,100,56,0.24)]">
               M
             </span>
             <div className="min-w-0">
@@ -1035,7 +1114,7 @@ export function UploadPortal() {
                 MSKY Studio
               </p>
               <p className="hidden text-xs text-[--studio-muted] sm:block">
-                Collection publishing
+                Manage photo collections
               </p>
             </div>
           </div>
@@ -1061,13 +1140,13 @@ export function UploadPortal() {
               className="hidden sm:inline-flex"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              New post
+              New collection
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1720px] items-start gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="mx-auto grid max-w-[1440px] items-start gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="rounded-2xl border border-black/5 bg-white p-3 shadow-[0_8px_28px_rgba(0,0,0,0.04)] lg:sticky lg:top-20">
           <Button
             onClick={startNewCollection}
@@ -1079,11 +1158,8 @@ export function UploadPortal() {
 
           <div className="mt-3 flex items-center justify-between px-2">
             <div>
-              <p className="text-xs font-semibold text-[--studio-muted]">
-                CONTENT
-              </p>
-              <h2 className="mt-1 text-lg font-bold text-[--studio-ink]">
-                Collection library
+              <h2 className="text-lg font-bold text-[--studio-ink]">
+                Collections
               </h2>
             </div>
             <Images
@@ -1223,7 +1299,7 @@ export function UploadPortal() {
           }
           className="min-w-0 scroll-mt-24"
         >
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white px-4 py-3 shadow-[0_8px_28px_rgba(0,0,0,0.04)] sm:px-5">
+          <div className="sticky top-20 z-30 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white px-4 py-3 shadow-[0_8px_28px_rgba(0,0,0,0.07)] sm:px-5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="rounded-md bg-[#f2f2f2] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-[--studio-muted]">
@@ -1250,26 +1326,51 @@ export function UploadPortal() {
                     aria-hidden="true"
                   />
                 )}
-                {hasUnsavedChanges
-                  ? 'Unsaved changes'
-                  : 'Everything is up to date'}
+                <span className="min-w-0 truncate">
+                  {isBusy
+                    ? status
+                    : hasUnsavedChanges
+                      ? `Unsaved changes · ${status}`
+                      : status}
+                </span>
               </p>
             </div>
-            {mode === 'edit' ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => patchUi({ isDeletePostDialogOpen: true })}
-                disabled={isBusy}
-                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-                Delete
+            <div className="flex items-center gap-2">
+              {mode === 'edit' ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => patchUi({ isDeletePostDialogOpen: true })}
+                  disabled={isBusy}
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Delete
+                </Button>
+              ) : null}
+              <Button type="submit" disabled={isBusy}>
+                {isPublishing ? (
+                  <LoaderCircle
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : mode === 'create' ? (
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                )}
+                {mode === 'create'
+                  ? isPublishing
+                    ? 'Publishing…'
+                    : 'Publish collection'
+                  : isPublishing
+                    ? 'Saving…'
+                    : 'Save changes'}
               </Button>
-            ) : null}
+            </div>
           </div>
 
-          <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_310px]">
+          <div className="min-w-0">
             <div className="min-w-0 space-y-5">
               <section className="rounded-2xl border border-black/5 bg-white p-4 shadow-[0_8px_28px_rgba(0,0,0,0.04)] sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1343,7 +1444,7 @@ export function UploadPortal() {
                       Upload your photo story
                     </span>
                     <span className="mt-1 text-sm text-[--studio-muted]">
-                      Multiple images supported / up to 20 MB each
+                      Large photos are optimized automatically before upload
                     </span>
                   </button>
                 ) : null}
@@ -1610,12 +1711,14 @@ export function UploadPortal() {
                   className="block border-b border-black/5 px-5 py-4"
                   htmlFor="collection-title"
                 >
-                  <span className="sr-only">Title</span>
+                  <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
+                    Title
+                  </span>
                   <input
                     id="collection-title"
                     name="title"
                     autoComplete="off"
-                    placeholder="Add a clear, memorable title"
+                    placeholder="e.g. Yosemite in winter…"
                     className="w-full bg-transparent text-xl font-bold text-[--studio-ink] outline-none placeholder:text-black/25 sm:text-2xl"
                     value={title}
                     onChange={(event) =>
@@ -1629,28 +1732,21 @@ export function UploadPortal() {
                 </label>
 
                 <label className="block px-5 py-4" htmlFor="collection-content">
-                  <span className="sr-only">Content</span>
+                  <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
+                    Description
+                  </span>
                   <textarea
                     id="collection-content"
                     name="content"
                     autoComplete="off"
-                    placeholder="Tell the story behind this collection..."
+                    placeholder="Add a note about this collection…"
                     className="min-h-52 w-full resize-y bg-transparent text-[15px] leading-7 text-[--studio-ink] outline-none placeholder:text-black/25"
                     value={content}
                     onChange={(event) =>
                       patchDraft({ content: event.target.value })
                     }
                   />
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/5 pt-3">
-                    <div className="flex flex-wrap gap-2 text-xs text-[--studio-muted]">
-                      <span className="rounded-full bg-[#f5f5f5] px-3 py-1.5">
-                        # photo collection
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f5] px-3 py-1.5">
-                        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                        {locationLabel || 'Location optional'}
-                      </span>
-                    </div>
+                  <div className="mt-3 flex items-center justify-end border-t border-black/5 pt-3">
                     <span className="text-xs tabular-nums text-black/30">
                       {content.length}
                     </span>
@@ -1660,6 +1756,7 @@ export function UploadPortal() {
 
               <details
                 id="publish-settings"
+                open
                 className="group rounded-2xl border border-black/5 bg-white shadow-[0_8px_28px_rgba(0,0,0,0.04)]"
               >
                 <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 outline-none focus-visible:ring-4 focus-visible:ring-[--studio-accent-soft]">
@@ -1669,10 +1766,10 @@ export function UploadPortal() {
                     </span>
                     <span>
                       <span className="block text-sm font-semibold text-[--studio-ink]">
-                        More settings
+                        Location & ordering
                       </span>
                       <span className="mt-0.5 block text-xs text-[--studio-muted]">
-                        {locationLabel || 'Location and display order'}
+                        {locationLabel || 'Add an optional place or sort order'}
                       </span>
                     </span>
                   </span>
@@ -1730,6 +1827,12 @@ export function UploadPortal() {
                             onChange={(event) =>
                               patchLocationSearch({ query: event.target.value })
                             }
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                void handleLocationSearch();
+                              }
+                            }}
                           />
                         </div>
                         <Button
@@ -1745,7 +1848,7 @@ export function UploadPortal() {
                           ) : (
                             <Search className="h-4 w-4" aria-hidden="true" />
                           )}
-                          {isSearchingLocation ? 'Searching...' : 'Search'}
+                          {isSearchingLocation ? 'Searching…' : 'Search'}
                         </Button>
                       </div>
 
@@ -1906,166 +2009,6 @@ export function UploadPortal() {
                   </div>
                 </div>
               </details>
-            </div>
-
-            <aside className="hidden space-y-4 xl:sticky xl:top-20 xl:block">
-              <div>
-                <div className="mb-3 flex items-center justify-between px-1">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-[--studio-ink]">
-                    <Smartphone className="h-4 w-4" aria-hidden="true" />
-                    Mobile preview
-                  </p>
-                  <span className="text-xs text-[--studio-muted]">Live</span>
-                </div>
-                <div className="mx-auto max-w-[292px] rounded-[34px] border-[7px] border-[#181818] bg-white p-2 shadow-[0_28px_70px_rgba(0,0,0,0.18)]">
-                  <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-black/80" />
-                  <div className="max-h-[530px] overflow-y-auto rounded-[23px] bg-white">
-                    <div className="flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-black/70">
-                      <span>9:41</span>
-                      <span>Preview</span>
-                    </div>
-                    <div className="aspect-[4/3] overflow-hidden bg-[#f1f1f1]">
-                      {coverImageSrc ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={coverImageSrc}
-                          alt="Collection cover preview"
-                          width={720}
-                          height={540}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="grid h-full place-items-center text-center text-xs text-black/35">
-                          <span>
-                            <ImagePlus
-                              className="mx-auto mb-2 h-7 w-7"
-                              aria-hidden="true"
-                            />
-                            Your cover appears here
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3.5">
-                      <h2 className="text-[15px] font-bold leading-5 text-[#202020]">
-                        {title.trim() || 'Your collection title'}
-                      </h2>
-                      <p className="mt-2 max-h-28 overflow-hidden whitespace-pre-wrap text-xs leading-5 text-[#565656]">
-                        {content.trim() ||
-                          'Tell the story behind these photographs. Your description will preview here as you type.'}
-                      </p>
-                      {locationLabel ? (
-                        <p className="mt-3 flex items-center gap-1 text-[11px] text-[#777]">
-                          <MapPin className="h-3 w-3" aria-hidden="true" />
-                          {locationLabel}
-                        </p>
-                      ) : null}
-                      <div className="mt-4 flex items-center justify-between border-t border-black/5 pt-3 text-[10px] text-black/35">
-                        <span>MSKYurina</span>
-                        <span>{imageCount} photos</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-[0_8px_28px_rgba(0,0,0,0.04)]">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[--studio-muted]">Ready check</span>
-                  <span
-                    className={`font-semibold ${canSubmit ? 'text-emerald-600' : 'text-amber-600'}`}
-                  >
-                    {canSubmit ? 'Ready' : 'Needs attention'}
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <span
-                    className={`rounded-lg px-2.5 py-2 ${title.trim() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
-                  >
-                    {title.trim() ? 'OK' : '!'} Title
-                  </span>
-                  <span
-                    className={`rounded-lg px-2.5 py-2 ${imageCount > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
-                  >
-                    {imageCount > 0 ? 'OK' : '!'} Photos
-                  </span>
-                </div>
-                <div
-                  className="mt-3 rounded-xl bg-[#f7f7f7] px-3 py-2.5"
-                  aria-live="polite"
-                  aria-busy={isBusy}
-                >
-                  <p className="flex items-start gap-2 text-xs leading-5 text-[--studio-muted]">
-                    {isBusy ? (
-                      <LoaderCircle
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[--studio-accent]"
-                        aria-hidden="true"
-                      />
-                    ) : hasUnsavedChanges ? (
-                      <CircleAlert
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Check
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span>{status}</span>
-                  </p>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className="mt-3 w-full"
-                >
-                  {isPublishing ? (
-                    <LoaderCircle
-                      className="h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : mode === 'create' ? (
-                    <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Check className="h-4 w-4" aria-hidden="true" />
-                  )}
-                  {mode === 'create'
-                    ? isPublishing
-                      ? 'Publishing...'
-                      : 'Publish collection'
-                    : isPublishing
-                      ? 'Saving...'
-                      : 'Save changes'}
-                </Button>
-                {mode === 'edit' && selectedCollection ? (
-                  <p className="mt-3 text-center text-[11px] text-black/35">
-                    Updated {formatUpdatedAt(selectedCollection.updatedAt)}
-                  </p>
-                ) : null}
-              </div>
-            </aside>
-          </div>
-
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/95 px-4 py-3 shadow-[0_-8px_28px_rgba(0,0,0,0.08)] backdrop-blur-xl xl:hidden">
-            <div className="mx-auto flex max-w-3xl items-center gap-3">
-              <div className="min-w-0 flex-1" aria-live="polite">
-                <p className="truncate text-xs font-semibold text-[--studio-ink]">
-                  {hasUnsavedChanges ? 'Unsaved changes' : 'Up to date'}
-                </p>
-                <p className="truncate text-[11px] text-[--studio-muted]">
-                  {status}
-                </p>
-              </div>
-              <Button type="submit" disabled={!canSubmit}>
-                {isPublishing ? (
-                  <LoaderCircle
-                    className="h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                {mode === 'create' ? 'Publish' : 'Save changes'}
-              </Button>
             </div>
           </div>
         </form>

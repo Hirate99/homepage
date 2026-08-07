@@ -5,7 +5,7 @@ type AdminCloudflareEnv = CloudflareEnv & {
   homepage: HomeDataRuntime['database'];
   IMAGES: HomeDataRuntime['imageProcessor'];
   IMAGES_BUCKET: HomeDataRuntime['imageBucket'];
-  GOOGLE_MAP_API_KEY?: string;
+  GOOGLE_MAP_API_KEY: string;
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
 };

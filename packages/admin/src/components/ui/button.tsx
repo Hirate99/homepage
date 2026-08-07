@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'border border-transparent bg-[--studio-accent] px-5 py-3 text-white shadow-[0_8px_20px_rgba(255,48,77,0.18)] hover:-translate-y-0.5 hover:bg-[--studio-accent-hover]',
+          'border border-transparent bg-[--studio-accent] px-5 py-3 text-white shadow-[0_8px_20px_rgba(223,100,56,0.18)] hover:-translate-y-0.5 hover:bg-[--studio-accent-hover]',
         secondary:
           'border border-black/10 bg-white px-5 py-3 text-[--studio-ink] hover:-translate-y-0.5 hover:border-black/20 hover:bg-[#fafafa]',
         subtle:

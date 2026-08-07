@@ -16,7 +16,7 @@ export async function convertImageToWebp(
 ): Promise<ProcessedImage> {
   if (image.buffer.byteLength > CLOUDFLARE_IMAGE_INPUT_LIMIT) {
     throw new Error(
-      'Images must be 20 MB or smaller for Cloudflare processing.',
+      "This image is over Cloudflare's 20 MB processing limit. Remove it, add it again, and the studio will optimize it before upload.",
     );
   }
 

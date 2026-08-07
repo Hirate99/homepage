@@ -16,6 +16,8 @@ export type LocationFields = Omit<LocationDraft, 'source'>;
 export interface PreviewItem {
   id: string;
   file: File;
+  uploadFile: File;
+  wasOptimized: boolean;
   url: string;
 }
 

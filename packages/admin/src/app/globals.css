@@ -4,15 +4,21 @@
 
 :root {
   color-scheme: light;
-  --orange-1: #fff9f1;
-  --orange-2: #fff1de;
-  --orange-3: #f9dcb1;
-  --orange-4: #f4c688;
-  --orange-5: #e6a859;
-  --orange-6: #d58b39;
-  --orange-7: #bf6a1e;
-  --orange-8: #944915;
-  --orange-9: #5d2c0f;
+  --studio-accent: #ff304d;
+  --studio-accent-hover: #e92340;
+  --studio-accent-soft: rgba(255, 48, 77, 0.09);
+  --studio-canvas: #f5f5f5;
+  --studio-ink: #202020;
+  --studio-muted: #787878;
+  --orange-1: #fff5f6;
+  --orange-2: #ffe8eb;
+  --orange-3: #ffcbd2;
+  --orange-4: #ff9cab;
+  --orange-5: #ff6d82;
+  --orange-6: #ff4963;
+  --orange-7: #d92542;
+  --orange-8: #4d4d4d;
+  --orange-9: #202020;
 }
 
 * {
@@ -28,19 +34,8 @@ body {
 body {
   min-height: 100vh;
   overflow-x: hidden;
-  background:
-    radial-gradient(
-      circle at top left,
-      rgba(248, 181, 93, 0.34),
-      transparent 28%
-    ),
-    radial-gradient(
-      circle at top right,
-      rgba(255, 228, 181, 0.38),
-      transparent 22%
-    ),
-    linear-gradient(180deg, #fff9f1 0%, #f7ebdc 100%);
-  color: var(--orange-9);
+  background: var(--studio-canvas);
+  color: var(--studio-ink);
   font-family: var(--font-sans), sans-serif;
 }
 
@@ -55,7 +50,7 @@ button {
 }
 
 ::selection {
-  background: rgba(213, 139, 57, 0.26);
+  background: rgba(255, 48, 77, 0.2);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -4,6 +4,8 @@ import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+initOpenNextCloudflareForDev();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@homepage/home-data'],
@@ -14,5 +16,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-
-initOpenNextCloudflareForDev();

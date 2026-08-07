@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
   ChangeEvent,
@@ -17,11 +17,14 @@ import {
   FileImage,
   GripVertical,
   ImagePlus,
+  Images,
   LoaderCircle,
   MapPin,
   Plus,
   RefreshCw,
   Search,
+  Settings2,
+  Smartphone,
   Sparkles,
   Star,
   Trash2,
@@ -55,10 +58,10 @@ const PAGE_SIZE = 8;
 const PREVIEW_MAX_EDGE = 720;
 
 const inputClassName =
-  'w-full rounded-2xl border border-orange-950/10 bg-white px-4 py-3 text-[--orange-9] shadow-sm outline-none transition-[border-color,box-shadow,background-color] placeholder:text-orange-950/35 focus:border-orange-500/55 focus:ring-4 focus:ring-orange-300/20';
+  'w-full rounded-xl border border-black/10 bg-[#f7f7f7] px-4 py-3 text-[--studio-ink] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-black/35 focus:border-[--studio-accent] focus:bg-white focus:ring-4 focus:ring-[--studio-accent-soft]';
 
 const mutedInputClassName =
-  'w-full rounded-2xl border border-orange-950/10 bg-orange-50/55 px-4 py-3 text-[--orange-9] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-orange-950/35 focus:border-orange-500/55 focus:bg-white focus:ring-4 focus:ring-orange-300/20';
+  'w-full rounded-xl border border-black/10 bg-[#f7f7f7] px-4 py-3 text-[--studio-ink] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-black/35 focus:border-[--studio-accent] focus:bg-white focus:ring-4 focus:ring-[--studio-accent-soft]';
 
 async function createPreviewItem(file: File): Promise<PreviewItem> {
   const id = `${file.name}-${file.lastModified}-${crypto.randomUUID()}`;
@@ -403,7 +406,7 @@ export function UploadPortal() {
     files.forEach((file) => payload.append('images', file));
 
     setTask('scanLocation', 'pending');
-    setStatus('Reading EXIF data and looking up the location…');
+    setStatus('Reading EXIF data and looking up the location...');
 
     try {
       const response = await fetch('/api/location-hint', {
@@ -454,7 +457,7 @@ export function UploadPortal() {
 
     setTask('searchLocation', 'pending');
     if (announce) {
-      setStatus(`Looking up “${normalizedQuery}”…`);
+      setStatus(`Looking up "${normalizedQuery}"...`);
     }
 
     try {
@@ -518,7 +521,7 @@ export function UploadPortal() {
 
   async function handleLocationSelect(suggestion: LocationSuggestion) {
     setTask('applyLocation', 'pending');
-    setStatus(`Using “${suggestion.text}”…`);
+    setStatus(`Using "${suggestion.text}"...`);
 
     try {
       const response = await fetch('/api/location-search', {
@@ -575,7 +578,7 @@ export function UploadPortal() {
     }
 
     setTask('prepareImages', 'pending');
-    setStatus(`Preparing ${files.length} preview(s)…`);
+    setStatus(`Preparing ${files.length} preview(s)...`);
     const nextItems: PreviewItem[] = [];
     for (const file of files) {
       nextItems.push(await createPreviewItem(file));
@@ -655,7 +658,7 @@ export function UploadPortal() {
     files.forEach((file) => payload.append('images', file));
 
     setTask('publish', 'pending');
-    setStatus('Uploading originals and publishing…');
+    setStatus('Uploading originals and publishing...');
 
     try {
       const response = await fetch('/api/posts', {
@@ -690,7 +693,7 @@ export function UploadPortal() {
     }
 
     setTask('publish', 'pending');
-    setStatus('Saving changes…');
+    setStatus('Saving changes...');
 
     try {
       const response = await fetch(`/api/posts/${selectedCollectionId}`, {
@@ -736,7 +739,7 @@ export function UploadPortal() {
     }
 
     setTask('delete', 'pending');
-    setStatus('Deleting collection…');
+    setStatus('Deleting collection...');
 
     try {
       const response = await fetch(`/api/posts/${selectedCollectionId}`, {
@@ -777,7 +780,7 @@ export function UploadPortal() {
     files.forEach((file) => payload.append('images', file));
 
     setTask('uploadImages', 'pending');
-    setStatus(`Uploading ${files.length} new image(s)…`);
+    setStatus(`Uploading ${files.length} new image(s)...`);
 
     try {
       const response = await fetch(
@@ -816,7 +819,7 @@ export function UploadPortal() {
     }
 
     setTask('delete', 'pending');
-    setStatus(`Deleting image #${imagePendingDelete.id}…`);
+    setStatus(`Deleting image #${imagePendingDelete.id}...`);
 
     try {
       const response = await fetch(
@@ -972,6 +975,29 @@ export function UploadPortal() {
     isPreparingImages ||
     isApplyingLocation;
   const isLocationLookupBusy = isSearchingLocation || isApplyingLocation;
+  const imageCount =
+    mode === 'create'
+      ? previews.length
+      : editingImages.length + previews.length;
+  const coverImageSrc =
+    mode === 'create'
+      ? (previews.find((item) => item.id === coverPreviewId) ?? previews[0])
+          ?.url
+      : (
+          editingImages.find((image) => image.id === editingCoverImageId) ??
+          editingImages[0]
+        )?.src;
+  const locationLabel = [
+    location.locationName,
+    location.region,
+    location.country,
+  ]
+    .filter(Boolean)
+    .join(' / ');
+  const canSubmit =
+    !isBusy &&
+    Boolean(title.trim()) &&
+    (mode === 'edit' || previews.length > 0);
 
   useEffect(() => {
     if (!hasUnsavedChanges) {
@@ -989,33 +1015,37 @@ export function UploadPortal() {
   return (
     <main
       id="main-content"
-      className="min-h-screen overflow-x-hidden bg-[#f7f4ee] px-4 pb-10 pt-5 sm:px-6 lg:px-8"
+      className="min-h-screen bg-[--studio-canvas] pb-28 xl:pb-10"
     >
       <a
         href="#collection-editor"
-        className="sr-only z-50 rounded-full bg-[--orange-9] px-4 py-2 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-50 rounded-full bg-[--studio-accent] px-4 py-2 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Skip to editor
       </a>
-      <div className="mx-auto max-w-[1540px]">
-        <header className="mb-5 flex flex-wrap items-end justify-between gap-5 border-b border-orange-950/10 pb-5">
-          <div className="max-w-2xl">
-            <p className="flex items-center gap-2 font-sans text-xs font-semibold uppercase tracking-[0.2em] text-[--orange-7]">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-              Private Workspace
-            </p>
-            <h1 className="font-display mt-2 text-4xl font-medium leading-none text-[--orange-9] sm:text-5xl">
-              Collection Studio
-            </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[--orange-8]">
-              Find a collection, update its story and images, then publish when
-              everything is ready.
-            </p>
+
+      <header className="sticky top-0 z-40 border-b border-black/5 bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1720px] items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[--studio-accent] text-sm font-black text-white shadow-[0_8px_24px_rgba(255,48,77,0.24)]">
+              M
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-[--studio-ink]">
+                MSKY Studio
+              </p>
+              <p className="hidden text-xs text-[--studio-muted] sm:block">
+                Collection publishing
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <span className="hidden rounded-full bg-[--studio-accent-soft] px-3 py-1.5 text-xs font-semibold text-[--studio-accent] sm:inline-flex">
+              {collections.length} collections
+            </span>
             <Button
-              variant="subtle"
+              variant="ghost"
               size="icon"
               aria-label="Refresh collections"
               onClick={() => void refreshCollections(selectedCollectionId)}
@@ -1026,293 +1056,235 @@ export function UploadPortal() {
                 aria-hidden="true"
               />
             </Button>
-            <Button onClick={startNewCollection}>
+            <Button
+              onClick={startNewCollection}
+              className="hidden sm:inline-flex"
+            >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              New Collection
+              New post
             </Button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <div className="grid items-start gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="self-start rounded-3xl border border-orange-950/10 bg-white p-4 shadow-sm lg:sticky lg:top-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-sans text-xs font-semibold uppercase tracking-[0.18em] text-[--orange-7]">
-                  Library
-                </p>
-                <h2 className="font-display mt-1 text-2xl text-[--orange-9]">
-                  Collections
-                </h2>
-              </div>
-              <span className="rounded-full bg-orange-50 px-3 py-1 text-sm tabular-nums text-[--orange-8]">
-                {isLoadingCollections ? '…' : collections.length}
-              </span>
+      <div className="mx-auto grid max-w-[1720px] items-start gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="rounded-2xl border border-black/5 bg-white p-3 shadow-[0_8px_28px_rgba(0,0,0,0.04)] lg:sticky lg:top-20">
+          <Button
+            onClick={startNewCollection}
+            className="w-full sm:hidden lg:inline-flex"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Create collection
+          </Button>
+
+          <div className="mt-3 flex items-center justify-between px-2">
+            <div>
+              <p className="text-xs font-semibold text-[--studio-muted]">
+                CONTENT
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-[--studio-ink]">
+                Collection library
+              </h2>
             </div>
+            <Images
+              className="h-5 w-5 text-[--studio-muted]"
+              aria-hidden="true"
+            />
+          </div>
 
-            <label className="relative mt-4 block">
-              <span className="sr-only">Search collections</span>
-              <Search
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[--orange-7]"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                name="collection-search"
-                autoComplete="off"
-                placeholder="Search title or place…"
-                value={collectionQuery}
-                onChange={(event) => {
-                  setCollectionQuery(event.target.value);
+          <label className="relative mt-3 block">
+            <span className="sr-only">Search collections</span>
+            <Search
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[--studio-muted]"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              name="collection-search"
+              autoComplete="off"
+              placeholder="Search title or place"
+              value={collectionQuery}
+              onChange={(event) => {
+                setCollectionQuery(event.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full rounded-xl border border-transparent bg-[#f5f5f5] py-3 pl-10 pr-10 text-sm text-[--studio-ink] outline-none transition placeholder:text-black/35 focus:border-[--studio-accent] focus:bg-white focus:ring-4 focus:ring-[--studio-accent-soft]"
+            />
+            {collectionQuery ? (
+              <button
+                type="button"
+                aria-label="Clear collection search"
+                onClick={() => {
+                  setCollectionQuery('');
                   setCurrentPage(1);
                 }}
-                className="w-full rounded-2xl border border-orange-950/10 bg-orange-50/60 py-3 pl-10 pr-10 text-sm text-[--orange-9] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-orange-950/35 focus:border-orange-500/50 focus:bg-white focus:ring-4 focus:ring-orange-300/20"
-              />
-              {collectionQuery ? (
-                <button
-                  type="button"
-                  aria-label="Clear collection search"
-                  onClick={() => {
-                    setCollectionQuery('');
-                    setCurrentPage(1);
-                  }}
-                  className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[--orange-7] transition-colors hover:bg-white hover:text-[--orange-9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              ) : null}
-            </label>
+                className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[--studio-muted] hover:bg-white hover:text-[--studio-ink] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--studio-accent]"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </label>
 
-            <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1 lg:max-h-[calc(100vh-18rem)]">
-              {filteredCollections.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-orange-500/20 bg-orange-50/60 p-5 text-sm leading-6 text-[--orange-8]">
-                  {collections.length === 0
-                    ? 'No collections yet. Create the first one when you are ready.'
-                    : `No collections match “${collectionQuery.trim()}”.`}
-                </div>
-              ) : (
-                pageCollections.map((collection) => {
-                  const active = collection.id === selectedCollectionId;
-                  const cover =
-                    collection.images.find(
-                      (image) => image.id === collection.coverImageId,
-                    ) ?? collection.images[0];
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:block lg:max-h-[calc(100vh-16.5rem)] lg:space-y-1.5 lg:overflow-y-auto lg:pr-1">
+            {filteredCollections.length === 0 ? (
+              <div className="min-w-full rounded-xl border border-dashed border-black/10 bg-[#fafafa] p-5 text-sm leading-6 text-[--studio-muted]">
+                {collections.length === 0
+                  ? 'No collections yet. Start with your first post.'
+                  : `No results for "${collectionQuery.trim()}".`}
+              </div>
+            ) : (
+              pageCollections.map((collection) => {
+                const active = collection.id === selectedCollectionId;
+                const cover =
+                  collection.images.find(
+                    (image) => image.id === collection.coverImageId,
+                  ) ?? collection.images[0];
 
-                  return (
-                    <button
-                      key={collection.id}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => selectCollection(collection)}
-                      className={`flex w-full items-center overflow-hidden rounded-2xl border text-left transition-[border-color,background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50 ${
-                        active
-                          ? 'border-orange-500/45 bg-orange-50 shadow-[0_8px_22px_rgba(95,44,15,0.08)]'
-                          : 'border-orange-500/10 bg-white hover:border-orange-500/25 hover:bg-orange-50/50'
-                      }`}
-                    >
+                return (
+                  <button
+                    key={collection.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => selectCollection(collection)}
+                    className={`flex min-w-64 items-center gap-3 rounded-xl p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--studio-accent] lg:w-full lg:min-w-0 ${
+                      active
+                        ? 'bg-[--studio-accent-soft]'
+                        : 'hover:bg-[#f6f6f6]'
+                    }`}
+                  >
+                    <span className="h-16 w-14 shrink-0 overflow-hidden rounded-lg bg-[#efefef]">
                       {cover ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={cover.src}
-                          alt={collection.title}
-                          width={96}
-                          height={80}
+                          alt=""
+                          width={112}
+                          height={128}
                           loading="lazy"
                           decoding="async"
-                          className="h-20 w-24 shrink-0 object-cover"
+                          className="h-full w-full object-cover"
                         />
-                      ) : null}
-                      <div className="min-w-0 flex-1 space-y-1 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate font-sans text-sm font-semibold text-[--orange-9]">
-                            {collection.title || `#${collection.id}`}
-                          </span>
-                          <span className="shrink-0 text-xs tabular-nums text-[--orange-7]">
-                            {collection.images.length} photos
-                          </span>
-                        </div>
-                        <p className="text-xs text-[--orange-8]">
-                          {formatUpdatedAt(collection.updatedAt)}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
+                      ) : (
+                        <span className="grid h-full place-items-center">
+                          <FileImage
+                            className="h-5 w-5 text-black/25"
+                            aria-hidden="true"
+                          />
+                        </span>
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-[--studio-ink]">
+                        {collection.title || `Collection #${collection.id}`}
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-[--studio-muted]">
+                        {collection.locationName ||
+                          `${collection.images.length} photos`}
+                      </span>
+                      <span className="mt-1 block text-[11px] text-black/35">
+                        {formatUpdatedAt(collection.updatedAt)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
 
-            {filteredCollections.length > PAGE_SIZE ? (
-              <Pagination className="mt-4 border-t border-orange-500/10 pt-4">
-                <PaginationContent>
-                  <PaginationPrevious
-                    onClick={() =>
-                      setCurrentPage((page) => Math.max(1, page - 1))
-                    }
-                    disabled={safeCurrentPage === 1}
-                  />
-                  <span className="text-xs tabular-nums text-[--orange-7]">
-                    {safeCurrentPage} / {totalPages}
-                  </span>
-                  <PaginationNext
-                    onClick={() =>
-                      setCurrentPage((page) => Math.min(totalPages, page + 1))
-                    }
-                    disabled={safeCurrentPage === totalPages}
-                  />
-                </PaginationContent>
-              </Pagination>
-            ) : null}
-          </aside>
+          {filteredCollections.length > PAGE_SIZE ? (
+            <Pagination className="mt-3 border-t border-black/5 pt-3">
+              <PaginationContent>
+                <PaginationPrevious
+                  onClick={() =>
+                    setCurrentPage((page) => Math.max(1, page - 1))
+                  }
+                  disabled={safeCurrentPage === 1}
+                />
+                <span className="text-xs tabular-nums text-[--studio-muted]">
+                  {safeCurrentPage} / {totalPages}
+                </span>
+                <PaginationNext
+                  onClick={() =>
+                    setCurrentPage((page) => Math.min(totalPages, page + 1))
+                  }
+                  disabled={safeCurrentPage === totalPages}
+                />
+              </PaginationContent>
+            </Pagination>
+          ) : null}
+        </aside>
 
-          <form
-            id="collection-editor"
-            ref={formRef}
-            onSubmit={mode === 'create' ? handleCreate : handleUpdate}
-            aria-label={
-              mode === 'create' ? 'Create collection' : 'Edit collection'
-            }
-            className="scroll-mt-4 rounded-3xl border border-orange-950/10 bg-white p-5 shadow-sm sm:p-7"
-          >
-            <div className="mb-7 flex flex-wrap items-start justify-between gap-5 border-b border-orange-950/10 pb-6">
-              <div className="min-w-0">
-                <p className="font-sans text-xs font-semibold uppercase tracking-[0.18em] text-[--orange-7]">
+        <form
+          id="collection-editor"
+          ref={formRef}
+          onSubmit={mode === 'create' ? handleCreate : handleUpdate}
+          aria-label={
+            mode === 'create' ? 'Create collection' : 'Edit collection'
+          }
+          className="min-w-0 scroll-mt-24"
+        >
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white px-4 py-3 shadow-[0_8px_28px_rgba(0,0,0,0.04)] sm:px-5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-[#f2f2f2] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-[--studio-muted]">
+                  {mode === 'create' ? 'New' : 'Published'}
+                </span>
+                <h1 className="truncate text-lg font-bold text-[--studio-ink]">
                   {mode === 'create'
-                    ? 'Create Collection'
-                    : `Editing Collection #${selectedCollection?.id ?? ''}`}
-                </p>
-                <h2 className="font-display mt-2 truncate text-3xl text-[--orange-9] sm:text-4xl">
-                  {mode === 'create'
-                    ? 'Untitled Collection'
-                    : selectedCollection
-                      ? selectedCollection.title || `#${selectedCollection.id}`
-                      : 'Select a Collection'}
-                </h2>
-                <p className="mt-2 flex items-center gap-2 text-sm text-[--orange-8]">
-                  {hasUnsavedChanges ? (
-                    <>
-                      <CircleAlert
-                        className="h-4 w-4 text-amber-600"
-                        aria-hidden="true"
-                      />
-                      Unsaved changes
-                    </>
-                  ) : (
-                    <>
-                      <Check
-                        className="h-4 w-4 text-emerald-600"
-                        aria-hidden="true"
-                      />
-                      Everything is up to date
-                    </>
-                  )}
-                </p>
+                    ? 'Create a collection'
+                    : selectedCollection?.title || 'Edit collection'}
+                </h1>
               </div>
-
-              {mode === 'edit' ? (
-                <Button
-                  variant="destructive"
-                  onClick={() => patchUi({ isDeletePostDialogOpen: true })}
-                  disabled={isBusy}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Delete Collection
-                </Button>
-              ) : null}
+              <p
+                className="mt-1 flex items-center gap-1.5 text-xs text-[--studio-muted]"
+                aria-live="polite"
+              >
+                {hasUnsavedChanges ? (
+                  <CircleAlert
+                    className="h-3.5 w-3.5 text-amber-500"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Check
+                    className="h-3.5 w-3.5 text-emerald-500"
+                    aria-hidden="true"
+                  />
+                )}
+                {hasUnsavedChanges
+                  ? 'Unsaved changes'
+                  : 'Everything is up to date'}
+              </p>
             </div>
+            {mode === 'edit' ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => patchUi({ isDeletePostDialogOpen: true })}
+                disabled={isBusy}
+                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete
+              </Button>
+            ) : null}
+          </div>
 
-            <div className="grid items-start gap-7 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="space-y-7">
-                <section className="space-y-6 rounded-3xl border border-orange-950/10 bg-[#fffdfa] p-5 sm:p-6">
+          <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_310px]">
+            <div className="min-w-0 space-y-5">
+              <section className="rounded-2xl border border-black/5 bg-white p-4 shadow-[0_8px_28px_rgba(0,0,0,0.04)] sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[--orange-7]">
-                      01 · Details
+                    <p className="text-base font-bold text-[--studio-ink]">
+                      Photos
                     </p>
-                    <h3 className="font-display mt-1 text-2xl text-[--orange-9]">
-                      Tell the story
-                    </h3>
-                    <p className="mt-1 text-sm leading-6 text-[--orange-8]">
-                      Give the collection a clear title and optional context.
+                    <p className="mt-1 text-xs text-[--studio-muted]">
+                      {imageCount}/20 / Drag to reorder / Choose one cover
                     </p>
                   </div>
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <label className="md:col-span-2" htmlFor="collection-title">
-                      <span className="mb-2 block font-sans text-sm font-semibold text-[--orange-9]">
-                        Title
-                      </span>
-                      <input
-                        id="collection-title"
-                        name="title"
-                        autoComplete="off"
-                        placeholder="e.g. A quiet winter in Asahikawa…"
-                        className={inputClassName}
-                        value={title}
-                        onChange={(event) =>
-                          patchDraft({ title: event.target.value })
-                        }
-                        required
-                      />
-                    </label>
-
-                    <label
-                      className="md:col-span-2"
-                      htmlFor="collection-content"
-                    >
-                      <span className="mb-2 block font-sans text-sm font-semibold text-[--orange-9]">
-                        Content
-                      </span>
-                      <textarea
-                        id="collection-content"
-                        name="content"
-                        autoComplete="off"
-                        placeholder="Add a short note or leave this blank…"
-                        className={`${inputClassName} min-h-28 resize-y leading-7`}
-                        value={content}
-                        onChange={(event) =>
-                          patchDraft({ content: event.target.value })
-                        }
-                      />
-                    </label>
-
-                    <label htmlFor="collection-sort-order">
-                      <span className="mb-2 block font-sans text-sm font-semibold text-[--orange-9]">
-                        Sort Order
-                      </span>
-                      <input
-                        id="collection-sort-order"
-                        name="sort-order"
-                        type="number"
-                        inputMode="numeric"
-                        placeholder="Optional…"
-                        className={inputClassName}
-                        value={sortOrder}
-                        onChange={(event) =>
-                          patchDraft({ sortOrder: event.target.value })
-                        }
-                      />
-                      <span className="mt-2 block text-xs leading-5 text-[--orange-7]">
-                        Lower numbers appear first. Leave blank for automatic
-                        ordering.
-                      </span>
-                    </label>
-                  </div>
-                </section>
-
-                <section className="space-y-5 rounded-3xl border border-orange-950/10 bg-orange-50/35 p-5 sm:p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[--orange-7]">
-                        02 · Images
-                      </p>
-                      <h3 className="font-display mt-1 text-2xl text-[--orange-9]">
-                        Build the sequence
-                      </h3>
-                      <p className="mt-1 text-sm leading-6 text-[--orange-8]">
-                        Add photos, choose the cover, and arrange the final
-                        order.
-                      </p>
-                    </div>
-                    {mode === 'create' && previews.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    {previews.length > 0 ? (
                       <Button
-                        variant="subtle"
+                        variant="ghost"
                         size="sm"
                         onClick={() =>
                           readLocationHint(previews.map((item) => item.file))
@@ -1320,399 +1292,432 @@ export function UploadPortal() {
                         disabled={isScanningLocation || isBusy}
                       >
                         <MapPin className="h-4 w-4" aria-hidden="true" />
-                        {isScanningLocation ? 'Reading EXIF…' : 'Read Location'}
+                        {isScanningLocation ? 'Reading...' : 'Read location'}
                       </Button>
                     ) : null}
-                  </div>
-
-                  {mode === 'edit' && previews.length > 0 ? (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-orange-500/15 bg-white p-4">
-                      <p className="flex items-center gap-2 text-sm text-[--orange-8]">
-                        <FileImage className="h-4 w-4" aria-hidden="true" />
-                        {previews.length} new image(s) ready to add.
-                      </p>
-                      <Button
-                        variant="secondary"
-                        onClick={handleAppendImages}
-                        disabled={isBusy}
-                      >
-                        {isUploadingImages ? 'Uploading…' : 'Add to Collection'}
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      name="images"
-                      accept="image/*"
-                      multiple
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isBusy}
-                      className="mb-5 flex min-h-36 w-full flex-col items-center justify-center rounded-3xl border border-dashed border-orange-500/30 bg-white px-6 py-8 text-center transition-[border-color,background-color,box-shadow] hover:border-orange-500/55 hover:bg-orange-50/40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-300/25 disabled:cursor-wait disabled:opacity-60"
                     >
                       {isPreparingImages ? (
                         <LoaderCircle
-                          className="h-7 w-7 animate-spin text-[--orange-7]"
+                          className="h-4 w-4 animate-spin"
                           aria-hidden="true"
                         />
                       ) : (
-                        <ImagePlus
-                          className="h-7 w-7 text-[--orange-7]"
-                          aria-hidden="true"
-                        />
+                        <ImagePlus className="h-4 w-4" aria-hidden="true" />
                       )}
-                      <span className="mt-3 font-semibold text-[--orange-9]">
-                        {isPreparingImages
-                          ? 'Preparing previews…'
-                          : mode === 'create'
-                            ? 'Choose Photos'
-                            : 'Add More Photos'}
-                      </span>
-                      <span className="mt-1 text-sm text-[--orange-8]">
-                        Select multiple images at once · up to 20 MB each
-                      </span>
-                    </button>
-
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {mode === 'create' ? (
-                        previews.length === 0 ? (
-                          <div className="rounded-3xl border border-dashed border-orange-500/20 bg-white/70 p-6 text-sm text-[--orange-8]">
-                            Upload images to preview them here.
-                          </div>
-                        ) : (
-                          previews.map((preview, index) => (
-                            <div
-                              key={preview.id}
-                              draggable={!isBusy}
-                              onDragStart={() => {
-                                draggedItemIdRef.current = `preview:${preview.id}`;
-                              }}
-                              onDragEnd={() => {
-                                draggedItemIdRef.current = null;
-                              }}
-                              onDragOver={(event) => event.preventDefault()}
-                              onDrop={() => dropPreview(preview.id)}
-                              className="group overflow-hidden rounded-2xl border border-orange-500/15 bg-white"
-                            >
-                              <div className="relative">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={preview.url}
-                                  alt={preview.file.name}
-                                  width={720}
-                                  height={540}
-                                  loading="lazy"
-                                  decoding="async"
-                                  draggable={false}
-                                  className="aspect-[4/3] w-full object-cover"
-                                />
-                                <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
-                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[--orange-9] shadow-sm">
-                                    <GripVertical
-                                      className="h-3.5 w-3.5"
-                                      aria-hidden="true"
-                                    />
-                                    {index + 1}
-                                  </span>
-                                  {coverPreviewId === preview.id ? (
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[--orange-9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white shadow-sm">
-                                      <Star
-                                        className="h-3 w-3 fill-current"
-                                        aria-hidden="true"
-                                      />
-                                      Cover
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[rgba(60,27,8,0.8)] via-[rgba(60,27,8,0.34)] to-transparent p-4">
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      variant={
-                                        coverPreviewId === preview.id
-                                          ? 'secondary'
-                                          : 'default'
-                                      }
-                                      size="sm"
-                                      className={
-                                        coverPreviewId === preview.id
-                                          ? 'bg-white/92 min-w-0 flex-1 px-3'
-                                          : 'min-w-0 flex-1 bg-white px-3 text-[--orange-9] hover:bg-white'
-                                      }
-                                      onClick={() =>
-                                        setCoverPreviewId(preview.id)
-                                      }
-                                      disabled={isBusy}
-                                    >
-                                      <Star
-                                        className="h-4 w-4"
-                                        aria-hidden="true"
-                                      />
-                                      {coverPreviewId === preview.id
-                                        ? 'Cover'
-                                        : 'Set Cover'}
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="min-w-0 flex-1 bg-white/15 px-3 text-white backdrop-blur-sm hover:bg-red-500 hover:text-white"
-                                      onClick={() => removePreview(preview.id)}
-                                      disabled={isBusy}
-                                    >
-                                      <Trash2
-                                        className="h-4 w-4"
-                                        aria-hidden="true"
-                                      />
-                                      Remove
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="p-4">
-                                <p className="truncate text-sm text-[--orange-8]">
-                                  {preview.file.name}
-                                </p>
-                                <div className="mt-3 flex gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => movePreview(preview.id, -1)}
-                                    disabled={isBusy || index === 0}
-                                    className="flex-1"
-                                  >
-                                    <ArrowLeft
-                                      className="h-4 w-4"
-                                      aria-hidden="true"
-                                    />
-                                    Earlier
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => movePreview(preview.id, 1)}
-                                    disabled={
-                                      isBusy || index === previews.length - 1
-                                    }
-                                    className="flex-1"
-                                  >
-                                    Later
-                                    <ArrowRight
-                                      className="h-4 w-4"
-                                      aria-hidden="true"
-                                    />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        )
-                      ) : editingImages.length ? (
-                        editingImages.map((image, index) => (
-                          <div
-                            key={image.id}
-                            draggable={!isBusy}
-                            onDragStart={() => {
-                              draggedItemIdRef.current = `saved:${image.id}`;
-                            }}
-                            onDragEnd={() => {
-                              draggedItemIdRef.current = null;
-                            }}
-                            onDragOver={(event) => event.preventDefault()}
-                            onDrop={() => dropEditingImage(image.id)}
-                            className="group overflow-hidden rounded-2xl border border-orange-500/15 bg-white"
-                          >
-                            <div className="relative">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={image.src}
-                                alt={selectedCollection?.title ?? title}
-                                width={image.width ?? 720}
-                                height={image.height ?? 540}
-                                loading="lazy"
-                                decoding="async"
-                                draggable={false}
-                                className="aspect-[4/3] w-full object-cover"
-                              />
-                              <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[--orange-9] shadow-sm">
-                                  <GripVertical
-                                    className="h-3.5 w-3.5"
-                                    aria-hidden="true"
-                                  />
-                                  {index + 1}
-                                </span>
-                                {editingCoverImageId === image.id ? (
-                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[--orange-9] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white shadow-sm">
-                                    <Star
-                                      className="h-3 w-3 fill-current"
-                                      aria-hidden="true"
-                                    />
-                                    Cover
-                                  </span>
-                                ) : null}
-                              </div>
-                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[rgba(60,27,8,0.8)] via-[rgba(60,27,8,0.34)] to-transparent p-4">
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant={
-                                      editingCoverImageId === image.id
-                                        ? 'secondary'
-                                        : 'default'
-                                    }
-                                    size="sm"
-                                    className={
-                                      editingCoverImageId === image.id
-                                        ? 'bg-white/92 min-w-0 flex-1 px-3'
-                                        : 'min-w-0 flex-1 bg-white px-3 text-[--orange-9] hover:bg-white'
-                                    }
-                                    onClick={() =>
-                                      patchDraft({
-                                        editingCoverImageId: image.id,
-                                      })
-                                    }
-                                    disabled={isBusy}
-                                  >
-                                    <Star
-                                      className="h-4 w-4"
-                                      aria-hidden="true"
-                                    />
-                                    {editingCoverImageId === image.id
-                                      ? 'Cover'
-                                      : 'Set Cover'}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="min-w-0 flex-1 bg-white/15 px-3 text-white backdrop-blur-sm hover:bg-red-500 hover:text-white"
-                                    onClick={() =>
-                                      patchUi({ imagePendingDelete: image })
-                                    }
-                                    disabled={isBusy}
-                                  >
-                                    <Trash2
-                                      className="h-4 w-4"
-                                      aria-hidden="true"
-                                    />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex gap-2 p-3">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => moveEditingImage(image.id, -1)}
-                                disabled={isBusy || index === 0}
-                                className="flex-1"
-                              >
-                                <ArrowLeft
-                                  className="h-4 w-4"
-                                  aria-hidden="true"
-                                />
-                                Earlier
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => moveEditingImage(image.id, 1)}
-                                disabled={
-                                  isBusy || index === editingImages.length - 1
-                                }
-                                className="flex-1"
-                              >
-                                Later
-                                <ArrowRight
-                                  className="h-4 w-4"
-                                  aria-hidden="true"
-                                />
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-3xl border border-dashed border-orange-500/20 bg-white/70 p-6 text-sm text-[--orange-8]">
-                          This collection has no images.
-                        </div>
-                      )}
-                    </div>
-
-                    {mode === 'edit' && previews.length > 0 ? (
-                      <div className="mt-4 border-t border-orange-500/10 pt-4">
-                        <p className="mb-3 text-sm text-[--orange-8]">Queued</p>
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                          {previews.map((preview, index) => (
-                            <div
-                              key={preview.id}
-                              className="border-orange-500/12 overflow-hidden rounded-[24px] border bg-white shadow-[0_12px_30px_rgba(95,44,15,0.08)]"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={preview.url}
-                                alt={preview.file.name}
-                                width={720}
-                                height={540}
-                                loading="lazy"
-                                decoding="async"
-                                className="aspect-[4/3] w-full object-cover"
-                              />
-                              <div className="space-y-2 p-4">
-                                <span className="inline-flex rounded-full bg-orange-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[--orange-8]">
-                                  New {index + 1}
-                                </span>
-                                <p className="truncate text-sm text-[--orange-8]">
-                                  {preview.file.name}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                      Add photos
+                    </Button>
                   </div>
-                </section>
+                </div>
 
-                <details className="group rounded-3xl border border-orange-950/10 bg-[#fffdfa] p-5 sm:p-6">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-orange-300/25">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  name="images"
+                  accept="image/*"
+                  multiple
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                {mode === 'create' && previews.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isBusy}
+                    className="mt-4 flex min-h-60 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-black/15 bg-[#fafafa] px-6 text-center transition hover:border-[--studio-accent] hover:bg-[--studio-accent-soft] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[--studio-accent-soft] disabled:opacity-60"
+                  >
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white shadow-sm">
+                      <ImagePlus
+                        className="h-6 w-6 text-[--studio-accent]"
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span className="mt-4 font-semibold text-[--studio-ink]">
+                      Upload your photo story
+                    </span>
+                    <span className="mt-1 text-sm text-[--studio-muted]">
+                      Multiple images supported / up to 20 MB each
+                    </span>
+                  </button>
+                ) : null}
+
+                <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+                  {mode === 'create'
+                    ? previews.map((preview, index) => (
+                        <article
+                          key={preview.id}
+                          draggable={!isBusy}
+                          onDragStart={() => {
+                            draggedItemIdRef.current = `preview:${preview.id}`;
+                          }}
+                          onDragEnd={() => {
+                            draggedItemIdRef.current = null;
+                          }}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => dropPreview(preview.id)}
+                          className="group relative overflow-hidden rounded-xl bg-[#efefef] focus-within:ring-2 focus-within:ring-[--studio-accent]"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={preview.url}
+                            alt={preview.file.name}
+                            width={720}
+                            height={540}
+                            loading="lazy"
+                            decoding="async"
+                            draggable={false}
+                            className="aspect-[4/3] w-full object-cover"
+                          />
+                          <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/55 to-transparent p-2.5 text-white">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                              <GripVertical
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              {index + 1}
+                            </span>
+                            {coverPreviewId === preview.id ? (
+                              <span className="rounded-full bg-[--studio-accent] px-2 py-1 text-[10px] font-bold">
+                                COVER
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/65 to-transparent p-2">
+                            <button
+                              type="button"
+                              aria-label={`Move ${preview.file.name} earlier`}
+                              onClick={() => movePreview(preview.id, -1)}
+                              disabled={isBusy || index === 0}
+                              className="grid h-9 w-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55 disabled:opacity-35"
+                            >
+                              <ArrowLeft
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Move ${preview.file.name} later`}
+                              onClick={() => movePreview(preview.id, 1)}
+                              disabled={isBusy || index === previews.length - 1}
+                              className="grid h-9 w-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55 disabled:opacity-35"
+                            >
+                              <ArrowRight
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Set ${preview.file.name} as cover`}
+                              onClick={() => setCoverPreviewId(preview.id)}
+                              disabled={isBusy}
+                              className={`grid h-9 w-9 place-items-center rounded-full text-white backdrop-blur ${
+                                coverPreviewId === preview.id
+                                  ? 'bg-[--studio-accent]'
+                                  : 'bg-black/35 hover:bg-black/55'
+                              }`}
+                            >
+                              <Star className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${preview.file.name}`}
+                              onClick={() => removePreview(preview.id)}
+                              disabled={isBusy}
+                              className="grid h-9 w-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-red-500"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </article>
+                      ))
+                    : editingImages.map((image, index) => (
+                        <article
+                          key={image.id}
+                          draggable={!isBusy}
+                          onDragStart={() => {
+                            draggedItemIdRef.current = `saved:${image.id}`;
+                          }}
+                          onDragEnd={() => {
+                            draggedItemIdRef.current = null;
+                          }}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => dropEditingImage(image.id)}
+                          className="group relative overflow-hidden rounded-xl bg-[#efefef] focus-within:ring-2 focus-within:ring-[--studio-accent]"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={image.src}
+                            alt={selectedCollection?.title ?? title}
+                            width={image.width ?? 720}
+                            height={image.height ?? 540}
+                            loading="lazy"
+                            decoding="async"
+                            draggable={false}
+                            className="aspect-[4/3] w-full object-cover"
+                          />
+                          <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/55 to-transparent p-2.5 text-white">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                              <GripVertical
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              {index + 1}
+                            </span>
+                            {editingCoverImageId === image.id ? (
+                              <span className="rounded-full bg-[--studio-accent] px-2 py-1 text-[10px] font-bold">
+                                COVER
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/65 to-transparent p-2">
+                            <button
+                              type="button"
+                              aria-label="Move image earlier"
+                              onClick={() => moveEditingImage(image.id, -1)}
+                              disabled={isBusy || index === 0}
+                              className="grid h-9 w-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55 disabled:opacity-35"
+                            >
+                              <ArrowLeft
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Move image later"
+                              onClick={() => moveEditingImage(image.id, 1)}
+                              disabled={
+                                isBusy || index === editingImages.length - 1
+                              }
+                              className="grid h-9 w-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-black/55 disabled:opacity-35"
+                            >
+                              <ArrowRight
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Set image as cover"
+                              onClick={() =>
+                                patchDraft({ editingCoverImageId: image.id })
+                              }
+                              disabled={isBusy}
+                              className={`grid h-9 w-9 place-items-center rounded-full text-white backdrop-blur ${
+                                editingCoverImageId === image.id
+                                  ? 'bg-[--studio-accent]'
+                                  : 'bg-black/35 hover:bg-black/55'
+                              }`}
+                            >
+                              <Star className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Delete image"
+                              onClick={() =>
+                                patchUi({ imagePendingDelete: image })
+                              }
+                              disabled={isBusy}
+                              className="grid h-9 w-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur hover:bg-red-500"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                </div>
+
+                {mode === 'edit' &&
+                editingImages.length === 0 &&
+                previews.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mt-4 flex min-h-44 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-black/15 bg-[#fafafa] text-[--studio-muted] hover:border-[--studio-accent] hover:bg-[--studio-accent-soft]"
+                  >
+                    <ImagePlus className="h-6 w-6" aria-hidden="true" />
+                    <span className="mt-2 text-sm font-semibold">
+                      Add the first photo
+                    </span>
+                  </button>
+                ) : null}
+
+                {mode === 'edit' && previews.length > 0 ? (
+                  <div className="border-[--studio-accent]/15 mt-4 rounded-xl border bg-[--studio-accent-soft] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-[--studio-ink]">
+                        {previews.length} new photo
+                        {previews.length === 1 ? '' : 's'} ready
+                      </p>
+                      <Button
+                        onClick={handleAppendImages}
+                        disabled={isBusy}
+                        size="sm"
+                      >
+                        {isUploadingImages ? (
+                          <LoaderCircle
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Plus className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        {isUploadingImages
+                          ? 'Uploading...'
+                          : 'Add to collection'}
+                      </Button>
+                    </div>
+                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                      {previews.map((preview) => (
+                        <div
+                          key={preview.id}
+                          className="group relative h-24 w-32 shrink-0 overflow-hidden rounded-lg bg-white"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={preview.url}
+                            alt={preview.file.name}
+                            width={256}
+                            height={192}
+                            className="h-full w-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            aria-label={`Remove ${preview.file.name}`}
+                            onClick={() => removePreview(preview.id)}
+                            className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white"
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="rounded-2xl border border-black/5 bg-white shadow-[0_8px_28px_rgba(0,0,0,0.04)]">
+                <label
+                  className="block border-b border-black/5 px-5 py-4"
+                  htmlFor="collection-title"
+                >
+                  <span className="sr-only">Title</span>
+                  <input
+                    id="collection-title"
+                    name="title"
+                    autoComplete="off"
+                    placeholder="Add a clear, memorable title"
+                    className="w-full bg-transparent text-xl font-bold text-[--studio-ink] outline-none placeholder:text-black/25 sm:text-2xl"
+                    value={title}
+                    onChange={(event) =>
+                      patchDraft({ title: event.target.value })
+                    }
+                    required
+                  />
+                  <span className="mt-2 block text-right text-xs tabular-nums text-black/30">
+                    {title.length}
+                  </span>
+                </label>
+
+                <label className="block px-5 py-4" htmlFor="collection-content">
+                  <span className="sr-only">Content</span>
+                  <textarea
+                    id="collection-content"
+                    name="content"
+                    autoComplete="off"
+                    placeholder="Tell the story behind this collection..."
+                    className="min-h-52 w-full resize-y bg-transparent text-[15px] leading-7 text-[--studio-ink] outline-none placeholder:text-black/25"
+                    value={content}
+                    onChange={(event) =>
+                      patchDraft({ content: event.target.value })
+                    }
+                  />
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/5 pt-3">
+                    <div className="flex flex-wrap gap-2 text-xs text-[--studio-muted]">
+                      <span className="rounded-full bg-[#f5f5f5] px-3 py-1.5">
+                        # photo collection
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f5] px-3 py-1.5">
+                        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                        {locationLabel || 'Location optional'}
+                      </span>
+                    </div>
+                    <span className="text-xs tabular-nums text-black/30">
+                      {content.length}
+                    </span>
+                  </div>
+                </label>
+              </section>
+
+              <details
+                id="publish-settings"
+                className="group rounded-2xl border border-black/5 bg-white shadow-[0_8px_28px_rgba(0,0,0,0.04)]"
+              >
+                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 outline-none focus-visible:ring-4 focus-visible:ring-[--studio-accent-soft]">
+                  <span className="flex items-center gap-3">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#f5f5f5] text-[--studio-muted]">
+                      <Settings2 className="h-4 w-4" aria-hidden="true" />
+                    </span>
                     <span>
-                      <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-[--orange-7]">
-                        03 · Location
+                      <span className="block text-sm font-semibold text-[--studio-ink]">
+                        More settings
                       </span>
-                      <span className="font-display mt-1 block text-2xl text-[--orange-9]">
-                        Place this story
+                      <span className="mt-0.5 block text-xs text-[--studio-muted]">
+                        {locationLabel || 'Location and display order'}
                       </span>
                     </span>
-                    <span className="max-w-[45%] truncate text-sm text-[--orange-7]">
-                      {location.locationName ||
-                        location.country ||
-                        'Optional details'}
-                    </span>
-                  </summary>
-                  <p className="mt-3 text-sm leading-6 text-[--orange-8]">
-                    Search for a place or enter the details manually. Photo EXIF
-                    can prefill coordinates before publishing.
-                  </p>
+                  </span>
+                  <span className="text-xs font-semibold text-[--studio-accent] group-open:hidden">
+                    Expand
+                  </span>
+                  <span className="hidden text-xs font-semibold text-[--studio-accent] group-open:inline">
+                    Collapse
+                  </span>
+                </summary>
 
-                  <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="rounded-2xl border border-orange-950/10 bg-orange-50/45 p-4 sm:col-span-2 lg:col-span-3">
+                <div className="border-t border-black/5 p-5">
+                  <div className="grid gap-5 md:grid-cols-[180px_minmax(0,1fr)]">
+                    <label htmlFor="collection-sort-order">
+                      <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
+                        Display order
+                      </span>
+                      <input
+                        id="collection-sort-order"
+                        name="sort-order"
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="Automatic"
+                        className={inputClassName}
+                        value={sortOrder}
+                        onChange={(event) =>
+                          patchDraft({ sortOrder: event.target.value })
+                        }
+                      />
+                      <span className="mt-2 block text-xs leading-5 text-[--studio-muted]">
+                        Lower numbers appear first.
+                      </span>
+                    </label>
+
+                    <div>
                       <label
-                        className="mb-2 block text-sm font-semibold text-[--orange-9]"
+                        className="mb-2 block text-sm font-semibold text-[--studio-ink]"
                         htmlFor="location-search"
                       >
-                        Find a place
+                        Search location
                       </label>
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <div className="relative flex-1">
                           <Search
-                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[--orange-7]"
+                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[--studio-muted]"
                             aria-hidden="true"
                           />
                           <input
@@ -1720,7 +1725,7 @@ export function UploadPortal() {
                             name="location-search"
                             autoComplete="off"
                             className={`${inputClassName} pl-10`}
-                            placeholder="Search for a city or landmark…"
+                            placeholder="City, landmark, or place"
                             value={locationQuery}
                             onChange={(event) =>
                               patchLocationSearch({ query: event.target.value })
@@ -1731,7 +1736,6 @@ export function UploadPortal() {
                           variant="secondary"
                           onClick={handleLocationSearch}
                           disabled={isLocationLookupBusy}
-                          className="shrink-0"
                         >
                           {isSearchingLocation ? (
                             <LoaderCircle
@@ -1741,29 +1745,29 @@ export function UploadPortal() {
                           ) : (
                             <Search className="h-4 w-4" aria-hidden="true" />
                           )}
-                          {isSearchingLocation ? 'Searching…' : 'Search'}
+                          {isSearchingLocation ? 'Searching...' : 'Search'}
                         </Button>
                       </div>
 
                       {locationSuggestions.length > 0 ? (
-                        <div className="mt-3 space-y-2 rounded-2xl border border-orange-950/10 bg-white p-2 shadow-sm">
+                        <div className="mt-2 space-y-1 rounded-xl border border-black/10 bg-white p-1.5 shadow-lg">
                           {locationSuggestions.map((suggestion) => (
                             <button
                               key={suggestion.placeId}
                               type="button"
-                              className="w-full rounded-xl px-3 py-3 text-left transition-colors hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50"
+                              className="w-full rounded-lg px-3 py-2.5 text-left hover:bg-[#f5f5f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--studio-accent]"
                               onClick={() =>
                                 void handleLocationSelect(suggestion)
                               }
                               disabled={isLocationLookupBusy}
                             >
-                              <p className="text-sm font-semibold text-[--orange-9]">
+                              <span className="block text-sm font-semibold text-[--studio-ink]">
                                 {suggestion.primaryText}
-                              </p>
+                              </span>
                               {suggestion.secondaryText ? (
-                                <p className="mt-1 text-sm text-[--orange-8]">
+                                <span className="mt-0.5 block text-xs text-[--studio-muted]">
                                   {suggestion.secondaryText}
-                                </p>
+                                </span>
                               ) : null}
                             </button>
                           ))}
@@ -1773,15 +1777,17 @@ export function UploadPortal() {
                       {!isSearchingLocation &&
                       hasSearchedLocation &&
                       locationSuggestions.length === 0 ? (
-                        <p className="mt-3 rounded-2xl border border-dashed border-orange-500/20 bg-white px-4 py-3 text-sm text-[--orange-8]">
+                        <p className="mt-2 rounded-xl bg-[#f7f7f7] px-3 py-2 text-sm text-[--studio-muted]">
                           No matching places. Try a broader search.
                         </p>
                       ) : null}
                     </div>
+                  </div>
 
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <label htmlFor="location-name">
-                      <span className="mb-2 block text-sm font-semibold text-[--orange-9]">
-                        Location Name
+                      <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
+                        Location name
                       </span>
                       <input
                         id="location-name"
@@ -1797,9 +1803,8 @@ export function UploadPortal() {
                         }
                       />
                     </label>
-
                     <label htmlFor="location-region">
-                      <span className="mb-2 block text-sm font-semibold text-[--orange-9]">
+                      <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
                         Region
                       </span>
                       <input
@@ -1816,9 +1821,8 @@ export function UploadPortal() {
                         }
                       />
                     </label>
-
                     <label htmlFor="location-country">
-                      <span className="mb-2 block text-sm font-semibold text-[--orange-9]">
+                      <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
                         Country
                       </span>
                       <input
@@ -1835,9 +1839,8 @@ export function UploadPortal() {
                         }
                       />
                     </label>
-
                     <label htmlFor="location-latitude">
-                      <span className="mb-2 block text-sm font-semibold text-[--orange-9]">
+                      <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
                         Latitude
                       </span>
                       <input
@@ -1858,9 +1861,8 @@ export function UploadPortal() {
                         }
                       />
                     </label>
-
                     <label htmlFor="location-longitude">
-                      <span className="mb-2 block text-sm font-semibold text-[--orange-9]">
+                      <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
                         Longitude
                       </span>
                       <input
@@ -1881,13 +1883,12 @@ export function UploadPortal() {
                         }
                       />
                     </label>
-
                     <label
-                      className="sm:col-span-2"
+                      className="sm:col-span-2 lg:col-span-3"
                       htmlFor="location-description"
                     >
-                      <span className="mb-2 block text-sm font-semibold text-[--orange-9]">
-                        Description
+                      <span className="mb-2 block text-sm font-semibold text-[--studio-ink]">
+                        Location note
                       </span>
                       <textarea
                         id="location-description"
@@ -1903,112 +1904,121 @@ export function UploadPortal() {
                       />
                     </label>
                   </div>
-                </details>
+                </div>
+              </details>
+            </div>
+
+            <aside className="hidden space-y-4 xl:sticky xl:top-20 xl:block">
+              <div>
+                <div className="mb-3 flex items-center justify-between px-1">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[--studio-ink]">
+                    <Smartphone className="h-4 w-4" aria-hidden="true" />
+                    Mobile preview
+                  </p>
+                  <span className="text-xs text-[--studio-muted]">Live</span>
+                </div>
+                <div className="mx-auto max-w-[292px] rounded-[34px] border-[7px] border-[#181818] bg-white p-2 shadow-[0_28px_70px_rgba(0,0,0,0.18)]">
+                  <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-black/80" />
+                  <div className="max-h-[530px] overflow-y-auto rounded-[23px] bg-white">
+                    <div className="flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-black/70">
+                      <span>9:41</span>
+                      <span>Preview</span>
+                    </div>
+                    <div className="aspect-[4/3] overflow-hidden bg-[#f1f1f1]">
+                      {coverImageSrc ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={coverImageSrc}
+                          alt="Collection cover preview"
+                          width={720}
+                          height={540}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-full place-items-center text-center text-xs text-black/35">
+                          <span>
+                            <ImagePlus
+                              className="mx-auto mb-2 h-7 w-7"
+                              aria-hidden="true"
+                            />
+                            Your cover appears here
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3.5">
+                      <h2 className="text-[15px] font-bold leading-5 text-[#202020]">
+                        {title.trim() || 'Your collection title'}
+                      </h2>
+                      <p className="mt-2 max-h-28 overflow-hidden whitespace-pre-wrap text-xs leading-5 text-[#565656]">
+                        {content.trim() ||
+                          'Tell the story behind these photographs. Your description will preview here as you type.'}
+                      </p>
+                      {locationLabel ? (
+                        <p className="mt-3 flex items-center gap-1 text-[11px] text-[#777]">
+                          <MapPin className="h-3 w-3" aria-hidden="true" />
+                          {locationLabel}
+                        </p>
+                      ) : null}
+                      <div className="mt-4 flex items-center justify-between border-t border-black/5 pt-3 text-[10px] text-black/35">
+                        <span>MSKYurina</span>
+                        <span>{imageCount} photos</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <aside className="rounded-3xl bg-[--orange-9] p-5 text-white shadow-xl xl:sticky xl:top-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-200/80">
-                  Publish Check
-                </p>
-                <h3 className="font-display mt-2 text-3xl">
-                  {mode === 'create' ? 'Ready to publish?' : 'Ready to save?'}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-orange-100/75">
-                  Review the essentials, then send your changes live.
-                </p>
-
-                <div className="mt-6 space-y-3 border-y border-white/10 py-5 text-sm">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-orange-100/75">Title</span>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      {title.trim() ? (
-                        <Check
-                          className="h-4 w-4 text-emerald-300"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <CircleAlert
-                          className="h-4 w-4 text-amber-300"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {title.trim() ? 'Added' : 'Required'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-orange-100/75">Photos</span>
-                    <span className="flex items-center gap-1.5 font-medium tabular-nums">
-                      {(mode === 'create'
-                        ? previews.length
-                        : editingImages.length) > 0 ? (
-                        <Check
-                          className="h-4 w-4 text-emerald-300"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <CircleAlert
-                          className="h-4 w-4 text-amber-300"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {mode === 'create'
-                        ? `${previews.length} selected`
-                        : `${editingImages.length} saved`}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-orange-100/75">Location</span>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <MapPin
-                        className="h-4 w-4 text-orange-200"
-                        aria-hidden="true"
-                      />
-                      {hasLocationDraft ? 'Added' : 'Optional'}
-                    </span>
-                  </div>
-                  {mode === 'edit' && previews.length > 0 ? (
-                    <div className="rounded-xl bg-amber-300/10 px-3 py-2 text-xs leading-5 text-amber-100">
-                      Add the {previews.length} queued photo(s) before saving
-                      collection details.
-                    </div>
-                  ) : null}
+              <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-[0_8px_28px_rgba(0,0,0,0.04)]">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[--studio-muted]">Ready check</span>
+                  <span
+                    className={`font-semibold ${canSubmit ? 'text-emerald-600' : 'text-amber-600'}`}
+                  >
+                    {canSubmit ? 'Ready' : 'Needs attention'}
+                  </span>
                 </div>
-
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <span
+                    className={`rounded-lg px-2.5 py-2 ${title.trim() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
+                  >
+                    {title.trim() ? 'OK' : '!'} Title
+                  </span>
+                  <span
+                    className={`rounded-lg px-2.5 py-2 ${imageCount > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
+                  >
+                    {imageCount > 0 ? 'OK' : '!'} Photos
+                  </span>
+                </div>
                 <div
-                  className="bg-white/8 mt-5 rounded-2xl p-4"
+                  className="mt-3 rounded-xl bg-[#f7f7f7] px-3 py-2.5"
                   aria-live="polite"
                   aria-busy={isBusy}
                 >
-                  <p className="flex items-start gap-2 text-sm leading-6 text-orange-50/90">
+                  <p className="flex items-start gap-2 text-xs leading-5 text-[--studio-muted]">
                     {isBusy ? (
                       <LoaderCircle
-                        className="mt-1 h-4 w-4 shrink-0 animate-spin text-orange-200"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[--studio-accent]"
                         aria-hidden="true"
                       />
                     ) : hasUnsavedChanges ? (
                       <CircleAlert
-                        className="mt-1 h-4 w-4 shrink-0 text-amber-300"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
                         aria-hidden="true"
                       />
                     ) : (
                       <Check
-                        className="mt-1 h-4 w-4 shrink-0 text-emerald-300"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500"
                         aria-hidden="true"
                       />
                     )}
                     <span>{status}</span>
                   </p>
                 </div>
-
                 <Button
                   type="submit"
-                  variant="secondary"
-                  disabled={
-                    isBusy ||
-                    !title.trim() ||
-                    (mode === 'create' && previews.length === 0)
-                  }
-                  className="mt-4 w-full bg-white"
+                  disabled={!canSubmit}
+                  className="mt-3 w-full"
                 >
                   {isPublishing ? (
                     <LoaderCircle
@@ -2022,22 +2032,43 @@ export function UploadPortal() {
                   )}
                   {mode === 'create'
                     ? isPublishing
-                      ? 'Publishing…'
-                      : 'Publish Collection'
+                      ? 'Publishing...'
+                      : 'Publish collection'
                     : isPublishing
-                      ? 'Saving…'
-                      : 'Save Changes'}
+                      ? 'Saving...'
+                      : 'Save changes'}
                 </Button>
-
                 {mode === 'edit' && selectedCollection ? (
-                  <p className="mt-4 text-center text-xs text-orange-100/55">
-                    Last updated {formatUpdatedAt(selectedCollection.updatedAt)}
+                  <p className="mt-3 text-center text-[11px] text-black/35">
+                    Updated {formatUpdatedAt(selectedCollection.updatedAt)}
                   </p>
                 ) : null}
-              </aside>
+              </div>
+            </aside>
+          </div>
+
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/95 px-4 py-3 shadow-[0_-8px_28px_rgba(0,0,0,0.08)] backdrop-blur-xl xl:hidden">
+            <div className="mx-auto flex max-w-3xl items-center gap-3">
+              <div className="min-w-0 flex-1" aria-live="polite">
+                <p className="truncate text-xs font-semibold text-[--studio-ink]">
+                  {hasUnsavedChanges ? 'Unsaved changes' : 'Up to date'}
+                </p>
+                <p className="truncate text-[11px] text-[--studio-muted]">
+                  {status}
+                </p>
+              </div>
+              <Button type="submit" disabled={!canSubmit}>
+                {isPublishing ? (
+                  <LoaderCircle
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                {mode === 'create' ? 'Publish' : 'Save changes'}
+              </Button>
             </div>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
 
       <Dialog

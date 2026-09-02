@@ -750,10 +750,13 @@ export function UploadPortal() {
     payload.set('country', location.country);
     payload.set('region', location.region);
     payload.set('description', location.description);
-    files.forEach((file) => payload.append('images', file));
+    payload.append('images', files[0]);
 
     setTask('publish', 'pending');
-    setStatus('Uploading originals and publishing...');
+    setStatus(`Publishing image 1 of ${files.length}...`);
+
+    let createdCollectionId: number | null = null;
+    let uploadedCount = 0;
 
     try {
       const response = await fetch('/api/posts', {
@@ -769,13 +772,87 @@ export function UploadPortal() {
         throw new Error(data.error ?? 'Publish failed.');
       }
 
+      createdCollectionId = data.result.collectionId;
+      uploadedCount = 1;
+      let latestCollection: CollectionRecord | null = null;
+
+      for (const [index, file] of files.slice(1).entries()) {
+        setStatus(`Publishing image ${index + 2} of ${files.length}...`);
+        const imagePayload = new FormData();
+        imagePayload.append('images', file);
+
+        const imageResponse = await fetch(
+          `/api/posts/${createdCollectionId}/images`,
+          {
+            method: 'POST',
+            body: imagePayload,
+          },
+        );
+        const imageData = await readApiResponse<{
+          collection?: CollectionRecord;
+          error?: string;
+        }>(imageResponse);
+
+        if (!imageResponse.ok || !imageData.collection) {
+          throw new Error(imageData.error ?? 'Image upload failed.');
+        }
+
+        latestCollection = imageData.collection;
+        uploadedCount = index + 2;
+      }
+
+      if (coverIndex > 0) {
+        const coverImageId = latestCollection?.images[coverIndex]?.id;
+        if (!coverImageId || !latestCollection) {
+          throw new Error('Could not apply the selected cover image.');
+        }
+
+        setStatus('Applying the selected cover...');
+        const coverResponse = await fetch(`/api/posts/${createdCollectionId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title,
+            content,
+            sortOrder: sortOrder ? Number(sortOrder) : null,
+            coverImageId,
+            imageOrder: latestCollection.images.map((image) => image.id),
+            latitude: location.latitude,
+            longitude: location.longitude,
+            locationName: location.locationName,
+            country: location.country,
+            region: location.region,
+            description: location.description,
+          }),
+        });
+        const coverData = await readApiResponse<{
+          collection?: CollectionRecord;
+          error?: string;
+        }>(coverResponse);
+
+        if (!coverResponse.ok || !coverData.collection) {
+          throw new Error(coverData.error ?? 'Cover update failed.');
+        }
+      }
+
       setStatus(
-        `Published #${data.result.collectionId} with ${data.result.uploadedCount} image(s).`,
+        `Published #${createdCollectionId} with ${uploadedCount} image(s).`,
       );
-      await refreshCollections(data.result.collectionId);
+      await refreshCollections(createdCollectionId);
       resetForCreate();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Publish failed.');
+      const message =
+        error instanceof Error ? error.message : 'Publish failed.';
+      if (createdCollectionId) {
+        await refreshCollections(createdCollectionId);
+        setStatus(
+          `Created #${createdCollectionId} with ${uploadedCount}/${files.length} image(s). ${message} Re-select any remaining images to continue.`,
+        );
+      } else {
+        setStatus(message);
+      }
     } finally {
       setTask('publish', 'idle');
     }
@@ -871,35 +948,56 @@ export function UploadPortal() {
       return;
     }
 
-    const payload = new FormData();
-    files.forEach((file) => payload.append('images', file));
-
     setTask('uploadImages', 'pending');
-    setStatus(`Uploading ${files.length} new image(s)...`);
+    setStatus(`Uploading image 1 of ${files.length}...`);
+
+    let uploadedCount = 0;
+    let latestCollection: CollectionRecord | null = null;
 
     try {
-      const response = await fetch(
-        `/api/posts/${selectedCollectionId}/images`,
-        {
-          method: 'POST',
-          body: payload,
-        },
-      );
-      const data = await readApiResponse<{
-        collection?: CollectionRecord;
-        error?: string;
-      }>(response);
+      for (const [index, file] of files.entries()) {
+        setStatus(`Uploading image ${index + 1} of ${files.length}...`);
+        const payload = new FormData();
+        payload.append('images', file);
 
-      if (!response.ok || !data.collection) {
-        throw new Error(data.error ?? 'Image upload failed.');
+        const response = await fetch(
+          `/api/posts/${selectedCollectionId}/images`,
+          {
+            method: 'POST',
+            body: payload,
+          },
+        );
+        const data = await readApiResponse<{
+          collection?: CollectionRecord;
+          error?: string;
+        }>(response);
+
+        if (!response.ok || !data.collection) {
+          throw new Error(data.error ?? 'Image upload failed.');
+        }
+
+        latestCollection = data.collection;
+        uploadedCount = index + 1;
       }
 
-      loadCollectionIntoForm(data.collection);
-      await refreshCollections(data.collection.id);
-      setStatus(`Added ${files.length} image(s) to #${data.collection.id}.`);
+      if (!latestCollection) {
+        throw new Error('Image upload failed.');
+      }
+
+      loadCollectionIntoForm(latestCollection);
+      await refreshCollections(latestCollection.id);
+      setStatus(`Added ${uploadedCount} image(s) to #${latestCollection.id}.`);
     } catch (error) {
+      if (latestCollection) {
+        loadCollectionIntoForm(latestCollection);
+        await refreshCollections(latestCollection.id);
+      }
+      const message =
+        error instanceof Error ? error.message : 'Image upload failed.';
       setStatus(
-        error instanceof Error ? error.message : 'Image upload failed.',
+        uploadedCount
+          ? `Added ${uploadedCount}/${files.length} image(s). ${message} Re-select any remaining images to continue.`
+          : message,
       );
     } finally {
       setTask('uploadImages', 'idle');
